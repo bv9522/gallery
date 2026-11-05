@@ -34,6 +34,7 @@ android {
 
   defaultConfig {
     applicationId = "com.google.aiedge.gallery"
+    manifestPlaceholders["galleryDeepLinkScheme"] = "com.google.ai.edge.gallery"
     minSdk = 31
     targetSdk = 37
     versionCode = 52
@@ -49,6 +50,18 @@ android {
     buildConfigField("String", "FEEDBACK_API_KEY", "\"\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
+
+  flavorDimensions += "distribution"
+  productFlavors {
+    create("standard") {
+      dimension = "distribution"
+    }
+    create("localMcp") {
+      dimension = "distribution"
+      applicationIdSuffix = ".localmcp"
+      manifestPlaceholders["galleryDeepLinkScheme"] = "com.google.ai.edge.gallery.localmcp"
+    }
   }
 
   buildTypes {
