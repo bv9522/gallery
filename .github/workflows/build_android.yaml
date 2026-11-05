@@ -28,6 +28,6 @@
         - name: Install Android SDK Platform 37
           run: echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37.0"
         - name: Build
-          run: ./gradlew assembleRelease
+          run: ./gradlew test assembleRelease
   
   
