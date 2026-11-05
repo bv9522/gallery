@@ -24,7 +24,6 @@ import java.util.Locale
  * local-MCP build. This is enforced at the connection boundary so restored DataStore entries
  * receive the same validation as newly entered URLs.
  */
-@VisibleForTesting
 internal fun validateMcpServerUrl(url: String) {
   val uri =
     try {
