@@ -49,6 +49,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URI
+import java.util.Locale
 
 private const val TAG = "AGMcpManagerVM"
 
@@ -414,6 +416,7 @@ constructor(
     savedAlwaysAllowMap: Map<String, Boolean>? = null,
     mcpAuth: McpAuth? = null,
   ): Pair<Client, List<McpTool>> {
+    validateMcpServerUrl(url)
     Log.d(TAG, "Initializing MCP for $url...")
     val client =
       Client(
