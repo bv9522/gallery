@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.customtasks.agentchat
 
 import android.os.Bundle
+import android.security.NetworkSecurityPolicy
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.datastore.core.DataStore
@@ -49,6 +50,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.net.URI
 
 private const val TAG = "AGMcpManagerVM"
 
@@ -81,7 +83,12 @@ constructor(
   private val _uiState = MutableStateFlow(McpManagerUiState())
   val uiState = _uiState.asStateFlow()
 
-  private val httpClient = HttpClient(Android) { install(SSE) }
+  private val httpClient = HttpClient(Android) {
+    install(SSE)
+    // Do not follow redirects: a trusted HTTPS or loopback URL must not redirect to an
+    // unvalidated cleartext endpoint.
+    followRedirects = false
+  }
 
   /**
    * Loads the persisted MCP servers from the DataStore and initializes their client connections.
@@ -414,6 +421,14 @@ constructor(
     savedAlwaysAllowMap: Map<String, Boolean>? = null,
     mcpAuth: McpAuth? = null,
   ): Pair<Client, List<McpTool>> {
+    validateMcpServerUrl(url)
+    val parsedUrl = URI(url)
+    if (parsedUrl.scheme.equals("http", ignoreCase = true)) {
+      val host = requireNotNull(parsedUrl.host)
+      require(NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted(host)) {
+        "Android's network security policy does not permit HTTP to $host. Use the localMcp build and a loopback URL."
+      }
+    }
     Log.d(TAG, "Initializing MCP for $url...")
     val client =
       Client(
