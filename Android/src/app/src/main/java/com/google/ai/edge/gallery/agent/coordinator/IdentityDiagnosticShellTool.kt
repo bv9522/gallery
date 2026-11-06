@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.agent.coordinator
 
 import com.google.ai.edge.gallery.shizuku.ShizukuShellClient
+import kotlinx.coroutines.CancellationException
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 
@@ -57,6 +58,8 @@ class IdentityDiagnosticShellTool(
 
     val result = try {
       client.execute("id")
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (error: Exception) {
       return AgentToolResult(
         "Shizuku diagnostic execution failed: " +
