@@ -34,8 +34,9 @@ import java.util.regex.Pattern
  * working directory and exported environment variables between commands.
  *
  * This is Android's shell environment, not root or a bundled GNU/Linux environment. Streams are
- * pipes rather than a PTY, so full-screen terminal applications and terminal job-control signals
- * are not supported. Session count, command duration, and captured output are bounded.
+ * pipes rather than a PTY, so full-screen terminal applications, interactive command stdin, and
+ * terminal job-control signals are not supported yet. Session count, command duration, and
+ * captured output are bounded.
  */
 class ShizukuShellUserService : IShizukuShellService.Stub() {
 
@@ -79,16 +80,6 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       session.close()
     }
     return result
-  }
-
-  override fun writeStdin(sessionId: String, input: String): Bundle {
-    val session = sessions[sessionId] ?: return errorBundle("Shell session not found.")
-    return try {
-      session.writeStdin(input)
-      Bundle().apply { putBoolean(KEY_SUCCESS, true) }
-    } catch (error: Exception) {
-      errorBundle(error.message ?: "Could not write to shell stdin.")
-    }
   }
 
   override fun closeSession(sessionId: String) {
@@ -172,14 +163,6 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
 
         capture.toBundle()
       }
-
-    fun writeStdin(input: String) {
-      synchronized(writerLock) {
-        check(process.isAlive) { "Shell process is no longer running." }
-        writer.write(input)
-        writer.flush()
-      }
-    }
 
     fun close() {
       activeCapture.getAndSet(null)?.signalFailure()
@@ -315,7 +298,6 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     const val KEY_TIMED_OUT = "timed_out"
     const val KEY_OUTPUT_TRUNCATED = "output_truncated"
     const val KEY_ERROR = "error"
-    const val KEY_SUCCESS = "success"
 
     private const val MAX_SESSIONS = 3
     private const val MIN_TIMEOUT_MS = 100L
