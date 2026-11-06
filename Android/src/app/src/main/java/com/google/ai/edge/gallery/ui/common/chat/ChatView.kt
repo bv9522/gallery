@@ -431,7 +431,7 @@ fun ChatView(
               modifier =
                 Modifier.align(Alignment.BottomCenter)
                   .fillMaxWidth()
-                  .padding(bottom = 104.dp),
+                  .padding(bottom = 156.dp),
               contentAlignment = Alignment.Center,
             ) {
               composableBelowMessageList(selectedModel)
