@@ -31,11 +31,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
-/** Small on-device acceptance test for the app-to-Shizuku binder path. */
+/**
+ * On-device acceptance test for persistent Shizuku shell sessions.
+ *
+ * Verifies shell identity, state persistence (cwd and environment), separate stderr, and exit
+ * status. This diagnostic surface is not the model-driven agent or its approval layer.
+ */
 class ShizukuDiagnosticActivity : ComponentActivity() {
   private lateinit var statusView: TextView
   private lateinit var runButton: Button
   private var shellService: IShizukuShellService? = null
+  private var sessionId: String? = null
   private var bound = false
 
   private val userServiceArgs by lazy {
@@ -50,12 +56,13 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
     object : ServiceConnection {
       override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
         shellService = IShizukuShellService.Stub.asInterface(binder)
-        statusView.text = "Connected to Shizuku UserService. Tap the button to run id."
+        statusView.text = "Connected to Shizuku. Tap to test one persistent shell session."
         runButton.isEnabled = true
       }
 
       override fun onServiceDisconnected(name: ComponentName?) {
         shellService = null
+        sessionId = null
         statusView.text = "Shizuku UserService disconnected."
         runButton.isEnabled = true
       }
@@ -77,12 +84,12 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
 
     statusView =
       TextView(this).apply {
-        text = "Shizuku diagnostic ready. Tap below to request permission and connect."
+        text = "Shizuku persistent-shell diagnostic ready. Tap below to request permission and connect."
         textSize = 16f
       }
     runButton =
       Button(this).apply {
-        text = "Run id through Shizuku"
+        text = "Test persistent shell"
         setOnClickListener { connectOrExecute() }
       }
 
@@ -115,10 +122,10 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
       if (shellService == null) {
         bindUserService()
       } else {
-        executeId()
+        runPersistentSessionTest()
       }
     } catch (error: Exception) {
-      statusView.text = "Shizuku error: ${error.message}"
+      statusView.text = "Shizuku error: " + error.message
       runButton.isEnabled = true
     }
   }
@@ -129,12 +136,12 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
       Shizuku.bindUserService(userServiceArgs, serviceConnection)
       bound = true
     } catch (error: Exception) {
-      statusView.text = "Could not bind Shizuku UserService: ${error.message}"
+      statusView.text = "Could not bind Shizuku UserService: " + error.message
       runButton.isEnabled = true
     }
   }
 
-  private fun executeId() {
+  private fun runPersistentSessionTest() {
     val service = shellService
     if (service == null) {
       statusView.text = "Shizuku shell service is not connected."
@@ -142,15 +149,53 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
       return
     }
 
-    statusView.text = "Executing id as Android shell…"
+    statusView.text = "Creating persistent Android shell session…"
     lifecycleScope.launch {
       try {
-        val result = withContext(Dispatchers.IO) { service.execute("id") }
-        val output = result.getString(ShizukuShellUserService.KEY_OUTPUT).orEmpty()
-        val exitCode = result.getInt(ShizukuShellUserService.KEY_EXIT_CODE, -1)
-        statusView.text = "Exit code: $exitCode\n\n$output"
+        val report = withContext(Dispatchers.IO) {
+          val created = service.createSession("/")
+          val id = created.getString(ShizukuShellUserService.KEY_SESSION_ID)
+            ?: error(created.getString(ShizukuShellUserService.KEY_ERROR) ?: "Session creation failed.")
+          sessionId = id
+
+          val identity = service.execute(id, "id", COMMAND_TIMEOUT_MS, OUTPUT_LIMIT)
+          val setup = service.execute(
+            id,
+            "cd /storage/emulated/0 && export WINTAINIUM_SESSION_TEST=persists",
+            COMMAND_TIMEOUT_MS,
+            OUTPUT_LIMIT,
+          )
+          val verification = service.execute(
+            id,
+            "printf 'cwd='; pwd; printf 'env=%s\\n' \"\$WINTAINIUM_SESSION_TEST\"; printf 'stderr-check\\n' >&2; false",
+            COMMAND_TIMEOUT_MS,
+            OUTPUT_LIMIT,
+          )
+
+          listOf(identity, setup, verification)
+        }
+
+        val identity = report[0]
+        val setup = report[1]
+        val verification = report[2]
+        val error = listOf(identity, setup, verification)
+          .firstNotNullOfOrNull { it.getString(ShizukuShellUserService.KEY_ERROR) }
+        statusView.text = buildString {
+          if (error != null) appendLine("ERROR: " + error)
+          appendLine("Identity (uid 2000 expected):")
+          appendLine(identity.getString(ShizukuShellUserService.KEY_STDOUT).orEmpty())
+          appendLine("Persistent state (cwd should be /storage/emulated/0):")
+          appendLine(verification.getString(ShizukuShellUserService.KEY_STDOUT).orEmpty())
+          appendLine("Separate stderr:")
+          appendLine(verification.getString(ShizukuShellUserService.KEY_STDERR).orEmpty())
+          appendLine("Exit code: " + verification.getInt(ShizukuShellUserService.KEY_EXIT_CODE, -1) + " (1 expected)")
+          appendLine("Setup exit code: " + setup.getInt(ShizukuShellUserService.KEY_EXIT_CODE, -1) + " (0 expected)")
+          if (verification.getBoolean(ShizukuShellUserService.KEY_OUTPUT_TRUNCATED)) {
+            appendLine("Output was truncated.")
+          }
+        }
       } catch (error: Exception) {
-        statusView.text = "Command failed: ${error.message}"
+        statusView.text = "Persistent shell test failed: " + error.message
       } finally {
         runButton.isEnabled = true
       }
@@ -159,6 +204,9 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
 
   override fun onDestroy() {
     Shizuku.removeRequestPermissionResultListener(permissionListener)
+    sessionId?.let { id ->
+      shellService?.let { service -> runCatching { service.closeSession(id) } }
+    }
     if (bound) {
       runCatching { Shizuku.unbindUserService(userServiceArgs, serviceConnection, true) }
       bound = false
@@ -169,5 +217,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
 
   private companion object {
     const val REQUEST_CODE = 4812
+    const val COMMAND_TIMEOUT_MS = 15_000L
+    const val OUTPUT_LIMIT = 32 * 1_024
   }
 }
