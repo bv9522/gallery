@@ -50,7 +50,7 @@ class LiteRtLmAgentModel(
   private val mutex = Mutex()
   private var consumedMessageCount = 0
   private var modelTurn = 0
-  private var closed = false
+  @Volatile private var closed = false
 
   init {
     require(!conversation.automaticToolCalling) {
