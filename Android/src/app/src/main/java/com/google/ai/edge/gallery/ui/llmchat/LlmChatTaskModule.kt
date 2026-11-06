@@ -226,6 +226,8 @@ abstract class BaseLlmChatTask(
   }
 }
 
+
+
 /** Temporary on-device acceptance control for the native LiteRT-LM → coordinator → Shizuku path. */
 @Composable
 private fun GemmaToolCallingDiagnostic(
@@ -334,7 +336,8 @@ constructor(
       description = context.getString(R.string.task_desc_ask_image),
       shortDescription = context.getString(R.string.task_short_desc_ask_image),
       docUrl = "https://github.com/google-ai-edge/LiteRT-LM/blob/main/kotlin/README.md",
-      sourceCodeUrl = "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
+      sourceCodeUrl =
+        "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
       textInputPlaceHolderRes = R.string.text_input_placeholder_llm_chat,
       supportImage = true,
       supportContextCompact = true,
@@ -397,7 +400,7 @@ constructor(
 }
 
 @Module
-@InstallIn(SingletonComponent::class) // Or another component that fits the scope
+@InstallIn(SingletonComponent::class) // Or another component that fits your scope
 internal object LlmAskImageModule {
   @Provides
   @IntoSet
@@ -428,7 +431,8 @@ constructor(
       description = context.getString(R.string.task_desc_audio_scribe),
       shortDescription = context.getString(R.string.task_short_desc_audio_scribe),
       docUrl = "https://github.com/google-ai-edge/LiteRT-LM/blob/main/kotlin/README.md",
-      sourceCodeUrl = "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
+      sourceCodeUrl =
+        "https://github.com/google-ai-edge/gallery/blob/main/Android/src/app/src/main/java/com/google/ai/edge/gallery/ui/llmchat/LlmChatModelHelper.kt",
       textInputPlaceHolderRes = R.string.text_input_placeholder_llm_chat,
       supportAudio = true,
       supportContextCompact = true,
@@ -490,3 +494,15 @@ constructor(
   }
 }
 
+@Module
+@InstallIn(SingletonComponent::class) // Or another component that fits your scope
+internal object LlmAskAudioModule {
+  @Provides
+  @IntoSet
+  fun provideTask(
+    @ApplicationContext context: Context,
+    @AiChatExecutor executor: AgentRuntimeExecutor,
+  ): CustomTask {
+    return LlmAskAudioTask(context, executor)
+  }
+}
