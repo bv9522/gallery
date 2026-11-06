@@ -65,6 +65,7 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+    aidl = true
   }
   packaging { jniLibs { pickFirsts.add("**/liblitertlm_jni.so") } }
 }
@@ -145,6 +146,8 @@ dependencies {
   implementation(libs.tasks.audio)
   implementation(libs.androidx.pdf.core)
   implementation(libs.androidx.pdf.document.service)
+  implementation(libs.shizuku.api)
+  implementation(libs.shizuku.provider)
 }
 
 configurations.all { resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.0") }
