@@ -3,5 +3,9 @@ package com.google.ai.edge.gallery.shizuku;
 import android.os.Bundle;
 
 interface IShizukuShellService {
-    Bundle execute(String command);
+    Bundle createSession(String workingDirectory);
+    Bundle execute(String sessionId, String command, long timeoutMs, int maxOutputChars);
+    Bundle writeStdin(String sessionId, String input);
+    void closeSession(String sessionId);
+    void closeAllSessions();
 }
