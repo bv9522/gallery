@@ -126,7 +126,7 @@ class ShizukuShellTool(
     }
 
     val approved = try {
-      approval.requestApproval(ShellCommandApprovalRequest(command, timeoutMs, maxOutputChars))
+      approval.requestApproval(ShellCommandApprovalRequest(command, timeoutMs, maxOutputChars.toInt()))
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (error: Exception) {
