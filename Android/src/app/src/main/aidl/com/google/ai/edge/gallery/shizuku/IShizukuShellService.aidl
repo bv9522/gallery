@@ -5,7 +5,6 @@ import android.os.Bundle;
 interface IShizukuShellService {
     Bundle createSession(String workingDirectory);
     Bundle execute(String sessionId, String command, long timeoutMs, int maxOutputChars);
-    Bundle writeStdin(String sessionId, String input);
     void closeSession(String sessionId);
     void closeAllSessions();
 }
