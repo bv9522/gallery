@@ -143,7 +143,7 @@ class ShizukuShellTool(
       client.execute(
         command,
         timeoutMs = timeoutMs,
-        maxOutputChars = maxOutputChars,
+        maxOutputChars = maxOutputChars.toInt(),
       )
     } catch (cancelled: CancellationException) {
       throw cancelled
