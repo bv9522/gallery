@@ -25,6 +25,7 @@ data class AgentMessage(
   val toolCallId: String? = null,
   val toolName: String? = null,
   val toolArguments: JsonObject? = null,
+  val toolSucceeded: Boolean? = null,
 ) {
   enum class Role { USER, ASSISTANT, TOOL }
 }
