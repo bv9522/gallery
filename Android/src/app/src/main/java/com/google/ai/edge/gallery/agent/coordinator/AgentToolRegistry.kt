@@ -33,4 +33,7 @@ class AgentToolRegistry(tools: List<AgentTool>) {
   fun find(name: String): AgentTool? = toolsByName[name]
 
   fun names(): Set<String> = toolsByName.keys
+
+  /** Stable snapshot used to construct model-visible tool descriptions. */
+  fun all(): List<AgentTool> = toolsByName.values.toList()
 }
