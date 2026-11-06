@@ -46,6 +46,7 @@ import kotlinx.coroutines.withContext
 class LiteRtLmAgentModel(
   private val conversation: Conversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+  private val onClosed: (() -> Unit)? = null,
 ) : AgentModel, Closeable {
   private val mutex = Mutex()
   private var consumedMessageCount = 0
@@ -108,7 +109,11 @@ class LiteRtLmAgentModel(
   override fun close() {
     if (closed) return
     closed = true
-    conversation.close()
+    try {
+      conversation.close()
+    } finally {
+      onClosed?.invoke()
+    }
   }
 
   companion object {
