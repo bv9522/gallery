@@ -235,11 +235,26 @@ private fun GemmaToolCallingDiagnostic(
   val context = androidx.compose.ui.platform.LocalContext.current
   val chatState by viewModel.uiState.collectAsStateWithLifecycle()
   var running by remember(model.name) { mutableStateOf(false) }
-  var result by remember(model.name) { mutableStateOf("Runs a real structured tool call; the only permitted shell command is id.") }
+  var result by remember(model.name) { mutableStateOf("Only the harmless shell command id is permitted.") }
+  val disabledReason =
+    when {
+      running -> "Diagnostic is running…"
+      model.instance == null -> "Send one normal message to Gemma first to load the model; this button will then enable."
+      chatState.inProgress -> "Wait for the current chat response to finish."
+      chatState.isResettingSession -> "Wait for the chat session reset to finish."
+      else -> null
+    }
 
   Column(
-    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-    verticalArrangement = Arrangement.spacedBy(8.dp),
+    modifier =
+      Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        .background(
+          MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+          RoundedCornerShape(16.dp),
+        )
+        .padding(horizontal = 12.dp, vertical = 6.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp),
   ) {
     Button(
       enabled = !running && model.instance != null &&
@@ -255,7 +270,12 @@ private fun GemmaToolCallingDiagnostic(
     ) {
       Text(if (running) "Running diagnostic…" else "Test Gemma tool calling → Shizuku")
     }
-    Text(result, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(
+      disabledReason ?: result,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodySmall,
+      maxLines = 3,
+    )
   }
 }
 
