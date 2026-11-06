@@ -103,6 +103,7 @@ object LlmChatModelHelper : LlmModelHelper {
    * Creates a dedicated manual-tool-calling conversation over the already initialized engine.
    * The normal chat conversation is left untouched.
    */
+  @OptIn(ExperimentalApi::class)
   fun createAgentModel(
     model: Model,
     tools: AgentToolRegistry,
@@ -124,14 +125,24 @@ object LlmChatModelHelper : LlmModelHelper {
           ).toDouble(),
         )
       }
-    val conversation = instance.engine.createConversation(
-      ConversationConfig(
-        samplerConfig = samplerConfig,
-        systemInstruction = systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
-        tools = LiteRtLmAgentModel.toolProviders(tools),
-        automaticToolCalling = false,
-      )
-    )
+    // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
+    // Enable it only while creating this dedicated agent conversation; normal chat is unchanged.
+    val previousConstrainedDecoding = ExperimentalFlags.enableConversationConstrainedDecoding
+    ExperimentalFlags.enableConversationConstrainedDecoding = true
+    val conversation =
+      try {
+        instance.engine.createConversation(
+          ConversationConfig(
+            samplerConfig = samplerConfig,
+            systemInstruction =
+              systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
+            tools = LiteRtLmAgentModel.toolProviders(tools),
+            automaticToolCalling = false,
+          )
+        )
+      } finally {
+        ExperimentalFlags.enableConversationConstrainedDecoding = previousConstrainedDecoding
+      }
     instance.activeEphemeralConversations.add(conversation)
     return LiteRtLmAgentModel(conversation, onClosed = {
       instance.activeEphemeralConversations.remove(conversation)
