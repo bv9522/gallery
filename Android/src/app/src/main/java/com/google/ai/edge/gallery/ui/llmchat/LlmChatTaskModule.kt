@@ -28,13 +28,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Mms
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -150,6 +156,11 @@ abstract class BaseLlmChatTask(
       showImagePicker = true,
       showAudioPicker = true,
       showTextFilePicker = true,
+      composableBelowMessageList = { model ->
+        if (task.id == BuiltInTaskId.LLM_CHAT) {
+          GemmaToolCallingDiagnostic(model = model, viewModel = viewModel)
+        }
+      },
       onSystemPromptChanged = { newPrompt ->
         val selectedModel = myData.modelManagerViewModel.uiState.value.selectedModel
         viewModel.applySystemPromptChange(
@@ -212,6 +223,39 @@ abstract class BaseLlmChatTask(
         }
       },
     )
+  }
+}
+
+
+
+/** Temporary on-device acceptance control for the native LiteRT-LM → coordinator → Shizuku path. */
+@Composable
+private fun GemmaToolCallingDiagnostic(
+  model: Model,
+  viewModel: LlmChatViewModel,
+) {
+  val context = androidx.compose.ui.platform.LocalContext.current
+  var running by remember(model.name) { mutableStateOf(false) }
+  var result by remember(model.name) { mutableStateOf("Runs a real structured tool call; the only permitted shell command is id.") }
+
+  Column(
+    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Button(
+      enabled = !running && model.instance != null,
+      onClick = {
+        running = true
+        result = "Running Gemma → structured tool call → coordinator → Shizuku…"
+        viewModel.runGemmaToolCallingDiagnostic(context, model) { report ->
+          result = report
+          running = false
+        }
+      },
+    ) {
+      Text(if (running) "Running diagnostic…" else "Test Gemma tool calling → Shizuku")
+    }
+    Text(result, color = MaterialTheme.colorScheme.onSurfaceVariant)
   }
 }
 
