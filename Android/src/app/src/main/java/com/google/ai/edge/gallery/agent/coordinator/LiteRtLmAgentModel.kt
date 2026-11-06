@@ -70,8 +70,11 @@ class LiteRtLmAgentModel(
 
       val userMessages = pending.filter { it.role == AgentMessage.Role.USER }
       val toolMessages = pending.filter { it.role == AgentMessage.Role.TOOL }
-      require(userMessages.size + toolMessages.size == 1) {
-        "Expected exactly one new user message or a non-empty tool-result batch; got " +
+      require(
+        (userMessages.size == 1 && toolMessages.isEmpty()) ||
+          (userMessages.isEmpty() && toolMessages.isNotEmpty())
+      ) {
+        "Expected one new user message or a non-empty tool-result batch; got " +
           "${userMessages.size} user and ${toolMessages.size} tool messages."
       }
 
