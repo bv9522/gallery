@@ -37,7 +37,18 @@ import rikka.shizuku.Shizuku
  * One persistent shell session is retained for this client instance so cwd and exported variables
  * survive consecutive tool calls. This class does not grant root access.
  */
-class ShizukuShellClient(context: Context) {
+/** Injectable execution boundary for tools and tests. */
+interface ShizukuShellExecutor {
+  suspend fun execute(
+    command: String,
+    workingDirectory: String = "/",
+    timeoutMs: Long = ShizukuShellClient.DEFAULT_TIMEOUT_MS,
+    maxOutputChars: Int = ShizukuShellClient.DEFAULT_OUTPUT_LIMIT,
+  ): ShizukuShellResult
+}
+
+/** App-side client that binds to the Shizuku UserService. */
+class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
 
   private val appContext = context.applicationContext
   private val sessionMutex = Mutex()
@@ -83,11 +94,11 @@ class ShizukuShellClient(context: Context) {
    * @throws IllegalStateException when Shizuku is unavailable, permission is missing, or the
    * service cannot be bound.
    */
-  suspend fun execute(
+  override suspend fun execute(
     command: String,
-    workingDirectory: String = "/",
-    timeoutMs: Long = DEFAULT_TIMEOUT_MS,
-    maxOutputChars: Int = DEFAULT_OUTPUT_LIMIT,
+    workingDirectory: String,
+    timeoutMs: Long,
+    maxOutputChars: Int,
   ): ShizukuShellResult {
     require(command.isNotBlank()) { "Command must not be blank." }
     require(timeoutMs in MIN_TIMEOUT_MS..MAX_TIMEOUT_MS) {
