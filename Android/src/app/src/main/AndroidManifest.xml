@@ -98,6 +98,10 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".termux.TermuxCommandResultReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".shizuku.ShizukuDiagnosticActivity"
             android:exported="false"
@@ -196,6 +200,7 @@
 
     <!-- Text-to-speech engines and the XR glasses service used by speech and XR Language Teacher. -->
     <queries>
+        <package android:name="com.termux" />
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
