@@ -89,6 +89,7 @@ class AgentCoordinator(
             content = result.content,
             toolCallId = response.callId,
             toolName = response.name,
+            toolSucceeded = result.isSuccessful,
           )
         }
       }
