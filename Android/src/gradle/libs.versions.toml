@@ -51,6 +51,7 @@ mlkitGenaiTextToSpeech = "1.0.0-alpha1"
 mlkitGenaiSchema = "1.0.0-alpha2"
 tasksAudio = "1.2.0"
 androidxPdf = "1.0.0-beta01"
+shizuku = "13.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -120,6 +121,8 @@ mlkit-genai-schema-compiler = { group = "com.google.mlkit", name = "genai-schema
 tasks-audio = { group = "com.google.mediapipe", name = "tasks-audio", version.ref = "tasksAudio" }
 androidx-pdf-core = { group = "androidx.pdf", name = "pdf-core", version.ref = "androidxPdf" }
 androidx-pdf-document-service = { group = "androidx.pdf", name = "pdf-document-service", version.ref = "androidxPdf" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
