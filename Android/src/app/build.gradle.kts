@@ -51,6 +51,14 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  flavorDimensions += "distribution"
+  productFlavors {
+    create("shizuku") {
+      dimension = "distribution"
+      applicationIdSuffix = ".shizuku"
+    }
+  }
+
   buildTypes {
     release {
       isMinifyEnabled = false
