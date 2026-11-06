@@ -31,7 +31,8 @@ import com.google.ai.edge.gallery.agent.coordinator.AgentMessage
 import com.google.ai.edge.gallery.agent.coordinator.AgentModel
 import com.google.ai.edge.gallery.agent.coordinator.AgentModelResponse
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
-import com.google.ai.edge.gallery.agent.coordinator.ShizukuShellTool
+import com.google.ai.edge.gallery.agent.coordinator.IdentityDiagnosticShellTool
+import com.google.ai.edge.gallery.termux.TermuxRunCommandClient
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,6 +49,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
   private lateinit var statusView: TextView
   private lateinit var runButton: Button
   private lateinit var agentRunButton: Button
+  private lateinit var termuxRunButton: Button
   private var pendingAgentTest = false
   private var shellService: IShizukuShellService? = null
   private var sessionId: String? = null
@@ -113,6 +115,11 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         text = "Test mock agent → real Shizuku shell"
         setOnClickListener { requestAgentShellRoundTrip() }
       }
+    termuxRunButton =
+      Button(this).apply {
+        text = "Test Termux local execution (no rish)"
+        setOnClickListener { connectTermuxOrRequestPermission() }
+      }
 
     val layout =
       LinearLayout(this).apply {
@@ -121,6 +128,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         addView(statusView)
         addView(runButton)
         addView(agentRunButton)
+        addView(termuxRunButton)
       }
     setContentView(layout)
 
@@ -198,7 +206,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         }
         val coordinator = AgentCoordinator(
           model = mockModel,
-          tools = AgentToolRegistry(listOf(ShizukuShellTool(client))),
+          tools = AgentToolRegistry(listOf(IdentityDiagnosticShellTool(client))),
         )
         val result = coordinator.run("Run the Android shell identity command and report the result.")
         val toolResult = result.messages.lastOrNull { it.role == AgentMessage.Role.TOOL }
@@ -216,6 +224,84 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
       } finally {
         runCatching { client.close() }
         agentRunButton.isEnabled = true
+      }
+    }
+  }
+
+
+  /**
+   * Verifies Termux RUN_COMMAND independently of Shizuku/rish. This diagnostic only prints
+   * Termux's own identity and environment; it does not invoke rish or Android shell commands.
+   */
+  private fun connectTermuxOrRequestPermission() {
+    try {
+      @Suppress("DEPRECATION")
+      packageManager.getPackageInfo("com.termux", 0)
+    } catch (error: PackageManager.NameNotFoundException) {
+      statusView.text = "Termux is not installed. Install and initialize Termux, then retry."
+      return
+    }
+
+    if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED) {
+      statusView.text = "Requesting permission to run commands in Termux…"
+      requestPermissions(
+        arrayOf("com.termux.permission.RUN_COMMAND"),
+        TERMUX_PERMISSION_REQUEST_CODE,
+      )
+      return
+    }
+    runTermuxLocalDiagnostic()
+  }
+
+  override fun onRequestPermissionsResult(
+    requestCode: Int,
+    permissions: Array<out String>,
+    grantResults: IntArray,
+  ) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    if (requestCode != TERMUX_PERMISSION_REQUEST_CODE) return
+    if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+      runTermuxLocalDiagnostic()
+    } else {
+      statusView.text =
+        "Termux RUN_COMMAND permission was denied. Grant it in Android Settings to continue."
+    }
+  }
+
+  private fun runTermuxLocalDiagnostic() {
+    termuxRunButton.isEnabled = false
+    statusView.text = "Launching a local command in Termux (rish is not used)…"
+    lifecycleScope.launch {
+      try {
+        val result = TermuxRunCommandClient(this@ShizukuDiagnosticActivity).execute(
+          command = "printf 'identity='; id; printf 'HOME=%s\\n' \"\$HOME\"; printf 'PREFIX=%s\\n' \"\$PREFIX\"; command -v bash",
+          workingDirectory = "~/",
+          timeoutMs = COMMAND_TIMEOUT_MS,
+          maxOutputChars = OUTPUT_LIMIT,
+        )
+        statusView.text = buildString {
+          appendLine("Termux local execution (rish not used):")
+          appendLine("Exit code: " + result.exitCode)
+          result.errorCode?.let { appendLine("Termux API error code: " + it) }
+          result.error?.let { appendLine("Error: " + it) }
+          if (result.stdout.isNotEmpty()) {
+            appendLine("STDOUT:")
+            appendLine(result.stdout)
+          }
+          if (result.stderr.isNotEmpty()) {
+            appendLine("STDERR:")
+            appendLine(result.stderr)
+          }
+          if (result.outputTruncated) appendLine("Output was truncated.")
+          if (result.processMayStillBeRunning) {
+            appendLine("Warning: the command may still be running inside Termux.")
+          }
+        }
+      } catch (error: Exception) {
+        statusView.text = "Termux execution failed: " +
+          (error.message ?: error.javaClass.simpleName)
+      } finally {
+        termuxRunButton.isEnabled = true
       }
     }
   }
@@ -307,6 +393,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
 
   private companion object {
     const val REQUEST_CODE = 4812
+    const val TERMUX_PERMISSION_REQUEST_CODE = 4813
     const val COMMAND_TIMEOUT_MS = 15_000L
     const val OUTPUT_LIMIT = 32 * 1_024
   }
