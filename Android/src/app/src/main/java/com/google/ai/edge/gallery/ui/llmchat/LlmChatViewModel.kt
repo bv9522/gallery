@@ -172,12 +172,12 @@ open class LlmChatViewModelBase(
     onResult: (String) -> Unit,
   ) {
     viewModelScope.launch(Dispatchers.Main) {
-      check(!uiState.value.inProgress && !uiState.value.isResettingSession) {
-        "Wait for the current chat response or session reset to finish before running the diagnostic."
-      }
       val client = ShizukuShellClient(context)
       var agentModel: LiteRtLmAgentModel? = null
       try {
+        check(!uiState.value.inProgress && !uiState.value.isResettingSession) {
+          "Wait for the current chat response or session reset to finish before running the diagnostic."
+        }
         check(model.instance != null) { "Load a model before running the diagnostic." }
         val registry = AgentToolRegistry(listOf(IdentityDiagnosticShellTool(client)))
         agentModel = LlmChatModelHelper.createAgentModel(
