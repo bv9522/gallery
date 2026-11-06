@@ -19,6 +19,8 @@ package com.google.ai.edge.gallery.ui.llmchat
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
+import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmAgentModel
 import com.google.ai.edge.gallery.common.cleanUpMediapipeTaskErrorMessage
 import com.google.ai.edge.gallery.common.metrics.InferenceStatus
 import com.google.ai.edge.gallery.common.metrics.MetricsTracker
@@ -97,6 +99,45 @@ data class LlmModelInstance(
 }
 
 object LlmChatModelHelper : LlmModelHelper {
+  /**
+   * Creates a dedicated manual-tool-calling conversation over the already initialized engine.
+   * The normal chat conversation is left untouched.
+   */
+  fun createAgentModel(
+    model: Model,
+    tools: AgentToolRegistry,
+    systemInstruction: String? = null,
+  ): LiteRtLmAgentModel {
+    val instance = model.instance as? LlmModelInstance
+      ?: error("LiteRT-LM model is not initialized.")
+    val accelerator = model.currentAccelerator ?: Accelerator.GPU
+    val samplerConfig =
+      if (accelerator == Accelerator.NPU || accelerator == Accelerator.TPU) {
+        null
+      } else {
+        SamplerConfig(
+          topK = model.getIntConfigValue(key = ConfigKeys.TOPK, defaultValue = DEFAULT_TOPK),
+          topP = model.getFloatConfigValue(key = ConfigKeys.TOPP, defaultValue = DEFAULT_TOPP).toDouble(),
+          temperature = model.getFloatConfigValue(
+            key = ConfigKeys.TEMPERATURE,
+            defaultValue = DEFAULT_TEMPERATURE,
+          ).toDouble(),
+        )
+      }
+    val conversation = instance.engine.createConversation(
+      ConversationConfig(
+        samplerConfig = samplerConfig,
+        systemInstruction = systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
+        tools = LiteRtLmAgentModel.toolProviders(tools),
+        automaticToolCalling = false,
+      )
+    )
+    instance.activeEphemeralConversations.add(conversation)
+    return LiteRtLmAgentModel(conversation, onClosed = {
+      instance.activeEphemeralConversations.remove(conversation)
+    })
+  }
+
   // Indexed by model name.
   private val cleanUpListeners: MutableMap<String, CleanUpListener> = mutableMapOf()
 
