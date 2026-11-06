@@ -32,13 +32,7 @@ data class AgentRunResult(
   val isSuccessful: Boolean get() = status == AgentRunStatus.COMPLETED
 }
 
-/**
- * Model-neutral tool-use loop.
- *
- * This class deliberately knows nothing about LiteRT-LM, Android UI, Shizuku, or MCP. A model
- * adapter produces structured tool calls; registered tools perform the work; results are returned
- * to the model as TOOL messages. Cancellation is cooperative through Kotlin coroutines.
- */
+/** Model-neutral tool-use loop. The coordinator is the only component that executes tools. */
 class AgentCoordinator(
   private val model: AgentModel,
   private val tools: AgentToolRegistry,
@@ -50,47 +44,27 @@ class AgentCoordinator(
 
   suspend fun run(userInput: String): AgentRunResult {
     require(userInput.isNotBlank()) { "User input must not be blank." }
-
-    val messages = mutableListOf(AgentMessage(role = AgentMessage.Role.USER, content = userInput))
+    val messages = mutableListOf(AgentMessage(AgentMessage.Role.USER, content = userInput))
     var modelTurns = 0
     var toolCalls = 0
 
     while (modelTurns < maxModelTurns) {
       val response = model.generate(messages.toList())
       modelTurns++
-
       when (response) {
         is AgentModelResponse.FinalAnswer -> {
-          messages += AgentMessage(
-            role = AgentMessage.Role.ASSISTANT,
-            content = response.text,
-          )
+          messages += AgentMessage(AgentMessage.Role.ASSISTANT, content = response.text)
           return AgentRunResult(
-            status = AgentRunStatus.COMPLETED,
-            finalText = response.text,
-            modelTurns = modelTurns,
-            toolCalls = toolCalls,
-            messages = messages.toList(),
+            AgentRunStatus.COMPLETED, response.text, modelTurns, toolCalls, messages.toList()
           )
         }
-
         is AgentModelResponse.ToolCall -> {
-          messages += AgentMessage(
-            role = AgentMessage.Role.ASSISTANT,
-            toolCallId = response.callId,
-            toolName = response.name,
-            toolArguments = response.arguments.deepCopy(),
-          )
+          executeToolCalls(listOf(response), messages)
           toolCalls++
-
-          val result = executeToolCall(response)
-          messages += AgentMessage(
-            role = AgentMessage.Role.TOOL,
-            content = result.content,
-            toolCallId = response.callId,
-            toolName = response.name,
-            toolSucceeded = result.isSuccessful,
-          )
+        }
+        is AgentModelResponse.ToolCalls -> {
+          executeToolCalls(response.calls, messages)
+          toolCalls += response.calls.size
         }
       }
     }
@@ -98,12 +72,34 @@ class AgentCoordinator(
     val limitMessage =
       "Agent stopped after reaching the configured limit of " + maxModelTurns + " model turns."
     return AgentRunResult(
-      status = AgentRunStatus.TURN_LIMIT_REACHED,
-      finalText = limitMessage,
-      modelTurns = modelTurns,
-      toolCalls = toolCalls,
-      messages = messages.toList(),
+      AgentRunStatus.TURN_LIMIT_REACHED, limitMessage, modelTurns, toolCalls, messages.toList()
     )
+  }
+
+  private suspend fun executeToolCalls(
+    calls: List<AgentModelResponse.ToolCall>,
+    messages: MutableList<AgentMessage>,
+  ) {
+    // Preserve the model's complete batch before executing any member of it.
+    calls.forEach { call ->
+      messages += AgentMessage(
+        role = AgentMessage.Role.ASSISTANT,
+        toolCallId = call.callId,
+        toolName = call.name,
+        toolArguments = call.arguments.deepCopy(),
+      )
+    }
+    // Execute sequentially: shell sessions are stateful and ordering must be deterministic.
+    calls.forEach { call ->
+      val result = executeToolCall(call)
+      messages += AgentMessage(
+        role = AgentMessage.Role.TOOL,
+        content = result.content,
+        toolCallId = call.callId,
+        toolName = call.name,
+        toolSucceeded = result.isSuccessful,
+      )
+    }
   }
 
   private suspend fun executeToolCall(call: AgentModelResponse.ToolCall): AgentToolResult {
@@ -113,7 +109,6 @@ class AgentCoordinator(
           tools.names().sorted().joinToString(", "),
         isSuccessful = false,
       )
-
     return try {
       tool.execute(call.arguments.deepCopy())
     } catch (cancelled: CancellationException) {
