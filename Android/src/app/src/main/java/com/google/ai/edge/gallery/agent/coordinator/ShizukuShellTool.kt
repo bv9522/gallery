@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,25 +16,45 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.ai.edge.gallery.shizuku.ShizukuShellExecutor
 import com.google.ai.edge.gallery.shizuku.ShizukuShellClient
 import com.google.gson.JsonObject
+import kotlinx.coroutines.CancellationException
+
+/** Details presented to the user before a model-requested shell command is executed. */
+data class ShellCommandApprovalRequest(
+  val command: String,
+  val timeoutMs: Long,
+  val maxOutputChars: Int,
+)
+
+/**
+ * UI-owned approval boundary for arbitrary shell execution.
+ *
+ * Implementations must present the exact command and its limits, and return true only after an
+ * explicit user approval. There is intentionally no auto-approve implementation.
+ */
+fun interface ShellCommandApproval {
+  suspend fun requestApproval(request: ShellCommandApprovalRequest): Boolean
+}
 
 /**
  * Model-callable adapter for the native Shizuku Android shell.
  *
- * This tool deliberately accepts shell commands rather than mapping natural language to a fixed
- * menu of Android actions. Execution approval is not implemented here; callers must keep this
- * capability behind a trusted UI/approval boundary until the Phase 5 policy layer is in place.
+ * Every invocation requires an explicit approval decision before the shell client is touched.
+ * The approval implementation belongs to the UI layer; this tool has no implicit allow path.
  */
 class ShizukuShellTool(
-  private val client: ShizukuShellClient,
+  private val client: ShizukuShellExecutor,
+  private val approval: ShellCommandApproval,
 ) : AgentTool {
 
   override val name: String = "android_shell"
 
   override val description: String =
     "Execute a command using Android's /system/bin/sh with Shizuku shell privileges (uid 2000, not root). " +
-      "Supports Android/Toybox commands and persistent shell state. Arguments: command (required string), " +
+      "Supports Android/Toybox commands and persistent shell state. Every command requires explicit user approval. " +
+      "Arguments: command (required string, maximum 8192 characters), " +
       "timeout_ms (optional integer, default 15000, range 100-120000), " +
       "max_output_chars (optional integer, default 32768, range 1024-131072)."
 
@@ -44,7 +64,7 @@ class ShizukuShellTool(
       add("properties", JsonObject().apply {
         add("command", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Shell command to execute.")
+          addProperty("description", "Shell command to execute; maximum 8192 characters.")
         })
         add("timeout_ms", JsonObject().apply {
           addProperty("type", "integer")
@@ -60,35 +80,82 @@ class ShizukuShellTool(
     }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
-    val command = arguments.get("command")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+    val allowedKeys = setOf("command", "timeout_ms", "max_output_chars")
+    val unexpectedKeys = arguments.keySet() - allowedKeys
+    if (unexpectedKeys.isNotEmpty()) {
+      return AgentToolResult(
+        "Rejected: unsupported argument(s): " + unexpectedKeys.sorted().joinToString(", "),
+        false,
+      )
+    }
+
+    val command = arguments.get("command")
+      ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
       ?.asString
       ?.takeIf { it.isNotBlank() }
       ?: return AgentToolResult("Missing required non-empty string argument: command.", false)
 
-    val timeoutMs = arguments.get("timeout_ms")?.let {
-      if (!it.isJsonPrimitive || !it.asJsonPrimitive.isNumber) {
-        return AgentToolResult("timeout_ms must be an integer.", false)
-      }
-      runCatching { it.asLong }.getOrElse {
-        return AgentToolResult("timeout_ms must be an integer.", false)
-      }
-    } ?: ShizukuShellClient.DEFAULT_TIMEOUT_MS
+    if (command.length > MAX_COMMAND_LENGTH) {
+      return AgentToolResult("Rejected: command exceeds the $MAX_COMMAND_LENGTH character limit.", false)
+    }
+    if ('\u0000' in command) {
+      return AgentToolResult("Rejected: command contains a NUL character.", false)
+    }
 
-    val maxOutputChars = arguments.get("max_output_chars")?.let {
-      if (!it.isJsonPrimitive || !it.asJsonPrimitive.isNumber) {
-        return AgentToolResult("max_output_chars must be an integer.", false)
+    val timeoutMs = parseInteger(arguments, "timeout_ms")
+      ?: if (arguments.has("timeout_ms")) {
+        return AgentToolResult("timeout_ms must be an integer.", false)
+      } else {
+        ShizukuShellClient.DEFAULT_TIMEOUT_MS
       }
-      runCatching { it.asInt }.getOrElse {
+    val maxOutputChars = parseInteger(arguments, "max_output_chars")
+      ?: if (arguments.has("max_output_chars")) {
         return AgentToolResult("max_output_chars must be an integer.", false)
+      } else {
+        ShizukuShellClient.DEFAULT_OUTPUT_LIMIT
       }
-    } ?: ShizukuShellClient.DEFAULT_OUTPUT_LIMIT
+
+    if (timeoutMs !in MIN_TIMEOUT_MS..MAX_TIMEOUT_MS) {
+      return AgentToolResult("timeout_ms must be between $MIN_TIMEOUT_MS and $MAX_TIMEOUT_MS.", false)
+    }
+    if (maxOutputChars !in MIN_OUTPUT_CHARS..MAX_OUTPUT_CHARS) {
+      return AgentToolResult(
+        "max_output_chars must be between $MIN_OUTPUT_CHARS and $MAX_OUTPUT_CHARS.",
+        false,
+      )
+    }
+
+    val approved = try {
+      approval.requestApproval(ShellCommandApprovalRequest(command, timeoutMs, maxOutputChars))
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      return AgentToolResult(
+        "Shell approval could not be obtained: " + (error.message ?: error.javaClass.simpleName),
+        false,
+      )
+    }
+    if (!approved) {
+      return AgentToolResult("Execution denied: the user did not approve this shell command.", false)
+    }
 
     val result = try {
-      client.execute(command, timeoutMs = timeoutMs, maxOutputChars = maxOutputChars)
+      client.execute(
+        command,
+        timeoutMs = timeoutMs,
+        maxOutputChars = maxOutputChars,
+      )
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (error: IllegalArgumentException) {
       return AgentToolResult(error.message ?: "Invalid shell arguments.", false)
     } catch (error: IllegalStateException) {
       return AgentToolResult(error.message ?: "Shizuku shell is unavailable.", false)
+    } catch (error: Exception) {
+      return AgentToolResult(
+        "Shizuku shell execution failed: " + (error.message ?: error.javaClass.simpleName),
+        false,
+      )
     }
 
     val response = buildString {
@@ -107,5 +174,23 @@ class ShizukuShellTool(
     }.trim()
 
     return AgentToolResult(response, result.succeeded)
+  }
+
+  private fun parseInteger(arguments: JsonObject, key: String): Long? {
+    val value = arguments.get(key) ?: return null
+    if (!value.isJsonPrimitive || !value.asJsonPrimitive.isNumber) return null
+    return runCatching {
+      val number = value.asDouble
+      val integer = value.asLong
+      integer.takeIf { number.isFinite() && number == integer.toDouble() }
+    }.getOrNull()
+  }
+
+  companion object {
+    const val MAX_COMMAND_LENGTH = 8_192
+    private const val MIN_TIMEOUT_MS = 100L
+    private const val MAX_TIMEOUT_MS = 120_000L
+    private const val MIN_OUTPUT_CHARS = 1_024L
+    private const val MAX_OUTPUT_CHARS = 128L * 1_024L
   }
 }
