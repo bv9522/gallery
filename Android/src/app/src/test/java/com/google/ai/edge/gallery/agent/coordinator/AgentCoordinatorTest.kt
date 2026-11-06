@@ -66,6 +66,43 @@ class AgentCoordinatorTest {
     assertEquals(listOf("id"), observedCommands)
   }
 
+
+  @Test
+  fun toolCallBatchExecutesEveryCallSequentiallyAndReturnsEveryResult() = runBlocking {
+    val executionOrder = mutableListOf<String>()
+    val tool = object : AgentTool {
+      override val name = "record"
+      override val description = "Record a value."
+      override suspend fun execute(arguments: JsonObject): AgentToolResult {
+        val value = arguments.get("value").asString
+        executionOrder += value
+        return AgentToolResult("recorded:$value")
+      }
+    }
+    var turns = 0
+    val model = AgentModel { history ->
+      turns++
+      if (turns == 1) {
+        AgentModelResponse.ToolCalls(
+          listOf(
+            AgentModelResponse.ToolCall("record", JsonObject().apply { addProperty("value", "one") }, "1"),
+            AgentModelResponse.ToolCall("record", JsonObject().apply { addProperty("value", "two") }, "2"),
+          )
+        )
+      } else {
+        val results = history.filter { it.role == AgentMessage.Role.TOOL }
+        assertEquals(listOf("recorded:one", "recorded:two"), results.map { it.content })
+        AgentModelResponse.FinalAnswer("Both tools completed.")
+      }
+    }
+
+    val result = AgentCoordinator(model, AgentToolRegistry(listOf(tool))).run("Record two values.")
+
+    assertEquals(AgentRunStatus.COMPLETED, result.status)
+    assertEquals(2, result.toolCalls)
+    assertEquals(listOf("one", "two"), executionOrder)
+  }
+
   @Test
   fun unknownToolIsReturnedToModelAsRecoverableToolError() = runBlocking {
     var modelTurn = 0
