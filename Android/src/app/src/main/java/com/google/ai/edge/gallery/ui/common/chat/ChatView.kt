@@ -368,11 +368,6 @@ fun ChatView(
             Column(
               modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)
             ) {
-              // Render this extension inside the foreground content column. Placing it
-              // directly in the Box before the full-size Column causes the chat panel to
-              // draw over it, making injected controls invisible.
-              composableBelowMessageList(selectedModel)
-
               AnimatedContent(
                 targetState = curModelDownloadStatus?.status == ModelDownloadStatusType.SUCCEEDED
               ) { targetState ->
@@ -428,6 +423,18 @@ fun ChatView(
                     )
                 }
               }
+            }
+
+            // Keep task-specific controls in the foreground, centered just above the
+            // message composer rather than at the top of the chat screen.
+            Box(
+              modifier =
+                Modifier.align(Alignment.BottomCenter)
+                  .fillMaxWidth()
+                  .padding(bottom = 104.dp),
+              contentAlignment = Alignment.Center,
+            ) {
+              composableBelowMessageList(selectedModel)
             }
 
             // File viewer.
