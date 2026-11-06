@@ -38,6 +38,27 @@ class ShizukuShellTool(
       "timeout_ms (optional integer, default 15000, range 100-120000), " +
       "max_output_chars (optional integer, default 32768, range 1024-131072)."
 
+  override val parametersSchema: JsonObject
+    get() = JsonObject().apply {
+      addProperty("type", "object")
+      add("properties", JsonObject().apply {
+        add("command", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Shell command to execute.")
+        })
+        add("timeout_ms", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Execution timeout in milliseconds (100-120000).")
+        })
+        add("max_output_chars", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Maximum captured output characters (1024-131072).")
+        })
+      })
+      add("required", com.google.gson.JsonArray().apply { add("command") })
+      addProperty("additionalProperties", false)
+    }
+
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
     val command = arguments.get("command")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
       ?.asString
