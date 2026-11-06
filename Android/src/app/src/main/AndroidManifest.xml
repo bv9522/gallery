@@ -34,6 +34,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="com.google.android.apps.aicore.service.BIND_SERVICE" />
+    <!-- Allows this app to request commands from the user's explicitly configured Termux install. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
     <!-- Additional permission required for push notification handling -->
     <!-- Required for resurfacing notifications after boot -->
