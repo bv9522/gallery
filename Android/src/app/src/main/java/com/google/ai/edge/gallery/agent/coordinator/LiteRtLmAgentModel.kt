@@ -21,7 +21,6 @@ import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.OpenApiTool
-import com.google.ai.edge.litertlm.ToolCall as LiteRtToolCall
 import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
 import com.google.gson.Gson
@@ -110,7 +109,9 @@ class LiteRtLmAgentModel(
     if (closed) return
     closed = true
     try {
-      conversation.close()
+      if (conversation.isAlive) {
+        runCatching { conversation.close() }
+      }
     } finally {
       onClosed?.invoke()
     }
