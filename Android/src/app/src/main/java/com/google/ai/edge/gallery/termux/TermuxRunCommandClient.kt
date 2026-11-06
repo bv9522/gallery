@@ -22,6 +22,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withContext
@@ -102,6 +103,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         )
       }
       return parseResult(bundle, maxOutputChars)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (error: SecurityException) {
       return TermuxShellResult(
         stdout = "",
@@ -155,6 +158,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     val errorCode = bundle.getInt(EXTRA_PLUGIN_RESULT_BUNDLE_ERR, RESULT_OK)
     val errorMessage = bundle.getString(EXTRA_PLUGIN_RESULT_BUNDLE_ERRMSG)
       ?.takeIf { it.isNotBlank() }
+      ?: if (errorCode != RESULT_OK) "Termux reported an internal execution error (code $errorCode)." else null
 
     return TermuxShellResult(
       stdout = stdout,
