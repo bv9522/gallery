@@ -233,6 +233,7 @@ private fun GemmaToolCallingDiagnostic(
   viewModel: LlmChatViewModel,
 ) {
   val context = androidx.compose.ui.platform.LocalContext.current
+  val chatState by viewModel.uiState.collectAsStateWithLifecycle()
   var running by remember(model.name) { mutableStateOf(false) }
   var result by remember(model.name) { mutableStateOf("Runs a real structured tool call; the only permitted shell command is id.") }
 
@@ -241,7 +242,8 @@ private fun GemmaToolCallingDiagnostic(
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Button(
-      enabled = !running && model.instance != null,
+      enabled = !running && model.instance != null &&
+        !chatState.inProgress && !chatState.isResettingSession,
       onClick = {
         running = true
         result = "Running Gemma → structured tool call → coordinator → Shizuku…"
