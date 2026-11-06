@@ -26,6 +26,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import com.google.ai.edge.gallery.agent.coordinator.AgentCoordinator
+import com.google.ai.edge.gallery.agent.coordinator.AgentMessage
+import com.google.ai.edge.gallery.agent.coordinator.AgentModel
+import com.google.ai.edge.gallery.agent.coordinator.AgentModelResponse
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
+import com.google.ai.edge.gallery.agent.coordinator.ShizukuShellTool
+import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -40,6 +47,8 @@ import rikka.shizuku.Shizuku
 class ShizukuDiagnosticActivity : ComponentActivity() {
   private lateinit var statusView: TextView
   private lateinit var runButton: Button
+  private lateinit var agentRunButton: Button
+  private var pendingAgentTest = false
   private var shellService: IShizukuShellService? = null
   private var sessionId: String? = null
   private var bound = false
@@ -72,10 +81,17 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
     Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
       if (requestCode != REQUEST_CODE) return@OnRequestPermissionResultListener
       if (grantResult == PackageManager.PERMISSION_GRANTED) {
-        bindUserService()
+        if (pendingAgentTest) {
+          pendingAgentTest = false
+          runAgentShellRoundTrip()
+        } else {
+          bindUserService()
+        }
       } else {
+        pendingAgentTest = false
         statusView.text = "Shizuku permission was denied. Grant it in the Shizuku prompt and retry."
         runButton.isEnabled = true
+        agentRunButton.isEnabled = true
       }
     }
 
@@ -92,6 +108,11 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         text = "Test persistent shell"
         setOnClickListener { connectOrExecute() }
       }
+    agentRunButton =
+      Button(this).apply {
+        text = "Test mock agent → real Shizuku shell"
+        setOnClickListener { requestAgentShellRoundTrip() }
+      }
 
     val layout =
       LinearLayout(this).apply {
@@ -99,6 +120,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         setPadding(48, 48, 48, 48)
         addView(statusView)
         addView(runButton)
+        addView(agentRunButton)
       }
     setContentView(layout)
 
@@ -127,6 +149,74 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
     } catch (error: Exception) {
       statusView.text = "Shizuku error: " + error.message
       runButton.isEnabled = true
+    }
+  }
+
+  /**
+   * Runs a deterministic mock model through the real coordinator and Shizuku shell.
+   * The only command issued by this diagnostic is the harmless identity command: id.
+   */
+  private fun requestAgentShellRoundTrip() {
+    if (!Shizuku.pingBinder()) {
+      statusView.text = "Shizuku is not running. Start Shizuku and try again."
+      return
+    }
+    try {
+      if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
+        pendingAgentTest = true
+        agentRunButton.isEnabled = false
+        statusView.text = "Requesting Shizuku permission for the agent-shell diagnostic…"
+        Shizuku.requestPermission(REQUEST_CODE)
+        return
+      }
+      runAgentShellRoundTrip()
+    } catch (error: Exception) {
+      statusView.text = "Could not start agent-shell diagnostic: " + error.message
+      agentRunButton.isEnabled = true
+    }
+  }
+
+  private fun runAgentShellRoundTrip() {
+    agentRunButton.isEnabled = false
+    statusView.text = "Mock model → coordinator → Shizuku shell → result → mock model…"
+    lifecycleScope.launch {
+      val client = ShizukuShellClient(this@ShizukuDiagnosticActivity)
+      try {
+        val mockModel = AgentModel { history ->
+          val toolResult = history.lastOrNull { it.role == AgentMessage.Role.TOOL }
+          if (toolResult == null) {
+            AgentModelResponse.ToolCall(
+              name = "android_shell",
+              arguments = JsonObject().apply { addProperty("command", "id") },
+              callId = "diagnostic-id",
+            )
+          } else {
+            AgentModelResponse.FinalAnswer(
+              "The shell returned this identity:\\n" + toolResult.content
+            )
+          }
+        }
+        val coordinator = AgentCoordinator(
+          model = mockModel,
+          tools = AgentToolRegistry(listOf(ShizukuShellTool(client))),
+        )
+        val result = coordinator.run("Run the Android shell identity command and report the result.")
+        val toolResult = result.messages.lastOrNull { it.role == AgentMessage.Role.TOOL }
+        statusView.text = buildString {
+          appendLine("Agent run status: " + result.status)
+          appendLine("Model turns: " + result.modelTurns + " | Tool calls: " + result.toolCalls)
+          appendLine("Tool succeeded: " + (toolResult?.toolSucceeded == true))
+          appendLine()
+          appendLine("Mock model's final answer:")
+          appendLine(result.finalText)
+        }
+      } catch (error: Exception) {
+        statusView.text = "Agent-to-Shizuku round trip failed: " +
+          (error.message ?: error.javaClass.simpleName)
+      } finally {
+        runCatching { client.close() }
+        agentRunButton.isEnabled = true
+      }
     }
   }
 
