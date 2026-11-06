@@ -17,10 +17,15 @@
 package com.google.ai.edge.gallery.ui.llmchat
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
 import androidx.lifecycle.viewModelScope
+import com.google.ai.edge.gallery.agent.coordinator.AgentCoordinator
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
+import com.google.ai.edge.gallery.agent.coordinator.IdentityDiagnosticShellTool
+import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmAgentModel
 import com.google.ai.edge.gallery.agent.AgentEvent
 import com.google.ai.edge.gallery.agent.AgentExecutionContext
 import com.google.ai.edge.gallery.agent.AgentRequest
@@ -61,6 +66,7 @@ import com.google.ai.edge.gallery.ui.common.chat.ContextCompactionStatus
 import com.google.ai.edge.gallery.ui.common.chat.ContextCompactionTriggerType
 import com.google.ai.edge.gallery.ui.common.chat.convertToLitertMessage
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
+import com.google.ai.edge.gallery.shizuku.ShizukuShellClient
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.Message
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -153,6 +159,61 @@ open class LlmChatViewModelBase(
    */
   fun setUISystemPrompt(systemPrompt: String) {
     _uiSystemPrompt.value = systemPrompt
+  }
+
+  /**
+   * Runs a real LiteRT-LM structured tool-call test against the loaded model.
+   *
+   * The temporary tool is intentionally restricted to the harmless "id" command; this is a
+   * diagnostic, not the unrestricted shell-agent experience or its future approval policy.
+   */
+  fun runGemmaToolCallingDiagnostic(
+    context: Context,
+    model: Model,
+    onResult: (String) -> Unit,
+  ) {
+    viewModelScope.launch(Dispatchers.Main) {
+      val client = ShizukuShellClient(context)
+      var agentModel: LiteRtLmAgentModel? = null
+      try {
+        check(model.instance != null) { "Load a model before running the diagnostic." }
+        val registry = AgentToolRegistry(listOf(IdentityDiagnosticShellTool(client)))
+        agentModel = LlmChatModelHelper.createAgentModel(
+          model = model,
+          tools = registry,
+          systemInstruction =
+            "You are running a controlled Android shell tool-calling diagnostic. " +
+              "You MUST call android_shell exactly once with the argument command set to id. " +
+              "Do not write a command as plain text. Do not request any other command. " +
+              "After receiving the tool result, explain the reported shell identity.",
+        )
+        val result = AgentCoordinator(agentModel, registry).run(
+          "Run the required Android shell identity diagnostic now."
+        )
+        val toolResult = result.messages.lastOrNull {
+          it.role == com.google.ai.edge.gallery.agent.coordinator.AgentMessage.Role.TOOL
+        }
+        onResult(buildString {
+          appendLine("Agent status: ${result.status}")
+          appendLine("Model turns: ${result.modelTurns}")
+          appendLine("Structured tool calls: ${result.toolCalls}")
+          appendLine("Tool succeeded: ${toolResult?.toolSucceeded == true}")
+          appendLine()
+          appendLine("Gemma's final answer:")
+          appendLine(result.finalText)
+          if (result.toolCalls == 0) {
+            appendLine()
+            appendLine("DIAGNOSTIC: The model did not emit a structured tool call.")
+          }
+        })
+      } catch (error: Exception) {
+        onResult("Gemma tool-calling diagnostic failed: " +
+          (error.message ?: error.javaClass.simpleName))
+      } finally {
+        agentModel?.close()
+        runCatching { client.close() }
+      }
+    }
   }
 
   /**
