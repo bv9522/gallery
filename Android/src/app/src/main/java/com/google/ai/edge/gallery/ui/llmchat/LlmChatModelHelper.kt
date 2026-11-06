@@ -175,7 +175,6 @@ object LlmChatModelHelper : LlmModelHelper {
         Accelerator.GPU -> Backend.GPU()
         Accelerator.NPU -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
         Accelerator.TPU -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
-        else -> Backend.GPU()
       }
     val shouldEnableImage = supportImage
     val shouldEnableAudio = supportAudio
