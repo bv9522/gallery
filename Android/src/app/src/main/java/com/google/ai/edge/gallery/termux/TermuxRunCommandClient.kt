@@ -185,14 +185,14 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     private const val EXTRA_COMMAND_DESCRIPTION = "com.termux.RUN_COMMAND_COMMAND_DESCRIPTION"
     private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
 
-    private const val EXTRA_PLUGIN_RESULT_BUNDLE = "result"
+    internal const val EXTRA_PLUGIN_RESULT_BUNDLE = "result"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT = "stdout"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDERR = "stderr"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT_ORIGINAL_LENGTH = "stdout_original_length"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDERR_ORIGINAL_LENGTH = "stderr_original_length"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_EXIT_CODE = "exitCode"
-    private const val EXTRA_PLUGIN_RESULT_BUNDLE_ERR = "err"
-    private const val EXTRA_PLUGIN_RESULT_BUNDLE_ERRMSG = "errmsg"
+    internal const val EXTRA_PLUGIN_RESULT_BUNDLE_ERR = "err"
+    internal const val EXTRA_PLUGIN_RESULT_BUNDLE_ERRMSG = "errmsg"
     private const val RESULT_OK = -1
 
     private const val MIN_TIMEOUT_MS = 100L
