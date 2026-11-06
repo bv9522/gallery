@@ -283,7 +283,7 @@ private fun GemmaToolCallingDiagnostic(
       disabledReason ?: result,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       style = MaterialTheme.typography.bodySmall,
-      maxLines = 3,
+      maxLines = 12,
     )
   }
 }
