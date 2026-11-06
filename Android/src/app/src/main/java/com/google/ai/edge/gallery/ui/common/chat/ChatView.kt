@@ -365,11 +365,14 @@ fun ChatView(
           Box {
             val curModelDownloadStatus = modelManagerUiState.modelDownloadStatus[selectedModel.name]
 
-            composableBelowMessageList(selectedModel)
-
             Column(
               modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)
             ) {
+              // Render this extension inside the foreground content column. Placing it
+              // directly in the Box before the full-size Column causes the chat panel to
+              // draw over it, making injected controls invisible.
+              composableBelowMessageList(selectedModel)
+
               AnimatedContent(
                 targetState = curModelDownloadStatus?.status == ModelDownloadStatusType.SUCCEEDED
               ) { targetState ->
