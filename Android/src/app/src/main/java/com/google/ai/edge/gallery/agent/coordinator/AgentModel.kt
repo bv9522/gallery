@@ -30,22 +30,29 @@ data class AgentMessage(
   enum class Role { USER, ASSISTANT, TOOL }
 }
 
-/** One response from an agent model: either a user-facing answer or a tool request. */
+/** One response from an agent model: a final answer or one or more structured tool requests. */
 sealed interface AgentModelResponse {
   data class FinalAnswer(val text: String) : AgentModelResponse
 
+  /** Retained for simple adapters and existing deterministic tests. */
   data class ToolCall(
     val name: String,
     val arguments: JsonObject,
     val callId: String,
   ) : AgentModelResponse
+
+  /** A model may request several independent tools in one inference turn. */
+  data class ToolCalls(val calls: List<ToolCall>) : AgentModelResponse {
+    init {
+      require(calls.isNotEmpty()) { "A tool-call batch must not be empty." }
+    }
+  }
 }
 
 /**
  * Adapter implemented by a real model runtime or a deterministic test double.
  *
- * Implementations must return one structured tool call at a time. The coordinator feeds the
- * corresponding tool result back as a TOOL message before asking the model for its next response.
+ * Implementations return structured tool requests; the coordinator remains the sole tool executor.
  */
 fun interface AgentModel {
   suspend fun generate(messages: List<AgentMessage>): AgentModelResponse
