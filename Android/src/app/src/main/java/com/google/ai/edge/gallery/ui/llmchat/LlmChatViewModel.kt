@@ -17,7 +17,6 @@
 package com.google.ai.edge.gallery.ui.llmchat
 
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Build
 import android.util.Log
@@ -206,6 +205,8 @@ open class LlmChatViewModelBase(
             appendLine("DIAGNOSTIC: The model did not emit a structured tool call.")
           }
         })
+      } catch (cancelled: CancellationException) {
+        throw cancelled
       } catch (error: Exception) {
         onResult("Gemma tool-calling diagnostic failed: " +
           (error.message ?: error.javaClass.simpleName))
