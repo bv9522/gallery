@@ -56,6 +56,12 @@ android {
     create("shizuku") {
       dimension = "distribution"
       applicationIdSuffix = ".shizuku"
+
+      // The Shizuku distribution targets the user's Galaxy S21 (64-bit ARM).
+      // Keep the upstream/default distribution ABI configuration unchanged.
+      ndk {
+        abiFilters += "arm64-v8a"
+      }
     }
   }
 
