@@ -26,6 +26,10 @@ interface AgentTool {
   /** Short description supplied to model adapters when constructing tool definitions. */
   val description: String
 
+  /** JSON Schema object describing the accepted arguments. */
+  val parametersSchema: JsonObject
+    get() = JsonObject().apply { addProperty("type", "object") }
+
   /** Validate arguments and execute the capability. Expected failures should be returned as results. */
   suspend fun execute(arguments: JsonObject): AgentToolResult
 }
