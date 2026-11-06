@@ -30,13 +30,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
 
-/**
- * App-side client for the Shizuku shell UserService.
- *
- * Binding and permission checks are performed through Shizuku. Binder calls run on IO dispatchers.
- * One persistent shell session is retained for this client instance so cwd and exported variables
- * survive consecutive tool calls. This class does not grant root access.
- */
 /** Injectable execution boundary for tools and tests. */
 interface ShizukuShellExecutor {
   suspend fun execute(
@@ -47,7 +40,13 @@ interface ShizukuShellExecutor {
   ): ShizukuShellResult
 }
 
-/** App-side client that binds to the Shizuku UserService. */
+/**
+ * App-side client for the Shizuku shell UserService.
+ *
+ * Binding and permission checks are performed through Shizuku. Binder calls run on IO dispatchers.
+ * One persistent shell session is retained for this client instance so cwd and exported variables
+ * survive consecutive tool calls. This class does not grant root access.
+ */
 class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
 
   private val appContext = context.applicationContext
