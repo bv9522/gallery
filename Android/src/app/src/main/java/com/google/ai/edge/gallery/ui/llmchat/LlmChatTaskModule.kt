@@ -239,9 +239,10 @@ private fun GemmaToolCallingDiagnostic(
   // Model.instance is a computed getter over initStatusFlow, not Compose state. Observe the
   // StateFlow directly so the control recomposes when initialization completes or is reset.
   val modelInitStatus by model.initStatusFlow.collectAsStateWithLifecycle()
+  val currentModelInitStatus = modelInitStatus
   val modelLoaded =
-    modelInitStatus is Model.InitializationStatus.Initialized &&
-      modelInitStatus.instance != null
+    currentModelInitStatus is Model.InitializationStatus.Initialized &&
+      currentModelInitStatus.instance != null
   var running by remember(model.name) { mutableStateOf(false) }
   var result by remember(model.name) { mutableStateOf("Only the harmless shell command id is permitted.") }
   val disabledReason =
