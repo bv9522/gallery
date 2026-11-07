@@ -17,6 +17,8 @@
 package com.google.ai.edge.gallery.shizuku
 
 import android.os.Bundle
+import android.system.Os
+import android.system.OsConstants
 import java.io.BufferedWriter
 import java.io.File
 import java.io.InputStream
@@ -49,8 +51,16 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       val directory = if (workingDirectory.isBlank()) File("/") else File(workingDirectory)
       require(directory.isDirectory) { "Working directory does not exist: " + workingDirectory }
 
+      val setsid = File("/system/bin/setsid")
+      check(setsid.isFile && setsid.canExecute()) {
+        "Android shell process supervision requires /system/bin/setsid; refusing an unsupervised shell session."
+      }
       val id = UUID.randomUUID().toString().replace("-", "")
-      val process = ProcessBuilder("/system/bin/sh").directory(directory).start()
+      // Isolate the persistent shell and every command it launches in one process group. Closing
+      // or cancelling the session can then terminate the complete process tree, not just /system/bin/sh.
+      val process = ProcessBuilder(setsid.absolutePath, "/system/bin/sh")
+        .directory(directory)
+        .start()
       val session = ShellSession(id, process)
       sessions[id] = session
       Bundle().apply { putString(KEY_SESSION_ID, id) }
@@ -102,6 +112,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     val id: String,
     private val process: Process,
   ) {
+    private val processGroupId = process.pid().toInt()
     private val writer = BufferedWriter(OutputStreamWriter(process.outputStream, StandardCharsets.UTF_8))
     private val writerLock = Any()
     private val executionLock = Any()
@@ -172,9 +183,14 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     fun close() {
       activeCapture.getAndSet(null)?.signalFailure()
       runCatching { writer.close() }
+      // setsid made this session's PID its process-group ID. Signal the whole group so commands
+      // and ordinary descendants cannot survive a timeout, cancellation, or session teardown.
+      runCatching { Os.kill(-processGroupId, OsConstants.SIGTERM) }
+      runCatching { process.waitFor(250, TimeUnit.MILLISECONDS) }
+      runCatching { Os.kill(-processGroupId, OsConstants.SIGKILL) }
       if (process.isAlive) {
-        process.destroy()
-        if (!process.waitFor(250, TimeUnit.MILLISECONDS)) process.destroyForcibly()
+        runCatching { process.destroyForcibly() }
+        runCatching { process.waitFor(250, TimeUnit.MILLISECONDS) }
       }
     }
 
