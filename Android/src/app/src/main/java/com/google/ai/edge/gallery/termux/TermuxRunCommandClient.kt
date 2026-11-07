@@ -92,6 +92,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
             command = command,
             workingDirectory = workingDirectory,
             timeoutSeconds = ((timeoutMs + 999L) / 1_000L).coerceAtLeast(1L),
+            maxOutputChars = maxOutputChars,
           ),
           DEFAULT_TERMUX_WORKDIR,
           START_TIMEOUT_MS,
@@ -118,7 +119,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           stdout = stdout,
           stderr = stderr,
           exitCode = state.exitCode,
-          outputTruncated = state.stdoutBytes + state.stderrBytes > maxOutputChars ||
+          outputTruncated = state.outputTruncated ||
+            state.stdoutBytes + state.stderrBytes > maxOutputChars ||
             stdout.length < stdoutLimit || stderr.length < stderrLimit,
         )
       }
@@ -166,7 +168,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           "printf 'DONE:'; cat ${shellQuote("$directory/status")}; printf ':'; " +
           "wc -c < ${shellQuote("$directory/stdout")} | tr -d '[:space:]'; printf ':'; " +
           "wc -c < ${shellQuote("$directory/stderr")} | tr -d '[:space:]'; " +
-          "else printf 'RUNNING'; fi"
+          "if [ -f ${shellQuote("$directory/truncated")} ]; then printf ':1'; " +
+          "else printf ':0'; fi; else printf 'RUNNING'; fi"
       val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, POLL_TIMEOUT_MS, MIN_OUTPUT_CHARS)
       if (!result.succeeded) {
         throw IllegalStateException(
@@ -176,11 +179,12 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       val value = result.stdout.trim()
       if (value.startsWith("DONE:")) {
         val fields = value.removePrefix("DONE:").split(':')
-        require(fields.size == 3) { "Termux returned malformed process status." }
+        require(fields.size == 4) { "Termux returned malformed process status." }
         return SupervisorState(
           exitCode = fields[0].toIntOrNull() ?: -1,
           stdoutBytes = fields[1].toLongOrNull() ?: 0L,
           stderrBytes = fields[2].toLongOrNull() ?: 0L,
+          outputTruncated = fields[3] == "1",
         )
       }
       delay(POLL_INTERVAL_MS)
@@ -236,12 +240,14 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     command: String,
     workingDirectory: String,
     timeoutSeconds: Long,
+    maxOutputChars: Int,
   ): String {
     val script = """
       run_dir="${'$'}1"
       work_dir="${'$'}2"
       command_text="${'$'}3"
       timeout_seconds="${'$'}4"
+      output_limit="${'$'}5"
       mkdir -p "${'$'}run_dir"
       printf '%s' "${'$'}${'$'}" > "${'$'}run_dir/pid"
       case "${'$'}work_dir" in
@@ -249,19 +255,37 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         "~/"*) work_dir="${'$'}HOME/${'$'}{work_dir#~/}" ;;
       esac
       cd "${'$'}work_dir" || { printf '126' > "${'$'}run_dir/status"; exit 126; }
+      capture_stream() {
+        output_file="${'$'}1"
+        marker_file="${'$'}2"
+        limit="${'$'}3"
+        head -c "${'$'}limit" > "${'$'}output_file"
+        extra_bytes=${'$'}(cat | wc -c)
+        if [ "${'$'}extra_bytes" -gt 0 ]; then touch "${'$'}marker_file"; fi
+      }
+      exec 3> >(capture_stream "${'$'}run_dir/stderr" "${'$'}run_dir/truncated" "${'$'}output_limit")
+      stderr_capture_pid=${'$'}!
+      exec 4> >(capture_stream "${'$'}run_dir/stdout" "${'$'}run_dir/truncated" "${'$'}output_limit")
+      stdout_capture_pid=${'$'}!
       timeout --signal=TERM --kill-after=2s "${'$'}{timeout_seconds}s" \
-        bash -lc "${'$'}command_text" > "${'$'}run_dir/stdout" 2> "${'$'}run_dir/stderr" &
+        bash -lc "${'$'}command_text" 2>&3 3>&- >&4 4>&- &
       timeout_pid=${'$'}!
       printf '%s' "${'$'}timeout_pid" > "${'$'}run_dir/timeout_pid"
       wait "${'$'}timeout_pid"
       exit_status=${'$'}?
+      exec 3>&- 4>&-
+      wait "${'$'}stderr_capture_pid" || true
+      wait "${'$'}stdout_capture_pid" || true
       printf '%s' "${'$'}exit_status" > "${'$'}run_dir/status"
     """.trimIndent()
     val directory = "$TERMUX_RUN_DIRECTORY_ROOT/$id"
     return "mkdir -p ${shellQuote(TERMUX_RUN_DIRECTORY_ROOT)} && " +
       "setsid -f bash -c ${shellQuote(script)} _ " +
       "${shellQuote(directory)} ${shellQuote(workingDirectory)} " +
-      "${shellQuote(command)} $timeoutSeconds && printf '%s' ${shellQuote(directory)}"
+      "${shellQuote(command)} $timeoutSeconds $maxOutputChars && " +
+      "for n in 1 2 3 4 5 6 7 8 9 10; do " +
+      "[ -f ${shellQuote("$directory/timeout_pid")} ] && break; sleep 0.05; done; " +
+      "printf '%s' ${shellQuote(directory)}"
   }
 
   private fun ensureTermuxReady() {
@@ -379,6 +403,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     val exitCode: Int,
     val stdoutBytes: Long,
     val stderrBytes: Long,
+    val outputTruncated: Boolean,
   )
 
   companion object {
