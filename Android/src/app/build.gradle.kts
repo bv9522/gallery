@@ -177,3 +177,13 @@ protobuf {
     }
   }
 }
+
+// Keep failed unit-test diagnostics actionable in local and GitHub Actions runs.
+tasks.withType<Test>().configureEach {
+  testLogging {
+    events("failed")
+    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    showCauses = true
+    showStackTraces = true
+  }
+}
