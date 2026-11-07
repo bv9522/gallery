@@ -136,9 +136,7 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
           })
           continuation.invokeOnCancellation {
             sessionId = null
-            Dispatchers.IO.dispatch(kotlin.coroutines.EmptyCoroutineContext, Runnable {
-              runCatching { remote.cancelSession(activeSession) }
-            })
+            runCatching { remote.cancelSession(activeSession) }
           }
         }
         val error = bundle.getString(ShizukuShellUserService.KEY_ERROR)
