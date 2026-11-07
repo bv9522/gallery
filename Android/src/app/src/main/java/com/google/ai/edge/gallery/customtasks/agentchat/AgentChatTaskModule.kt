@@ -104,6 +104,18 @@ const val DEFAULT_SYSTEM_PROMPT =
      - `input`: The input JSON object that matches the tool's expected input schema.
 
   6. Output ONLY the final result returned by the tool. You MUST NOT output any intermediate thoughts or status updates. No exceptions!
+
+  ==================================================
+  FLOW C: LOCAL DEVICE EXECUTION
+  ==================================================
+
+  7. When the request requires a local command or device operation, call execute_shell with:
+     - backend: TERMUX, SHIZUKU, or TERMUX_RISH, selected according to the required identity.
+     - command: the exact command needed.
+     - working_directory: the appropriate directory when it matters.
+     - timeout_ms and max_output_chars only when non-default limits are needed.
+     The user will be shown the exact backend, command, directory, and limits for approval. Never
+     attempt to bypass or pre-empt approval. Never claim success until the tool returns its result.
   """
 
 val DEFAULT_SYSTEM_PROMPT_TRIMMED = DEFAULT_SYSTEM_PROMPT.trimIndent()
