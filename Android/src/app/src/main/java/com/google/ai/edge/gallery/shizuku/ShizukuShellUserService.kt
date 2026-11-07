@@ -59,10 +59,28 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       val id = UUID.randomUUID().toString().replace("-", "")
       // Isolate the persistent shell and every command it launches in one process group. Closing
       // or cancelling the session can then terminate the complete process tree, not just /system/bin/sh.
-      val process = ProcessBuilder(setsid.absolutePath, "/system/bin/sh")
+      // Ask the shell to report its own PID before replacing itself with the persistent shell.
+      // Because setsid created a new session, this PID is also the process-group ID. Reading the
+      // handshake from the raw stream avoids relying on Process.pid(), which is not in Android's
+      // java.lang.Process API surface.
+      val process = ProcessBuilder(
+        setsid.absolutePath,
+        "/system/bin/sh",
+        "-c",
+        "printf '%s\\n' \"\\$\\$\"; exec /system/bin/sh",
+      )
         .directory(directory)
         .start()
-      val session = ShellSession(id, process)
+      try {
+        val processGroupId = readProcessGroupId(process)
+        val session = ShellSession(id, process, processGroupId)
+        sessions[id] = session
+        Bundle().apply { putString(KEY_SESSION_ID, id) }
+      } catch (error: Exception) {
+        runCatching { process.destroyForcibly() }
+        runCatching { process.waitFor(250, TimeUnit.MILLISECONDS) }
+        throw error
+      }
       sessions[id] = session
       Bundle().apply { putString(KEY_SESSION_ID, id) }
     } catch (error: Exception) {
@@ -109,11 +127,52 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     }
   }
 
+  /**
+   * Reads the PID emitted by the setsid-owned shell before starting the normal stdout reader.
+   * The shell then execs the persistent interpreter, preserving that PID and process group.
+   */
+  private fun readProcessGroupId(process: Process): Int {
+    val processGroupId = AtomicReference<Int?>()
+    val failure = AtomicReference<Throwable?>()
+    val completed = CountDownLatch(1)
+    Thread({
+      try {
+        val line = buildString {
+          while (length <= 16) {
+            val next = process.inputStream.read()
+            if (next < 0 || next == '\\n'.code) break
+            if (next != '\\r'.code) append(next.toChar())
+          }
+        }
+        processGroupId.set(
+          line.toIntOrNull()?.takeIf { it > 1 }
+            ?: throw IllegalStateException("The shell did not provide a valid process-group ID."),
+        )
+      } catch (error: Throwable) {
+        failure.set(error)
+      } finally {
+        completed.countDown()
+      }
+    }, "ShizukuShellHandshake").apply {
+      isDaemon = true
+      start()
+    }
+
+    if (!completed.await(PROCESS_GROUP_HANDSHAKE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+      throw IllegalStateException("Timed out while initializing the supervised shell process.")
+    }
+    failure.get()?.let {
+      throw IllegalStateException("Could not initialize the supervised shell process.", it)
+    }
+    return processGroupId.get()
+      ?: throw IllegalStateException("The shell process-group handshake returned no ID.")
+  }
+
   private inner class ShellSession(
     val id: String,
     private val process: Process,
+    private val processGroupId: Int,
   ) {
-    private val processGroupId = process.pid().toInt()
     private val writer = BufferedWriter(OutputStreamWriter(process.outputStream, StandardCharsets.UTF_8))
     private val writerLock = Any()
     private val executionLock = Any()
@@ -330,6 +389,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     const val KEY_ERROR = "error"
     const val KEY_PROCESS_MAY_STILL_BE_RUNNING = "process_may_still_be_running"
 
+    private const val PROCESS_GROUP_HANDSHAKE_TIMEOUT_MS = 2_000L
     private const val MAX_SESSIONS = 3
     private const val MIN_TIMEOUT_MS = 100L
     private const val MAX_TIMEOUT_MS = 120_000L
