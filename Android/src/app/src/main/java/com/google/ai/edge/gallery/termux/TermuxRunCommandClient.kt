@@ -226,19 +226,25 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     val quotedDirectory = shellQuote(directory)
     val command =
       "if [ -f $quotedDirectory/status ]; then printf STOPPED; exit 0; fi; " +
-        "for file in pid timeout_pid; do " +
+        "found=0; for file in pid timeout_pid; do " +
         "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
-        "if [ -n \"\$pid\" ]; then " +
+        "case \"\$pid\" in ''|*[!0-9]*) continue ;; esac; found=1; " +
         "kill -TERM -- \"-\$pid\" 2>/dev/null || " +
-        "kill -TERM \"\$pid\" 2>/dev/null || true; fi; done; " +
+        "kill -TERM \"\$pid\" 2>/dev/null || true; done; " +
+        "[ \"\$found\" -eq 1 ] || { printf UNKNOWN; exit 0; }; " +
         "sleep 0.25; " +
         "for file in pid timeout_pid; do " +
         "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
-        "if [ -n \"\$pid\" ]; then " +
+        "case \"\$pid\" in ''|*[!0-9]*) continue ;; esac; " +
         "kill -KILL -- \"-\$pid\" 2>/dev/null || " +
-        "kill -KILL \"\$pid\" 2>/dev/null || true; " +
+        "kill -KILL \"\$pid\" 2>/dev/null || true; done; " +
+        "sleep 0.25; alive=0; " +
+        "for file in pid timeout_pid; do " +
+        "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
+        "case \"\$pid\" in ''|*[!0-9]*) continue ;; esac; " +
         "if kill -0 -- \"-\$pid\" 2>/dev/null || kill -0 \"\$pid\" 2>/dev/null; " +
-        "then printf RUNNING; exit 1; fi; fi; done; printf STOPPED"
+        "then alive=1; fi; done; " +
+        "if [ \"\$alive\" -eq 0 ]; then printf STOPPED; else printf RUNNING; fi"
     val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, CLEANUP_TIMEOUT_MS, MIN_OUTPUT_CHARS)
     return result.succeeded && result.stdout.trim() == "STOPPED"
   }
