@@ -16,7 +16,10 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.ai.edge.litertlm.Contents
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Terminal status for one coordinator run. */
 enum class AgentRunStatus { COMPLETED, FAILED, TURN_LIMIT_REACHED }
@@ -38,42 +41,81 @@ class AgentCoordinator(
   private val tools: AgentToolRegistry,
   private val maxModelTurns: Int = DEFAULT_MAX_MODEL_TURNS,
 ) {
+  private val runMutex = Mutex()
+  private val conversationMessages = mutableListOf<AgentMessage>()
+
   init {
     require(maxModelTurns > 0) { "maxModelTurns must be greater than zero." }
   }
 
-  suspend fun run(userInput: String): AgentRunResult {
-    require(userInput.isNotBlank()) { "User input must not be blank." }
-    val messages = mutableListOf(AgentMessage(AgentMessage.Role.USER, content = userInput))
-    var modelTurns = 0
-    var toolCalls = 0
+  /**
+   * Runs one user turn while retaining coordinator history for the lifetime of its model
+   * conversation. A cancelled turn is rolled back in coordinator memory; the owner must discard
+   * the associated native conversation because its KV cache may contain a partial turn.
+   */
+  suspend fun run(userInput: String, userContents: Contents? = null): AgentRunResult =
+    runMutex.withLock {
+      require(userInput.isNotBlank() || userContents != null) {
+        "User input or multimodal contents must not be empty."
+      }
+      val previousSize = conversationMessages.size
+      conversationMessages += AgentMessage(
+        AgentMessage.Role.USER,
+        content = userInput,
+        userContents = userContents,
+      )
+      var modelTurns = 0
+      var toolCalls = 0
 
-    while (modelTurns < maxModelTurns) {
-      val response = model.generate(messages.toList())
-      modelTurns++
-      when (response) {
-        is AgentModelResponse.FinalAnswer -> {
-          messages += AgentMessage(AgentMessage.Role.ASSISTANT, content = response.text)
-          return AgentRunResult(
-            AgentRunStatus.COMPLETED, response.text, modelTurns, toolCalls, messages.toList()
-          )
+      try {
+        while (modelTurns < maxModelTurns) {
+          val response = model.generate(conversationMessages.toList())
+          modelTurns++
+          when (response) {
+            is AgentModelResponse.FinalAnswer -> {
+              conversationMessages += AgentMessage(
+                AgentMessage.Role.ASSISTANT,
+                content = response.text,
+              )
+              return@withLock AgentRunResult(
+                AgentRunStatus.COMPLETED,
+                response.text,
+                modelTurns,
+                toolCalls,
+                conversationMessages.toList(),
+              )
+            }
+            is AgentModelResponse.ToolCall -> {
+              executeToolCalls(listOf(response), conversationMessages)
+              toolCalls++
+            }
+            is AgentModelResponse.ToolCalls -> {
+              executeToolCalls(response.calls, conversationMessages)
+              toolCalls += response.calls.size
+            }
+          }
         }
-        is AgentModelResponse.ToolCall -> {
-          executeToolCalls(listOf(response), messages)
-          toolCalls++
+
+        val limitMessage =
+          "Agent stopped after reaching the configured limit of " + maxModelTurns + " model turns."
+        AgentRunResult(
+          AgentRunStatus.TURN_LIMIT_REACHED,
+          limitMessage,
+          modelTurns,
+          toolCalls,
+          conversationMessages.toList(),
+        )
+      } catch (cancelled: CancellationException) {
+        while (conversationMessages.size > previousSize) {
+          conversationMessages.removeAt(conversationMessages.lastIndex)
         }
-        is AgentModelResponse.ToolCalls -> {
-          executeToolCalls(response.calls, messages)
-          toolCalls += response.calls.size
-        }
+        throw cancelled
       }
     }
 
-    val limitMessage =
-      "Agent stopped after reaching the configured limit of " + maxModelTurns + " model turns."
-    return AgentRunResult(
-      AgentRunStatus.TURN_LIMIT_REACHED, limitMessage, modelTurns, toolCalls, messages.toList()
-    )
+  /** Clears model-side coordinator history when the owning conversation is reset or discarded. */
+  suspend fun reset() {
+    runMutex.withLock { conversationMessages.clear() }
   }
 
   private suspend fun executeToolCalls(
