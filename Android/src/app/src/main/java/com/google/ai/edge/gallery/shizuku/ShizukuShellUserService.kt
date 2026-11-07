@@ -67,7 +67,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         setsid.absolutePath,
         "/system/bin/sh",
         "-c",
-        "printf '%s\\n' \"\\$\\$\"; exec /system/bin/sh",
+        "printf '%s\\n' \"\$\$\"; exec /system/bin/sh",
       )
         .directory(directory)
         .start()
@@ -138,8 +138,8 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         val line = buildString {
           while (length <= 16) {
             val next = process.inputStream.read()
-            if (next < 0 || next == '\\n'.code) break
-            if (next != '\\r'.code) append(next.toChar())
+            if (next < 0 || next == '\n'.code) break
+            if (next != '\r'.code) append(next.toChar())
           }
         }
         processGroupId.set(
