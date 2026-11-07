@@ -30,7 +30,7 @@ class TermuxProcessCommandBuilderTest {
     assertTrue(script.contains("command -v setsid"))
     assertTrue(script.contains("setsid bash -lc"))
     assertTrue(script.contains("printf '%s' \"hello world\"; echo done"))
-    assertTrue(script.contains("'\$HOME/.cache/android-mcp-42'\\''s.pid'"))
+    assertTrue(script.contains("\"\\$HOME\"/'.cache/android-mcp-42'\\''s.pid"))
     assertTrue(script.contains("wait \"\$child_pid\""))
     assertTrue(script.contains("rm -f \"\$pid_file\""))
   }
