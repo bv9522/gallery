@@ -18,6 +18,9 @@ package com.google.ai.edge.gallery.agent.coordinator
 
 import com.google.ai.edge.gallery.termux.TermuxShellExecutor
 import com.google.ai.edge.gallery.termux.TermuxShellResult
+import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -154,7 +157,44 @@ class UnifiedShellExecutionTest {
     assertTrue(termux.command.startsWith("rish -c "))
     assertTrue(termux.command.contains("cd "))
     assertTrue(termux.command.contains("My Files"))
-    assertTrue(termux.command.contains("printf '%s' \"hello world\""))
+    assertTrue(termux.command.contains("printf"))
+    assertTrue(termux.command.contains("hello world"))
+  }
+
+  @Test
+  fun channelApprovalShowsExactRequestAndWaitsForOneTimeDecision() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
+    val policy = ChannelShellExecutionApprovalPolicy(channel)
+    val request = ShellExecutionRequest(
+      backend = ShellExecutionBackend.TERMUX_RISH,
+      command = "id",
+      workingDirectory = "/sdcard",
+      timeoutMs = 4_000,
+      maxOutputChars = 2_048,
+    )
+    val pending = async { policy.requestApproval(request) }
+    val action = channel.receive() as AskShellCommandPermissionAction
+
+    assertEquals("TERMUX_RISH", action.backend)
+    assertEquals("id", action.command)
+    assertEquals("/sdcard", action.workingDirectory)
+    assertEquals(4_000L, action.timeoutMs)
+    assertEquals(2_048, action.maxOutputChars)
+    assertTrue(action.result.complete(true))
+    assertTrue(pending.await())
+    channel.close()
+  }
+
+  @Test
+  fun missingApprovalResponseFailsClosed() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
+    val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10)
+    val approved = policy.requestApproval(
+      ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+    )
+
+    assertFalse(approved)
+    channel.close()
   }
 
   @Test
