@@ -240,7 +240,10 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       esac
       cd "${'$'}work_dir" || { printf '126' > "${'$'}run_dir/status"; exit 126; }
       timeout --signal=TERM --kill-after=2s "${'$'}{timeout_seconds}s" \
-        bash -lc "${'$'}command_text" > "${'$'}run_dir/stdout" 2> "${'$'}run_dir/stderr"
+        bash -lc "${'$'}command_text" > "${'$'}run_dir/stdout" 2> "${'$'}run_dir/stderr" &
+      timeout_pid=${'$'}!
+      printf '%s' "${'$'}timeout_pid" > "${'$'}run_dir/timeout_pid"
+      wait "${'$'}timeout_pid"
       exit_status=${'$'}?
       printf '%s' "${'$'}exit_status" > "${'$'}run_dir/status"
     """.trimIndent()
