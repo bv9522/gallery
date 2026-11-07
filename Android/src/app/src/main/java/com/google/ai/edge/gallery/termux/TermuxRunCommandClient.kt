@@ -22,18 +22,23 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 /**
- * Calls Termux's documented RUN_COMMAND service without a network server or extra plugin app.
+ * Executes Termux commands through a detached, process-group-supervised Termux-side runner.
  *
- * This first adapter intentionally uses background one-shot commands so stdout and stderr are
- * returned separately. Persistent interactive sessions and reliable remote process termination
- * require a later session-bridge layer; RUN_COMMAND alone does not provide those semantics.
+ * RUN_COMMAND has no cancellation handle. The runner therefore creates a dedicated session with
+ * setsid, records its process-group ID, captures output in files, and exposes a status file.
+ * Cancellation and timeout send TERM followed by KILL to that process group from a second
+ * RUN_COMMAND invocation. GNU timeout is a final safety net if Android MCP is killed before it can
+ * issue cleanup.
  */
 class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
   private val appContext = context.applicationContext
@@ -60,7 +65,212 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     }
 
     ensureTermuxReady()
+    val utilities = invokeTermux(
+      "command -v setsid >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 && " +
+        "command -v head >/dev/null 2>&1 && command -v wc >/dev/null 2>&1",
+      DEFAULT_TERMUX_WORKDIR,
+      PREFLIGHT_TIMEOUT_MS,
+      MIN_OUTPUT_CHARS,
+    )
+    if (!utilities.succeeded) {
+      return TermuxShellResult(
+        stdout = "",
+        stderr = utilities.stderr,
+        exitCode = -1,
+        error = "Termux process supervision requires setsid and GNU timeout. " +
+          "Install them with: pkg install -y util-linux coreutils",
+      )
+    }
 
+    var runDirectory: String? = null
+    try {
+      return withTimeout(timeoutMs) {
+        val id = UUID.randomUUID().toString().replace("-", "")
+        val start = invokeTermux(
+          buildStartCommand(
+            id = id,
+            command = command,
+            workingDirectory = workingDirectory,
+            timeoutSeconds = ((timeoutMs + 999L) / 1_000L).coerceAtLeast(1L),
+          ),
+          DEFAULT_TERMUX_WORKDIR,
+          START_TIMEOUT_MS,
+          MIN_OUTPUT_CHARS,
+        )
+        if (!start.succeeded) return@withTimeout start
+
+        val directory = start.stdout.trim()
+        check(directory.startsWith(TERMUX_RUN_DIRECTORY_PREFIX) && directory.endsWith("/$id")) {
+          "Termux returned an invalid process supervisor identifier."
+        }
+        runDirectory = directory
+
+        val state = awaitCompletion(directory)
+        val stdoutLimit = minOf(state.stdoutBytes, maxOutputChars.toLong()).toInt()
+        val stderrLimit = minOf(
+          state.stderrBytes,
+          (maxOutputChars - stdoutLimit).coerceAtLeast(0).toLong(),
+        ).toInt()
+        val stdout = readCaptured(directory, "stdout", stdoutLimit)
+        val stderr = readCaptured(directory, "stderr", stderrLimit)
+
+        TermuxShellResult(
+          stdout = stdout,
+          stderr = stderr,
+          exitCode = state.exitCode,
+          outputTruncated = state.stdoutBytes + state.stderrBytes > maxOutputChars ||
+            stdout.length < stdoutLimit || stderr.length < stderrLimit,
+        )
+      }
+    } catch (timeout: TimeoutCancellationException) {
+      val stopped = runDirectory?.let { directory ->
+        withContext(NonCancellable) { terminateSupervisor(directory) }
+      } ?: true
+      return TermuxShellResult(
+        stdout = "",
+        stderr = "",
+        exitCode = -1,
+        timedOut = true,
+        error = "Termux command exceeded the ${timeoutMs}ms deadline. " +
+          if (stopped) "The supervised process group was terminated."
+          else "Process termination could not be confirmed.",
+        processMayStillBeRunning = !stopped,
+      )
+    } catch (cancelled: CancellationException) {
+      runDirectory?.let { directory ->
+        withContext(NonCancellable) { terminateSupervisor(directory) }
+      }
+      throw cancelled
+    } catch (error: Exception) {
+      return TermuxShellResult(
+        stdout = "",
+        stderr = "",
+        exitCode = -1,
+        error = error.message ?: error.javaClass.simpleName,
+        processMayStillBeRunning = runDirectory != null,
+      )
+    } finally {
+      runDirectory?.let { directory ->
+        withContext(NonCancellable) { cleanupSupervisor(directory) }
+      }
+    }
+  }
+
+  private suspend fun awaitCompletion(directory: String): SupervisorState {
+    while (true) {
+      val command =
+        "if [ -f ${shellQuote("$directory/status")} ]; then " +
+          "printf 'DONE:'; cat ${shellQuote("$directory/status")}; printf ':'; " +
+          "wc -c < ${shellQuote("$directory/stdout")} | tr -d '[:space:]'; printf ':'; " +
+          "wc -c < ${shellQuote("$directory/stderr")} | tr -d '[:space:]'; " +
+          "else printf 'RUNNING'; fi"
+      val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, POLL_TIMEOUT_MS, MIN_OUTPUT_CHARS)
+      if (!result.succeeded) {
+        throw IllegalStateException(
+          result.error ?: result.stderr.ifBlank { "Could not query Termux process status." }
+        )
+      }
+      val value = result.stdout.trim()
+      if (value.startsWith("DONE:")) {
+        val fields = value.removePrefix("DONE:").split(':')
+        require(fields.size == 3) { "Termux returned malformed process status." }
+        return SupervisorState(
+          exitCode = fields[0].toIntOrNull() ?: -1,
+          stdoutBytes = fields[1].toLongOrNull() ?: 0L,
+          stderrBytes = fields[2].toLongOrNull() ?: 0L,
+        )
+      }
+      delay(POLL_INTERVAL_MS)
+    }
+  }
+
+  private suspend fun readCaptured(directory: String, stream: String, limit: Int): String {
+    if (limit <= 0) return ""
+    val path = shellQuote("$directory/$stream")
+    val result = invokeTermux(
+      "head -c $limit $path",
+      DEFAULT_TERMUX_WORKDIR,
+      POLL_TIMEOUT_MS,
+      maxOf(MIN_OUTPUT_CHARS, limit),
+    )
+    if (!result.succeeded) {
+      throw IllegalStateException(result.error ?: "Could not read Termux $stream output.")
+    }
+    return result.stdout.take(limit)
+  }
+
+  private suspend fun terminateSupervisor(directory: String): Boolean {
+    val quotedDirectory = shellQuote(directory)
+    val command =
+      "pid=\$(cat $quotedDirectory/pid 2>/dev/null || true); " +
+        "if [ -n \"\$pid\" ]; then " +
+        "kill -TERM -- \"-\$pid\" 2>/dev/null || true; sleep 0.25; " +
+        "kill -KILL -- \"-\$pid\" 2>/dev/null || true; " +
+        "if kill -0 -- \"-\$pid\" 2>/dev/null; then printf RUNNING; " +
+        "else printf STOPPED; fi; else printf STOPPED; fi"
+    val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, CLEANUP_TIMEOUT_MS, MIN_OUTPUT_CHARS)
+    return result.succeeded && result.stdout.trim() == "STOPPED"
+  }
+
+  private suspend fun cleanupSupervisor(directory: String) {
+    invokeTermux(
+      "rm -rf -- ${shellQuote(directory)}",
+      DEFAULT_TERMUX_WORKDIR,
+      CLEANUP_TIMEOUT_MS,
+      MIN_OUTPUT_CHARS,
+    )
+  }
+
+  private fun buildStartCommand(
+    id: String,
+    command: String,
+    workingDirectory: String,
+    timeoutSeconds: Long,
+  ): String {
+    val script = """
+      run_dir="${'$'}1"
+      work_dir="${'$'}2"
+      command_text="${'$'}3"
+      timeout_seconds="${'$'}4"
+      mkdir -p "${'$'}run_dir"
+      printf '%s' "${'$'}${'$'}" > "${'$'}run_dir/pid"
+      case "${'$'}work_dir" in
+        "~") work_dir="${'$'}HOME" ;;
+        "~/"*) work_dir="${'$'}HOME/${'$'}{work_dir#~/}" ;;
+      esac
+      cd "${'$'}work_dir" || { printf '126' > "${'$'}run_dir/status"; exit 126; }
+      timeout --signal=TERM --kill-after=2s "${'$'}{timeout_seconds}s" \
+        bash -lc "${'$'}command_text" > "${'$'}run_dir/stdout" 2> "${'$'}run_dir/stderr"
+      exit_status=${'$'}?
+      printf '%s' "${'$'}exit_status" > "${'$'}run_dir/status"
+    """.trimIndent()
+    val directory = "$TERMUX_RUN_DIRECTORY_ROOT/$id"
+    return "mkdir -p ${shellQuote(TERMUX_RUN_DIRECTORY_ROOT)} && " +
+      "setsid -f bash -c ${shellQuote(script)} _ " +
+      "${shellQuote(directory)} ${shellQuote(workingDirectory)} " +
+      "${shellQuote(command)} $timeoutSeconds && printf '%s' ${shellQuote(directory)}"
+  }
+
+  private fun ensureTermuxReady() {
+    try {
+      @Suppress("DEPRECATION")
+      appContext.packageManager.getPackageInfo(TERMUX_PACKAGE, 0)
+    } catch (error: PackageManager.NameNotFoundException) {
+      throw IllegalStateException("Termux is not installed. Install and initialize Termux first.")
+    }
+    check(appContext.checkSelfPermission(TERMUX_RUN_COMMAND_PERMISSION) ==
+      PackageManager.PERMISSION_GRANTED) {
+      "Termux RUN_COMMAND permission is not granted to this app. Grant it in Android Settings."
+    }
+  }
+
+  /** Dispatches one short control command through the documented RUN_COMMAND callback. */
+  private suspend fun invokeTermux(
+    command: String,
+    workingDirectory: String,
+    timeoutMs: Long,
+    maxOutputChars: Int,
+  ): TermuxShellResult {
     val (requestId, deferred) = TermuxCommandResultReceiver.register()
     val callbackIntent = Intent(appContext, TermuxCommandResultReceiver::class.java)
       .putExtra(TermuxCommandResultReceiver.EXTRA_REQUEST_ID, requestId)
@@ -72,7 +282,6 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       callbackIntent,
       pendingIntentFlags,
     )
-
     val runIntent = Intent().apply {
       setClassName(TERMUX_PACKAGE, TERMUX_RUN_COMMAND_SERVICE)
       action = ACTION_RUN_COMMAND
@@ -80,15 +289,13 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       putExtra(EXTRA_ARGUMENTS, arrayOf("-lc", command))
       putExtra(EXTRA_WORKDIR, workingDirectory)
       putExtra(EXTRA_BACKGROUND, true)
-      putExtra(EXTRA_COMMAND_LABEL, "Android MCP command")
-      putExtra(EXTRA_COMMAND_DESCRIPTION, "Command requested by the local AI assistant.")
+      putExtra(EXTRA_COMMAND_LABEL, "Android MCP process supervisor")
+      putExtra(EXTRA_COMMAND_DESCRIPTION, "Supervised command control request.")
       putExtra(EXTRA_PENDING_INTENT, callback)
     }
 
     try {
-      withContext(Dispatchers.IO) {
-        appContext.startService(runIntent)
-      }
+      withContext(Dispatchers.IO) { appContext.startService(runIntent) }
       val bundle = try {
         withTimeout(timeoutMs) { deferred.await() }
       } catch (timeout: TimeoutCancellationException) {
@@ -97,8 +304,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           stderr = "",
           exitCode = -1,
           timedOut = true,
-          error = "Timed out waiting for Termux. The dispatched process may still be running; " +
-            "RUN_COMMAND does not provide reliable cancellation of an in-flight command.",
+          error = "Timed out waiting for the Termux command service callback.",
           processMayStillBeRunning = true,
         )
       }
@@ -110,34 +316,20 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         stdout = "",
         stderr = "",
         exitCode = -1,
-        error = "Termux rejected the request. Check that this app has the Termux " +
-          "RUN_COMMAND permission and that allow-external-apps=true is configured in Termux.",
+        error = "Termux rejected the request. Check RUN_COMMAND permission and " +
+          "allow-external-apps=true in Termux.",
       )
     } catch (error: Exception) {
       return TermuxShellResult(
         stdout = "",
         stderr = "",
         exitCode = -1,
-        error = "Could not start or communicate with Termux: " +
+        error = "Could not communicate with Termux: " +
           (error.message ?: error.javaClass.simpleName),
       )
     } finally {
       callback.cancel()
       TermuxCommandResultReceiver.remove(requestId)
-    }
-  }
-
-  private fun ensureTermuxReady() {
-    try {
-      @Suppress("DEPRECATION")
-      appContext.packageManager.getPackageInfo(TERMUX_PACKAGE, 0)
-    } catch (error: PackageManager.NameNotFoundException) {
-      throw IllegalStateException("Termux is not installed. Install and initialize Termux first.")
-    }
-
-    check(appContext.checkSelfPermission(TERMUX_RUN_COMMAND_PERMISSION) ==
-      PackageManager.PERMISSION_GRANTED) {
-      "Termux RUN_COMMAND permission is not granted to this app. Grant it in Android Settings."
     }
   }
 
@@ -148,9 +340,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       ?.toLongOrNull()
     val originalStderrLength = bundle.getString(EXTRA_PLUGIN_RESULT_BUNDLE_STDERR_ORIGINAL_LENGTH)
       ?.toLongOrNull()
-    val totalAllowed = maxOutputChars
-    val stdout = rawStdout.take(totalAllowed)
-    val stderr = rawStderr.take((totalAllowed - stdout.length).coerceAtLeast(0))
+    val stdout = rawStdout.take(maxOutputChars)
+    val stderr = rawStderr.take((maxOutputChars - stdout.length).coerceAtLeast(0))
     val truncated = stdout.length < rawStdout.length ||
       stderr.length < rawStderr.length ||
       (originalStdoutLength != null && originalStdoutLength > rawStdout.length) ||
@@ -159,7 +350,6 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     val errorMessage = bundle.getString(EXTRA_PLUGIN_RESULT_BUNDLE_ERRMSG)
       ?.takeIf { it.isNotBlank() }
       ?: if (errorCode != RESULT_OK) "Termux reported an internal execution error (code $errorCode)." else null
-
     return TermuxShellResult(
       stdout = stdout,
       stderr = stderr,
@@ -169,6 +359,14 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       error = errorMessage,
     )
   }
+
+  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+  private data class SupervisorState(
+    val exitCode: Int,
+    val stdoutBytes: Long,
+    val stderrBytes: Long,
+  )
 
   companion object {
     const val DEFAULT_TIMEOUT_MS = 30_000L
@@ -204,5 +402,14 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     private const val MIN_OUTPUT_CHARS = 1_024
     private const val MAX_OUTPUT_CHARS = 96 * 1_024
     private const val MAX_COMMAND_LENGTH = 64 * 1_024
+
+    private const val DEFAULT_TERMUX_WORKDIR = "~/"
+    private const val TERMUX_RUN_DIRECTORY_ROOT = "/data/data/com.termux/files/usr/var/run/android-mcp"
+    private const val TERMUX_RUN_DIRECTORY_PREFIX = "$TERMUX_RUN_DIRECTORY_ROOT/"
+    private const val PREFLIGHT_TIMEOUT_MS = 5_000L
+    private const val START_TIMEOUT_MS = 10_000L
+    private const val POLL_TIMEOUT_MS = 5_000L
+    private const val CLEANUP_TIMEOUT_MS = 5_000L
+    private const val POLL_INTERVAL_MS = 150L
   }
 }
