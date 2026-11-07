@@ -32,7 +32,7 @@ enum class ShellExecutionBackend {
 data class ShellExecutionRequest(
   val backend: ShellExecutionBackend,
   val command: String,
-  val workingDirectory: String = "~",
+  val workingDirectory: String = "/",
   val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
   val maxOutputChars: Int = DEFAULT_OUTPUT_CHARS,
 ) {
@@ -170,10 +170,11 @@ class ShizukuShellTransport(private val executor: ShizukuShellExecutor) : ShellE
 class TermuxRishShellTransport(private val executor: TermuxShellExecutor) : ShellExecutionTransport {
   override suspend fun execute(request: ShellExecutionRequest): ShellExecutionResult {
     require(request.backend == ShellExecutionBackend.TERMUX_RISH)
-    val wrappedCommand = "rish -c ${shellQuote(request.command)}"
+    val remoteCommand = "cd ${shellQuote(request.workingDirectory)} && ${request.command}"
+    val wrappedCommand = "rish -c ${shellQuote(remoteCommand)}"
     val result = executor.execute(
       command = wrappedCommand,
-      workingDirectory = request.workingDirectory,
+      workingDirectory = "~/",
       timeoutMs = request.timeoutMs,
       maxOutputChars = request.maxOutputChars,
     )
@@ -254,7 +255,10 @@ class UnifiedShellTool(
       ?: return AgentToolResult("Rejected: unsupported backend '$backendText'.", false)
     val command = arguments.string("command")
       ?: return AgentToolResult("Missing required non-empty string argument: command.", false)
-    val workingDirectory = arguments.string("working_directory") ?: "~"
+    val workingDirectory = arguments.string("working_directory") ?: when (backend) {
+      ShellExecutionBackend.TERMUX, ShellExecutionBackend.TERMUX_RISH -> "~/"
+      ShellExecutionBackend.SHIZUKU -> "/"
+    }
     val timeout = arguments.integer("timeout_ms") ?: if (arguments.has("timeout_ms")) {
       return AgentToolResult("timeout_ms must be an integer.", false)
     } else ShellExecutionRequest.DEFAULT_TIMEOUT_MS
@@ -262,8 +266,12 @@ class UnifiedShellTool(
       return AgentToolResult("max_output_chars must be an integer.", false)
     } else ShellExecutionRequest.DEFAULT_OUTPUT_CHARS
 
+    if (outputLimit !in ShellExecutionRequest.MIN_OUTPUT_CHARS.toLong()..ShellExecutionRequest.MAX_OUTPUT_CHARS.toLong()) {
+      return AgentToolResult("max_output_chars must be between ${ShellExecutionRequest.MIN_OUTPUT_CHARS} and ${ShellExecutionRequest.MAX_OUTPUT_CHARS}.", false)
+    }
+
     val request = try {
-      ShellExecutionRequest(backend, command, workingDirectory, timeout, outputLimit)
+      ShellExecutionRequest(backend, command, workingDirectory, timeout, outputLimit.toInt())
     } catch (error: IllegalArgumentException) {
       return AgentToolResult("Rejected: ${error.message}", false)
     }
