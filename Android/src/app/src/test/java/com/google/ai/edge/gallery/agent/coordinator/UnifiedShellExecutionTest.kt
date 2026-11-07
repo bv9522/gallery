@@ -92,6 +92,78 @@ class UnifiedShellExecutionTest {
   }
 
   @Test
+  fun everyBackendUsesTheSameApprovalBoundaryAndExactIdentity() = runBlocking {
+    val executions = mutableListOf<ShellExecutionBackend>()
+    val approvals = mutableListOf<ShellExecutionRequest>()
+    val router = ShellExecutionRouter(
+      ShellExecutionBackend.entries.associateWith { backend ->
+        ShellExecutionTransport { request ->
+          executions += backend
+          success(request.backend)
+        }
+      }
+    )
+    val tool = UnifiedShellTool(router, ShellExecutionApprovalPolicy {
+      approvals += it
+      true
+    })
+
+    ShellExecutionBackend.entries.forEach { backend ->
+      val workingDirectory = if (backend == ShellExecutionBackend.TERMUX) "~/" else "/"
+      val result = tool.execute(arguments(backend.name, "id").apply {
+        addProperty("working_directory", workingDirectory)
+      })
+      assertTrue("Backend $backend should execute after approval.", result.isSuccessful)
+    }
+
+    assertEquals(ShellExecutionBackend.entries, approvals.map { it.backend })
+    assertEquals(ShellExecutionBackend.entries, executions)
+    assertEquals(listOf("~/", "/", "/"), approvals.map { it.workingDirectory })
+  }
+
+  @Test
+  fun unconfirmedProcessTerminationIsNeverReportedAsSuccess() = runBlocking {
+    val router = ShellExecutionRouter(
+      mapOf(ShellExecutionBackend.TERMUX to ShellExecutionTransport {
+        ShellExecutionResult(
+          backend = it.backend,
+          stdout = "",
+          stderr = "",
+          exitCode = 0,
+          processMayStillBeRunning = true,
+        )
+      })
+    )
+    val result = router.execute(ShellExecutionRequest(ShellExecutionBackend.TERMUX, "sleep 30", "~/"))
+
+    assertFalse(result.succeeded)
+    assertTrue(result.processMayStillBeRunning)
+  }
+
+  @Test
+  fun transportCancellationPropagatesWithoutTryingAnotherBackend() = runBlocking {
+    val calls = mutableListOf<ShellExecutionBackend>()
+    val router = ShellExecutionRouter(
+      ShellExecutionBackend.entries.associateWith { backend ->
+        ShellExecutionTransport {
+          calls += backend
+          if (backend == ShellExecutionBackend.SHIZUKU) {
+            throw CancellationException("cancelled")
+          }
+          success(backend)
+        }
+      }
+    )
+
+    try {
+      router.execute(ShellExecutionRequest(ShellExecutionBackend.SHIZUKU, "sleep 30", "/"))
+      throw AssertionError("Expected cancellation.")
+    } catch (_: CancellationException) {
+      assertEquals(listOf(ShellExecutionBackend.SHIZUKU), calls)
+    }
+  }
+
+  @Test
   fun missingBackendDoesNotFallBackToAnotherIdentity() = runBlocking {
     val calls = mutableListOf<ShellExecutionBackend>()
     val router = ShellExecutionRouter(
