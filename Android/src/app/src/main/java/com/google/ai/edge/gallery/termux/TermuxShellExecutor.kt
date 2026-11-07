@@ -27,10 +27,10 @@ interface TermuxShellExecutor {
 }
 
 /**
- * Structured result from a Termux RUN_COMMAND invocation.
+ * Structured result from a supervised Termux RUN_COMMAND invocation.
  *
- * RUN_COMMAND is currently a one-shot process API. A client-side timeout stops waiting for the
- * result; it does not guarantee termination of the process already running inside Termux.
+ * RUN_COMMAND remains a one-shot control API, but the client starts user commands in a detached
+ * process group and explicitly terminates that group on timeout or coroutine cancellation.
  */
 data class TermuxShellResult(
   val stdout: String,
@@ -43,5 +43,5 @@ data class TermuxShellResult(
   val processMayStillBeRunning: Boolean = false,
 ) {
   val succeeded: Boolean
-    get() = error == null && errorCode == null && !timedOut && exitCode == 0
+    get() = error == null && errorCode == null && !timedOut && !processMayStillBeRunning && exitCode == 0
 }
