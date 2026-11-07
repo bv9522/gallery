@@ -136,6 +136,11 @@ class NativeAgentRuntimeExecutor(
       emit(AgentEvent.LoopInitiated(request))
       try {
         val currentConfig = checkNotNull(config) { "Agent Chat has not been initialized." }
+        val requestedSessionId = request.metadata[AgentRequest.SESSION_ID] as? String
+        if (!requestedSessionId.isNullOrBlank() && requestedSessionId != sessionId) {
+          sessionId = requestedSessionId
+          discardAgentConversation()
+        }
         val currentContext = checkNotNull(this@NativeAgentRuntimeExecutor.context)
         val contents = withContext(Dispatchers.IO) { buildUserContents(currentContext, request) }
         ensureAgentModel(currentConfig)
