@@ -130,6 +130,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           stdout = stdout,
           stderr = stderr,
           exitCode = state.exitCode,
+          timedOut = state.timedOut,
+          error = if (state.timedOut) "Termux command reached its process-side timeout." else null,
           outputTruncated = state.outputTruncated ||
             state.stdoutBytes + state.stderrBytes > maxOutputChars ||
             stdout.length < stdoutLimit || stderr.length < stderrLimit,
@@ -201,6 +203,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           stdoutBytes = fields[1].toLongOrNull() ?: 0L,
           stderrBytes = fields[2].toLongOrNull() ?: 0L,
           outputTruncated = fields[3] == "1",
+          timedOut = fields[0].toIntOrNull() == 124,
         )
       }
       delay(POLL_INTERVAL_MS)
@@ -428,6 +431,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     val stdoutBytes: Long,
     val stderrBytes: Long,
     val outputTruncated: Boolean,
+    val timedOut: Boolean,
   )
 
   companion object {
