@@ -274,7 +274,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
     lifecycleScope.launch {
       try {
         val result = TermuxRunCommandClient(this@ShizukuDiagnosticActivity).execute(
-          command = "printf 'identity='; id; printf 'HOME=%s\\n' \"\$HOME\"; printf 'PREFIX=%s\\n' \"\$PREFIX\"; command -v bash",
+          command = "printf 'identity='; id; printf 'HOME=%s\\n' \"\$HOME\"; printf 'PREFIX=%s\\n' \"\$PREFIX\"; command -v bash; command -v setsid",
           workingDirectory = "~/",
           timeoutMs = COMMAND_TIMEOUT_MS,
           maxOutputChars = OUTPUT_LIMIT,
