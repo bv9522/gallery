@@ -39,7 +39,6 @@ import com.google.ai.edge.gallery.tools.RuntimeToolDispatcher
 import com.google.ai.edge.gallery.tools.ToolExecutionContext
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
-import com.google.ai.edge.litertlm.Message
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
@@ -48,12 +47,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Agent Chat runtime backed by one coordinator and one manually-driven LiteRT-LM conversation.
@@ -138,8 +137,8 @@ class NativeAgentRuntimeExecutor(
       try {
         val currentConfig = checkNotNull(config) { "Agent Chat has not been initialized." }
         val currentContext = checkNotNull(this@NativeAgentRuntimeExecutor.context)
-        val contents = buildUserContents(currentContext, request)
-        val currentModel = ensureAgentModel(currentConfig)
+        val contents = withContext(Dispatchers.IO) { buildUserContents(currentContext, request) }
+        ensureAgentModel(currentConfig)
         val currentCoordinator = checkNotNull(coordinator)
         val result: AgentRunResult = currentCoordinator.run(request.query, contents)
         emit(AgentEvent.StreamToken(token = result.finalText, done = true))
@@ -227,8 +226,9 @@ class NativeAgentRuntimeExecutor(
     )
   }
 
-  private fun ensureAgentModel(config: AgentRuntimeConfig): LiteRtLmAgentModel =
-    synchronized(stateLock) {
+  private suspend fun ensureAgentModel(config: AgentRuntimeConfig): LiteRtLmAgentModel =
+    withContext(Dispatchers.IO) {
+      synchronized(stateLock) {
       agentModel?.let { return@synchronized it }
       val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
       val approval =
@@ -247,6 +247,7 @@ class NativeAgentRuntimeExecutor(
       agentModel = created
       coordinator = AgentCoordinator(created, created.toolRegistry(shellTools))
       created
+      }
     }
 
   private fun discardAgentConversation() {
