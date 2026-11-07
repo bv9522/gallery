@@ -1,42 +1,50 @@
-  name: Build Android APK
-  
-  on:
-    workflow_dispatch:
-    push:
-      branches: [ "main", "phase-6-unified-execution-runtime" ]
-      paths:
-        - 'Android/**'
-        - '.github/workflows/build_android.yaml'
-    pull_request:
-      branches: [ "main" ]
-      paths:
-        - 'Android/**'
-  
-  jobs:
-    build_apk:
-      name: Build Android APK
-      runs-on: ubuntu-latest
-      defaults:
-        run:
-          working-directory: ./Android/src
-      steps:
-        - name: Checkout the source code
-          uses: actions/checkout@v3
-        - uses: actions/setup-java@v4
-          with:
-            distribution: 'temurin'
-            java-version: '21'
-        - name: Install Android SDK Platform 37
-          run: echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37.0"
-        - name: Run Shizuku unit tests
-          run: ./gradlew :app:testShizukuDebugUnitTest
-        - name: Build Shizuku debug APK and release variants
-          run: ./gradlew :app:assembleShizukuDebug assembleRelease
-        - name: Upload Shizuku debug APK
-          uses: actions/upload-artifact@v4
-          with:
-            name: android-mcp-shizuku-debug
-            path: Android/src/app/build/outputs/apk/shizuku/debug/app-shizuku-debug.apk
-            if-no-files-found: error
-  
-  
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - phase-6-unified-execution-runtime
+    paths:
+      - 'Android/**'
+      - '.github/workflows/build_android.yaml'
+  pull_request:
+    branches:
+      - main
+      - phase-6-unified-execution-runtime
+    paths:
+      - 'Android/**'
+      - '.github/workflows/build_android.yaml'
+
+jobs:
+  build_apk:
+    name: Test and build Android APKs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./Android/src
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android SDK Platform 37
+        run: echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37.0"
+      - name: Run Shizuku debug unit tests
+        run: ./gradlew :app:testShizukuDebugUnitTest
+      - name: Build Shizuku debug APK
+        run: ./gradlew :app:assembleShizukuDebug
+      - name: Build release APK
+        run: ./gradlew :app:assembleRelease
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-mcp-apks
+          path: |
+            Android/src/app/build/outputs/apk/shizuku/debug/*.apk
+            Android/src/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
