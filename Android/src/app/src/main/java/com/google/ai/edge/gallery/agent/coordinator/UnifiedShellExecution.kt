@@ -285,8 +285,8 @@ class UnifiedShellTool(
     val command = arguments.string("command")
       ?: return AgentToolResult("Missing required non-empty string argument: command.", false)
     val workingDirectory = arguments.string("working_directory") ?: when (backend) {
-      ShellExecutionBackend.TERMUX, ShellExecutionBackend.TERMUX_RISH -> "~/"
-      ShellExecutionBackend.SHIZUKU -> "/"
+      ShellExecutionBackend.TERMUX -> "~/"
+      ShellExecutionBackend.SHIZUKU, ShellExecutionBackend.TERMUX_RISH -> "/"
     }
     val timeout = arguments.integer("timeout_ms") ?: if (arguments.has("timeout_ms")) {
       return AgentToolResult("timeout_ms must be an integer.", false)
