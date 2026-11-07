@@ -283,16 +283,26 @@ class NativeAgentRuntimeExecutor(
         is Attachment.AudioBytes -> contents += Content.AudioBytes(attachment.audioBytes)
         is Attachment.AudioUri -> contents += Content.AudioBytes(readUri(context, attachment.uri))
         is Attachment.File -> {
-          val file = File(attachment.path)
-          require(file.isFile) { "Attached file is unavailable: ${attachment.path}" }
-          require(file.length() <= MAX_ATTACHMENT_BYTES) { "Attached file exceeds the 16 MiB limit." }
-          val bytes = file.readBytes()
+          val uri = Uri.parse(attachment.path)
+          val fileName = uri.lastPathSegment ?: File(attachment.path).name
+          val bytes =
+            if (uri.scheme == "content" || uri.scheme == "file") {
+              readUri(context, attachment.path)
+            } else {
+              val file = File(attachment.path)
+              require(file.isFile) { "Attached file is unavailable: ${attachment.path}" }
+              require(file.length() <= MAX_ATTACHMENT_BYTES) {
+                "Attached file exceeds the 16 MiB limit."
+              }
+              file.readBytes()
+            }
           when {
             attachment.mimeType.startsWith("image/") -> contents += Content.ImageBytes(bytes)
             attachment.mimeType.startsWith("audio/") -> contents += Content.AudioBytes(bytes)
-            else -> contents += Content.Text(
-              "Attached text file (${file.name}):\n" + bytes.toString(Charsets.UTF_8)
+            attachment.mimeType.startsWith("text/") -> contents += Content.Text(
+              "Attached text file ($fileName):\n" + bytes.toString(Charsets.UTF_8)
             )
+            else -> error("Unsupported attachment type: ${attachment.mimeType}")
           }
         }
       }
@@ -302,10 +312,23 @@ class NativeAgentRuntimeExecutor(
   }
 
   private fun readUri(context: Context, uri: String): ByteArray {
-    val bytes = context.contentResolver.openInputStream(Uri.parse(uri))?.use { it.readBytes() }
+    val stream = context.contentResolver.openInputStream(Uri.parse(uri))
       ?: error("Could not open attachment URI.")
-    require(bytes.size <= MAX_ATTACHMENT_BYTES) { "Attached file exceeds the 16 MiB limit." }
-    return bytes
+    return stream.use { input ->
+      val output = ByteArrayOutputStream()
+      val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+      var total = 0
+      while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        require(total <= MAX_ATTACHMENT_BYTES) {
+          "Attached file exceeds the 16 MiB limit."
+        }
+        output.write(buffer, 0, count)
+      }
+      output.toByteArray()
+    }
   }
 
   private fun Bitmap.toPngBytes(): ByteArray {
