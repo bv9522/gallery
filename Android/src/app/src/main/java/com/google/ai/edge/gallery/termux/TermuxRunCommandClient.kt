@@ -129,7 +129,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     val quotedCommand = shellQuote(command)
     return """
       command -v setsid >/dev/null 2>&1 || {
-        printf '%s\\n' 'Android MCP requires Termux util-linux (setsid) for process supervision.' >&2
+        printf '%s\n' 'Android MCP requires Termux util-linux (setsid) for process supervision.' >&2
         exit 127
       }
       mkdir -p "\\$HOME/.cache" || exit 125
@@ -137,7 +137,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       rm -f "\\$pid_file"
       setsid bash -lc $quotedCommand &
       child_pid=\$!
-      printf '%s\\n' "\$child_pid" > "\$pid_file"
+      printf '%s\n' "\$child_pid" > "\$pid_file"
       wait "\$child_pid"
       command_status=\$?
       rm -f "\$pid_file"
