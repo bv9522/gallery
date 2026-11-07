@@ -53,6 +53,7 @@ class UnifiedShellExecutionTest {
     val result = tool.execute(arguments("TERMUX", "id"))
 
     assertFalse(result.isSuccessful)
+    assertTrue("Unexpected tool result: ${result.content}", approvedRequest != null)
     assertEquals(ShellExecutionBackend.TERMUX, approvedRequest?.backend)
     assertTrue(calls.isEmpty())
   }
@@ -115,7 +116,7 @@ class UnifiedShellExecutionTest {
       val result = tool.execute(arguments(backend.name, "id").apply {
         addProperty("working_directory", workingDirectory)
       })
-      assertTrue("Backend $backend should execute after approval.", result.isSuccessful)
+      assertTrue("Backend $backend should execute after approval. Result: ${result.content}", result.isSuccessful)
     }
 
     assertEquals(ShellExecutionBackend.entries, approvals.map { it.backend })
@@ -316,8 +317,8 @@ class UnifiedShellExecutionTest {
     })
 
     try {
-      tool.execute(arguments("TERMUX", "id"))
-      throw AssertionError("Expected cancellation.")
+      val result = tool.execute(arguments("TERMUX", "id"))
+      throw AssertionError("Expected cancellation, but tool returned: ${result.content}")
     } catch (_: CancellationException) {
       assertEquals(0, executions)
     }
