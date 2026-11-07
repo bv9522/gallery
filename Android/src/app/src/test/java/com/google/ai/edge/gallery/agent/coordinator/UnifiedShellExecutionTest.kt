@@ -18,6 +18,8 @@ package com.google.ai.edge.gallery.agent.coordinator
 
 import com.google.ai.edge.gallery.termux.TermuxShellExecutor
 import com.google.ai.edge.gallery.termux.TermuxShellResult
+import com.google.ai.edge.gallery.shizuku.ShizukuShellResult
+import com.google.ai.edge.gallery.shizuku.ShizukuShellExecutor
 import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -137,6 +139,37 @@ class UnifiedShellExecutionTest {
     val result = router.execute(ShellExecutionRequest(ShellExecutionBackend.TERMUX, "sleep 30", "~/"))
 
     assertFalse(result.succeeded)
+    assertTrue(result.processMayStillBeRunning)
+  }
+
+  @Test
+  fun shizukuCleanupUncertaintyPropagatesThroughSharedResult() = runBlocking {
+    val executor = object : ShizukuShellExecutor {
+      override suspend fun execute(
+        command: String,
+        workingDirectory: String,
+        timeoutMs: Long,
+        maxOutputChars: Int,
+      ) = ShizukuShellResult(
+        stdout = "",
+        stderr = "",
+        exitCode = -1,
+        timedOut = true,
+        outputTruncated = false,
+        error = "Could not confirm process-group teardown.",
+        processMayStillBeRunning = true,
+      )
+    }
+    val router = ShellExecutionRouter(
+      mapOf(ShellExecutionBackend.SHIZUKU to ShizukuShellTransport(executor))
+    )
+
+    val result = router.execute(
+      ShellExecutionRequest(ShellExecutionBackend.SHIZUKU, "sleep 30", "/")
+    )
+
+    assertFalse(result.succeeded)
+    assertTrue(result.timedOut)
     assertTrue(result.processMayStillBeRunning)
   }
 
