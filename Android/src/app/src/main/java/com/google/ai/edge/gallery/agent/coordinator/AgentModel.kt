@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.agent.coordinator
 
 import com.google.gson.JsonObject
+import com.google.ai.edge.litertlm.Contents
 
 /** A model-facing conversation entry independent of any inference engine. */
 data class AgentMessage(
@@ -26,6 +27,7 @@ data class AgentMessage(
   val toolName: String? = null,
   val toolArguments: JsonObject? = null,
   val toolSucceeded: Boolean? = null,
+  val userContents: Contents? = null,
 ) {
   enum class Role { USER, ASSISTANT, TOOL }
 }
