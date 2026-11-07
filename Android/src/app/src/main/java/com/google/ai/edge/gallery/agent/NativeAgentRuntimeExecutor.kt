@@ -196,6 +196,7 @@ class NativeAgentRuntimeExecutor(
       fallbackExecutor.resetSession(config)
       return
     }
+    interrupt()
     this.config = config
     sessionId = config.sessionId.ifBlank { sessionId ?: UUID.randomUUID().toString() }
     attachLegacyToolContext(config)
@@ -209,6 +210,7 @@ class NativeAgentRuntimeExecutor(
     }
     val model = config?.model
     val shellClient = shizukuClient
+    activeJob.getAndSet(null)?.cancel(CancellationException("Agent runtime cleaned up."))
     discardAgentConversation()
     shizukuClient = null
     shellRouter = null
