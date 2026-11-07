@@ -110,6 +110,11 @@ class AgentCoordinator(
           conversationMessages.removeAt(conversationMessages.lastIndex)
         }
         throw cancelled
+      } catch (error: Exception) {
+        while (conversationMessages.size > previousSize) {
+          conversationMessages.removeAt(conversationMessages.lastIndex)
+        }
+        throw error
       }
     }
 
