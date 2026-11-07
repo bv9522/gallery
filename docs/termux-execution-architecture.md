@@ -2,7 +2,7 @@
 
 ## Goal
 
-Provide the local agent with a Termux userspace independently of Shizuku, while retaining the existing direct Shizuku shell backend. A combined workflow will later let Termux-launched scripts invoke the same Shizuku service through the user's configured `rish` installation.
+Provide the local agent with a Termux userspace independently of Shizuku, while retaining the existing direct Shizuku shell backend. The combined workflow lets Termux-launched scripts invoke the same Shizuku service through the user's configured `rish` installation.
 
 The intended modes are:
 
@@ -36,7 +36,7 @@ The integration intentionally avoids a TCP listener, local server, Termux:Tasker
 4. Reload Termux settings or restart Termux after changing the property.
 5. Install the process-supervision utilities once: `pkg install -y util-linux coreutils`.
 6. For `TERMUX_RISH`, install and initialize the `rish` client using the Shizuku app's supported setup instructions, ensure the Shizuku service is running and this app is authorized, and verify `rish -c 'id'` from Termux. This must report Android shell identity (`uid=2000(shell)`). The native runtime does not silently substitute Termux's own UID if `rish` is unavailable.
-6. Grant Termux shared-storage access separately if commands need to access shared storage.
+7. Grant Termux shared-storage access separately if commands need to access shared storage.
 
 The app declares the Termux permission and package visibility query. It checks that Termux is installed and that the caller permission is granted before dispatch.
 
@@ -52,7 +52,7 @@ The direct Shizuku backend remains separate and continues to require Shizuku per
 
 The app does not rely on RUN_COMMAND to expose a cancellation handle. It starts a detached process group inside Termux using `setsid`, records the supervisor and GNU `timeout` process IDs, and stores stdout/stderr in a private per-invocation directory. Output capture drains the full pipes while retaining only the configured number of bytes per stream, so large command output does not grow the files without bound.
 
-- On normal completion, the app reads the exit status and bounded output, then sends TERM/KILL to the isolated process group to clean up any ordinary background descendants before removing the per-invocation directory.
+- On normal completion, the app reads the exit status and bounded output, then sends TERM/KILL to the isolated process group to clean up ordinary background descendants before removing the per-invocation directory.
 - On coroutine cancellation or app-side timeout, the app sends TERM and then KILL to the isolated process group. It reports when termination cannot be confirmed.
 - GNU `timeout` is also enforced inside Termux. This is a safety net if Android MCP is killed before it can send explicit cleanup.
 - Each invocation still starts a new Bash process. Shell variables, current directory, and interactive stdin are not preserved between calls.
@@ -63,7 +63,7 @@ These constraints are explicit. Persistent interactive shell sessions are not pa
 
 ## Device validation
 
-The diagnostic screen includes a Termux-only test that runs `id`, prints `HOME` and `PREFIX`, and locates Bash. It deliberately does not invoke `rish` or Shizuku. This proves the local Termux path independently before combined execution is tested.
+The diagnostic screen includes a Termux-only test that runs `id`, prints `HOME` and `PREFIX`, and locates Bash. It deliberately does not invoke `rish` or Shizuku. The production Agent Chat path is the real-model acceptance surface: ask Gemma to run a harmless identity command with each backend, approve the exact request, and confirm the returned UID. Use `TERMUX` for the Termux app UID, `SHIZUKU` for `uid=2000(shell)`, and `TERMUX_RISH` for `uid=2000(shell)` through Termux's `rish` client.
 
 
 ## Agent Chat integration
