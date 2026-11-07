@@ -52,7 +52,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     ensureTermuxReady()
 
     val (requestId, deferred) = TermuxCommandResultReceiver.register()
-    val pidFile = "$HOME/.cache/android-mcp-$requestId.pid"
+    val pidFile = "\$HOME/.cache/android-mcp-$requestId.pid"
     val callback = createCallback(requestId)
     val runIntent = createRunIntent(
       command = buildSupervisedCommand(command, pidFile),
