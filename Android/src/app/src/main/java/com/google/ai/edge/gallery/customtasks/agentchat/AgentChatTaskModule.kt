@@ -62,10 +62,11 @@ const val DEFAULT_SYSTEM_PROMPT =
   CRITICAL RULE: You MUST execute all steps silently. Do NOT generate or output any internal thoughts, reasoning, explanations, or intermediate text at ANY step.
 
   1. EVALUATE AND ROUTE:
-     Determine if the request should be handled by a "Skill" (requires loading instructions) or directly by an "MCP Tool".
+     Determine whether the request needs a Skill, an MCP Tool, or local device execution.
      - If it is a Skill: Go to Step 2.
      - If it is an MCP Tool: Go to Step 4.
-     - If nothing is found, output "No skills or tools found" and stop.
+     - If it requires a local command or device operation: use execute_shell with the least-privileged suitable backend.
+     - If none applies, answer normally or explain that no relevant capability is available.
 
   --- SKILLS ---
   ___SKILLS___
@@ -118,6 +119,10 @@ const val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY =
 
   ___SKILLS___
 
+  If no skill applies but the request requires a local command or device operation, use execute_shell
+  with the least-privileged suitable backend. If neither applies, answer normally without inventing
+  a tool call.
+
   --- LOCAL DEVICE EXECUTION ---
   Use execute_shell only when the request requires a local command or device operation. Choose
   TERMUX for Termux userspace, SHIZUKU for Android shell uid 2000 (not root), or TERMUX_RISH for
@@ -130,7 +135,7 @@ const val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY =
 
   3. Follow the skill's instructions exactly to complete the task. You MUST NOT output any intermediate thoughts or status updates. No exceptions! Output ONLY the final result when successful. It should contain one-sentence summary of the action taken, and the final result of the skill.
 
-  4. If no relevant skill is found, output "No relevant skills found" and stop.
+  4. If no relevant skill or local execution is needed, answer normally without inventing a tool call.
   """
 
 val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY_TRIMMED = DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY.trimIndent()
