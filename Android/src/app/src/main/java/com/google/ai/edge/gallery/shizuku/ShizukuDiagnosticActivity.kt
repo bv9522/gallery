@@ -32,6 +32,11 @@ import com.google.ai.edge.gallery.agent.coordinator.AgentModel
 import com.google.ai.edge.gallery.agent.coordinator.AgentModelResponse
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
 import com.google.ai.edge.gallery.agent.coordinator.IdentityDiagnosticShellTool
+import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionApprovalPolicy
+import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionBackend
+import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionRouter
+import com.google.ai.edge.gallery.agent.coordinator.TermuxRishShellTransport
+import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.termux.TermuxRunCommandClient
 import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +55,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
   private lateinit var runButton: Button
   private lateinit var agentRunButton: Button
   private lateinit var termuxRunButton: Button
+  private lateinit var termuxRishRunButton: Button
   private var pendingAgentTest = false
   private var shellService: IShizukuShellService? = null
   private var sessionId: String? = null
@@ -120,6 +126,11 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         text = "Test Termux local execution (no rish)"
         setOnClickListener { connectTermuxOrRequestPermission() }
       }
+    termuxRishRunButton =
+      Button(this).apply {
+        text = "Test mock agent → Termux rish → Shizuku shell"
+        setOnClickListener { connectTermuxRishOrRequestPermission() }
+      }
 
     val layout =
       LinearLayout(this).apply {
@@ -129,6 +140,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         addView(runButton)
         addView(agentRunButton)
         addView(termuxRunButton)
+        addView(termuxRishRunButton)
       }
     setContentView(layout)
 
@@ -259,12 +271,108 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
     grantResults: IntArray,
   ) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-    if (requestCode != TERMUX_PERMISSION_REQUEST_CODE) return
+    if (requestCode != TERMUX_PERMISSION_REQUEST_CODE &&
+      requestCode != TERMUX_RISH_PERMISSION_REQUEST_CODE
+    ) return
     if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-      runTermuxLocalDiagnostic()
+      if (requestCode == TERMUX_RISH_PERMISSION_REQUEST_CODE) {
+        runTermuxRishAgentRoundTrip()
+      } else {
+        runTermuxLocalDiagnostic()
+      }
     } else {
       statusView.text =
         "Termux RUN_COMMAND permission was denied. Grant it in Android Settings to continue."
+    }
+  }
+
+
+  /**
+   * Exercises the shared model-facing shell tool through Termux's rish client. The diagnostic
+   * policy approves only the fixed, harmless identity command initiated by this button.
+   */
+  private fun connectTermuxRishOrRequestPermission() {
+    try {
+      @Suppress("DEPRECATION")
+      packageManager.getPackageInfo("com.termux", 0)
+    } catch (error: PackageManager.NameNotFoundException) {
+      statusView.text = "Termux is not installed. Install and initialize Termux, then retry."
+      return
+    }
+
+    if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED) {
+      statusView.text = "Requesting permission to run the rish diagnostic through Termux…"
+      requestPermissions(
+        arrayOf("com.termux.permission.RUN_COMMAND"),
+        TERMUX_RISH_PERMISSION_REQUEST_CODE,
+      )
+      return
+    }
+    runTermuxRishAgentRoundTrip()
+  }
+
+  private fun runTermuxRishAgentRoundTrip() {
+    termuxRishRunButton.isEnabled = false
+    statusView.text = "Mock agent → unified shell tool → Termux RUN_COMMAND → rish → Shizuku shell…"
+    lifecycleScope.launch {
+      try {
+        val router = ShellExecutionRouter(
+          mapOf(
+            ShellExecutionBackend.TERMUX_RISH to
+              TermuxRishShellTransport(TermuxRunCommandClient(this@ShizukuDiagnosticActivity))
+          )
+        )
+        val shellTool = UnifiedShellTool(
+          router = router,
+          approval = ShellExecutionApprovalPolicy { request ->
+            request.backend == ShellExecutionBackend.TERMUX_RISH && request.command == "id"
+          },
+        )
+        val mockModel = AgentModel { history ->
+          val toolResult = history.lastOrNull { it.role == AgentMessage.Role.TOOL }
+          if (toolResult == null) {
+            AgentModelResponse.ToolCall(
+              name = "execute_shell",
+              arguments = JsonObject().apply {
+                addProperty("backend", ShellExecutionBackend.TERMUX_RISH.name)
+                addProperty("command", "id")
+                addProperty("working_directory", "/")
+                addProperty("timeout_ms", COMMAND_TIMEOUT_MS)
+              },
+              callId = "diagnostic-rish-id",
+            )
+          } else {
+            AgentModelResponse.FinalAnswer(
+              "Termux rish returned this Android shell identity:\\n" + toolResult.content
+            )
+          }
+        }
+        val coordinator = AgentCoordinator(
+          model = mockModel,
+          tools = AgentToolRegistry(listOf(shellTool)),
+        )
+        val result = coordinator.run(
+          "Run the fixed Android shell identity diagnostic through Termux rish and report the result."
+        )
+        val toolResult = result.messages.lastOrNull { it.role == AgentMessage.Role.TOOL }
+        statusView.text = buildString {
+          appendLine("Agent run status: " + result.status)
+          appendLine("Model turns: " + result.modelTurns + " | Tool calls: " + result.toolCalls)
+          appendLine("Tool succeeded: " + (toolResult?.toolSucceeded == true))
+          appendLine("Expected identity: uid=2000(shell), not root")
+          appendLine()
+          appendLine("Tool result:")
+          appendLine(toolResult?.content.orEmpty())
+          appendLine()
+          appendLine("Mock model final answer:")
+          appendLine(result.finalText)
+        }
+      } catch (error: Exception) {
+        statusView.text = "Termux rish agent diagnostic failed: " +
+          (error.message ?: error.javaClass.simpleName)
+      } finally {
+        termuxRishRunButton.isEnabled = true
+      }
     }
   }
 
@@ -394,6 +502,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
   private companion object {
     const val REQUEST_CODE = 4812
     const val TERMUX_PERMISSION_REQUEST_CODE = 4813
+    const val TERMUX_RISH_PERMISSION_REQUEST_CODE = 4814
     const val COMMAND_TIMEOUT_MS = 15_000L
     const val OUTPUT_LIMIT = 32 * 1_024
   }

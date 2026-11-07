@@ -282,7 +282,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     }
   }
 
-  private class CommandCapture(
+  internal class CommandCapture(
     private val token: String,
     private val maxOutputChars: Int,
   ) {
@@ -300,15 +300,20 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     private var failed = false
     private var exitCode = -1
     private var truncated = false
+    private var capturedChars = 0
     private val stdoutMarker = Pattern.compile("(^|\\n)" + Pattern.quote(token) + ":(-?\\d+)\\n")
     private val stderrMarker = Pattern.compile("(^|\\n)" + Pattern.quote(token) + "\\n")
 
     fun accept(isStdout: Boolean, chunk: String) {
       synchronized(lock) {
         val buffer = if (isStdout) stdoutBuffer else stderrBuffer
-        val remaining = (maxOutputChars - buffer.length).coerceAtLeast(0)
-        if (remaining > 0) buffer.append(chunk, 0, minOf(remaining, chunk.length))
-        if (chunk.length > remaining) truncated = true
+        val remaining = (maxOutputChars - capturedChars).coerceAtLeast(0)
+        val accepted = minOf(remaining, chunk.length)
+        if (accepted > 0) {
+          buffer.append(chunk, 0, accepted)
+          capturedChars += accepted
+        }
+        if (chunk.length > accepted) truncated = true
 
         if (isStdout) {
           stdoutLength += chunk.length

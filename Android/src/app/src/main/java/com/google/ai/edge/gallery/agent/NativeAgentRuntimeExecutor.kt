@@ -152,8 +152,13 @@ class NativeAgentRuntimeExecutor(
           ?: emptyMap()
         val result: AgentRunResult =
           currentCoordinator.run(request.query, contents, extraContext)
-        emit(AgentEvent.StreamToken(token = result.finalText, done = true))
-        emit(AgentEvent.LoopTerminated(result.finalText))
+        if (result.isSuccessful) {
+          emit(AgentEvent.StreamToken(token = result.finalText, done = true))
+          emit(AgentEvent.LoopTerminated(result.finalText))
+        } else {
+          discardAgentConversation()
+          emit(AgentEvent.Error(result.finalText))
+        }
       } catch (cancelled: CancellationException) {
         discardAgentConversation()
         throw cancelled
