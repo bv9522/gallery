@@ -55,7 +55,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     val pidFile = "\$HOME/.cache/android-mcp-$requestId.pid"
     val callback = createCallback(requestId)
     val runIntent = createRunIntent(
-      command = buildSupervisedCommand(command, pidFile),
+      command = TermuxProcessCommandBuilder.buildLaunchCommand(command, pidFile),
       workingDirectory = workingDirectory,
       callback = callback,
     )
@@ -150,31 +150,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
    * than success because the timeout may have raced with initial process startup.
    */
   private suspend fun terminateProcessGroup(pidFile: String): Boolean {
-    val script = """
-      pid_file=${shellQuote(pidFile)}
-      for attempt in 1 2 3 4 5; do
-        [ -s "\$pid_file" ] && break
-        sleep 0.2
-      done
-      [ -s "\$pid_file" ] || exit 1
-      pid=\$(cat "\$pid_file" 2>/dev/null)
-      case "\$pid" in
-        ''|*[!0-9]*) rm -f "\$pid_file"; exit 1 ;;
-      esac
-      kill -TERM -- "-\$pid" 2>/dev/null || true
-      for attempt in 1 2 3 4 5; do
-        if ! kill -0 -- "-\$pid" 2>/dev/null; then
-          rm -f "\$pid_file"
-          exit 0
-        fi
-        sleep 0.2
-      done
-      kill -KILL -- "-\$pid" 2>/dev/null || true
-      sleep 0.2
-      if kill -0 -- "-\$pid" 2>/dev/null; then exit 1; fi
-      rm -f "\$pid_file"
-      exit 0
-    """.trimIndent()
+    val script = TermuxProcessCommandBuilder.buildTerminateCommand(pidFile)
     return runControlCommand(script)
   }
 
@@ -221,8 +197,6 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     putExtra(EXTRA_COMMAND_DESCRIPTION, "Command requested by the local AI assistant.")
     putExtra(EXTRA_PENDING_INTENT, callback)
   }
-
-  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
   private fun ensureTermuxReady() {
     try {
