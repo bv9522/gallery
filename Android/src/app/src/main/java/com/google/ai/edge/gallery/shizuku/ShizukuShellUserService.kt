@@ -81,8 +81,6 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         runCatching { process.waitFor(250, TimeUnit.MILLISECONDS) }
         throw error
       }
-      sessions[id] = session
-      Bundle().apply { putString(KEY_SESSION_ID, id) }
     } catch (error: Exception) {
       errorBundle(error.message ?: "Could not create shell session.")
     }
