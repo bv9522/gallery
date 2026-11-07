@@ -53,7 +53,11 @@ class AgentCoordinator(
    * conversation. A cancelled turn is rolled back in coordinator memory; the owner must discard
    * the associated native conversation because its KV cache may contain a partial turn.
    */
-  suspend fun run(userInput: String, userContents: Contents? = null): AgentRunResult =
+  suspend fun run(
+    userInput: String,
+    userContents: Contents? = null,
+    extraContext: Map<String, Any> = emptyMap(),
+  ): AgentRunResult =
     runMutex.withLock {
       require(userInput.isNotBlank() || userContents != null) {
         "User input or multimodal contents must not be empty."
@@ -63,6 +67,7 @@ class AgentCoordinator(
         AgentMessage.Role.USER,
         content = userInput,
         userContents = userContents,
+        extraContext = extraContext,
       )
       var modelTurns = 0
       var toolCalls = 0
