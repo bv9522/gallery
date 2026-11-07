@@ -289,12 +289,20 @@ class UnifiedShellTool(
       ShellExecutionBackend.TERMUX -> "~/"
       ShellExecutionBackend.SHIZUKU, ShellExecutionBackend.TERMUX_RISH -> "/"
     }
-    val timeout = arguments.integer("timeout_ms") ?: if (arguments.has("timeout_ms")) {
-      return AgentToolResult("timeout_ms must be an integer.", false)
-    } else ShellExecutionRequest.DEFAULT_TIMEOUT_MS
-    val outputLimit = arguments.integer("max_output_chars") ?: if (arguments.has("max_output_chars")) {
-      return AgentToolResult("max_output_chars must be an integer.", false)
-    } else ShellExecutionRequest.DEFAULT_OUTPUT_CHARS
+    val timeout: Long =
+      if (arguments.has("timeout_ms")) {
+        arguments.integer("timeout_ms")
+          ?: return AgentToolResult("timeout_ms must be an integer.", false)
+      } else {
+        ShellExecutionRequest.DEFAULT_TIMEOUT_MS
+      }
+    val outputLimit: Long =
+      if (arguments.has("max_output_chars")) {
+        arguments.integer("max_output_chars")
+          ?: return AgentToolResult("max_output_chars must be an integer.", false)
+      } else {
+        ShellExecutionRequest.DEFAULT_OUTPUT_CHARS.toLong()
+      }
 
     if (outputLimit !in ShellExecutionRequest.MIN_OUTPUT_CHARS.toLong()..ShellExecutionRequest.MAX_OUTPUT_CHARS.toLong()) {
       return AgentToolResult("max_output_chars must be between ${ShellExecutionRequest.MIN_OUTPUT_CHARS} and ${ShellExecutionRequest.MAX_OUTPUT_CHARS}.", false)
