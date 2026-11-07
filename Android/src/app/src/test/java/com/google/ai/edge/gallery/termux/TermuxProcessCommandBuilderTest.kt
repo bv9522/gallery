@@ -23,7 +23,7 @@ class TermuxProcessCommandBuilderTest {
   @Test
   fun launchUsesIsolatedProcessGroupAndQuotesUntrustedValues() {
     val command = "printf '%s' \"hello world\"; echo done"
-    val pidFile = "\$HOME/.cache/android-mcp-42's.pid"
+    val pidFile = ".cache/android-mcp-42's.pid"
 
     val script = TermuxProcessCommandBuilder.buildLaunchCommand(command, pidFile)
 
@@ -38,7 +38,7 @@ class TermuxProcessCommandBuilderTest {
   @Test
   fun cancellationEscalatesFromTermToKillAndVerifiesProcessGroup() {
     val script = TermuxProcessCommandBuilder.buildTerminateCommand(
-      "\$HOME/.cache/android-mcp-9.pid"
+      ".cache/android-mcp-9.pid"
     )
 
     assertTrue(script.contains("kill -TERM -- \"-\$pid\""))
