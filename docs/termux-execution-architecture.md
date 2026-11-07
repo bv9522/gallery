@@ -75,3 +75,49 @@ The `execute_shell` tool requires an explicit backend and command. The shared ap
 ## Validation status
 
 The existing Termux-only diagnostic verifies the standalone RUN_COMMAND transport. Unit tests cover routing, approval, no-fallback behavior, argument validation, and rish command quoting. Device-level validation of all three identities and real Gemma-generated tool calls is still required after building and installing the current APK. In particular, test `TERMUX_RISH` only after confirming the user's Termux `rish` client is installed and reports `uid=2000(shell)`.
+
+
+## Guiding principle and next capability roadmap
+
+The unified execution runtime is the foundation, not a reason to create a separate model tool for every Android feature.
+
+Apply these rules in order:
+
+1. If an operation can be performed reliably with an existing shell command, route it through the shared execute_shell request and approval path.
+2. If Android requires a framework API, implement a reusable platform adapter behind the shared execution/capability boundary.
+3. If an optional companion such as Termux:API already exposes the capability, detect and reuse it rather than reimplementing it.
+4. Add a dedicated model-facing operation only when structured parameters, permission handling, result typing, lifecycle management, or safety materially improve reliability or usability.
+5. Keep backend identity explicit. A requested Shizuku operation must never silently fall back to Termux, and TERMUX_RISH must continue to invoke the existing Shizuku service rather than creating another one.
+
+### Finish the initial execution runtime first
+
+Before adding device features, validate all three execution identities from Agent Chat on a physical device:
+
+- TERMUX: confirm the command executes as the Termux app UID.
+- SHIZUKU: confirm the native UserService executes as Android shell UID 2000.
+- TERMUX_RISH: confirm Termux's configured rish client reaches that same Shizuku service and reports UID 2000.
+- Approve the exact command in each case, verify bounded stdout/stderr and exit status, then test timeout, user cancellation, session close, and cleanup of ordinary child processes.
+- Confirm missing Termux, missing rish, revoked Shizuku permission, and unavailable /system/bin/setsid fail explicitly without backend substitution.
+
+GitHub Actions unit tests and APK builds are necessary but do not replace this S21 validation. The Pages deployment workflow is unrelated to Android execution.
+
+### Optional Termux:API capability reuse
+
+Termux:API is an optional integration, not a prerequisite for the shell router. It requires both the Termux-side termux-api package and the companion Android application from a compatible distribution/signing family. Detect command and companion availability at runtime; report unavailable capabilities instead of assuming installation.
+
+Prefer the existing Termux shell transport for commands such as battery status, torch, sensors, camera capture, TTS, vibration, and clipboard operations when the Termux:API contract is sufficient. Add a native Android adapter only when the feature needs Android lifecycle/permission handling, richer typed results, image handoff to the model, streaming subscriptions, or functionality Termux:API cannot provide.
+
+### Connected-device capabilities
+
+Connected devices are a planned capability area, with the user's FiiO BTR3K Bluetooth DAC and USB flash drive as initial validation targets.
+
+- Bluetooth / audio: start with Android's supported Bluetooth and audio-routing APIs for connection state, device metadata, and standard media routing. Do not assume that a generic Bluetooth connection grants access to vendor-specific DAC controls, codec settings, filters, or firmware functions. Investigate any BTR3K-specific control protocol separately and require normal Android pairing/permissions.
+- USB storage: support removable storage through Android's Storage Access Framework (SAF), USB host APIs where required, and persistable URI grants. The model should operate only within a user-selected, granted document tree. Do not assume shell UID or Shizuku provides unrestricted access to every removable-storage path.
+- Windows drive distinction: a Windows drive letter such as F:\Media is not itself an Android path. When the flash drive is attached directly to the S21 using a compatible USB-OTG adapter, Android will expose it as a removable volume/document tree subject to Android's storage access rules. If the drive remains attached to the Windows PC, access would instead require a separately configured network-sharing capability.
+- File operations: begin with scoped read/list/search and metadata extraction. Add writes only with clear target paths and confirmation; require stronger confirmation for bulk moves, overwrites, or deletes. Avoid silently indexing or transmitting the entire drive. Make indexing opt-in, local, incremental, and revocable.
+
+### Reusable Android capability adapters
+
+Introduce platform adapters only as real platform constraints require them. Candidate adapter domains include app discovery/launch intents, Bluetooth/audio routing, USB/SAF document access, camera capture and image delivery, sensor subscriptions, notification listening, and screen capture. Adapters should expose availability, permission state, required user action, and typed results to the coordinator. They should reuse the same approval policy for consequential actions and keep read-only inspection distinct from state-changing operations.
+
+Do not turn this roadmap into a fixed catalogue of one-off tools. Capability discovery and adapter reuse should let the model request outcomes while the runtime selects the safest supported implementation.
