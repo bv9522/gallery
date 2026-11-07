@@ -35,7 +35,7 @@ The integration intentionally avoids a TCP listener, local server, Termux:Tasker
    `allow-external-apps=true`
 4. Reload Termux settings or restart Termux after changing the property.
 5. Install the process-supervision utilities once: `pkg install -y util-linux coreutils`.
-6. For `TERMUX_RISH`, install and initialize the `rish` client using the Shizuku app's supported setup instructions, ensure the Shizuku service is running and this app is authorized, and verify `rish -c 'id'` from Termux. This must report Android shell identity (`uid=2000(shell)`). The native runtime does not silently substitute Termux's own UID if `rish` is unavailable.
+6. For `TERMUX_RISH`, install and initialize the `rish` client using the Shizuku app's supported setup instructions. Ensure the `rish` executable is discoverable on Termux's `PATH` (the Shizuku documentation notes it may not be on `PATH` by default), the Shizuku service is running, and Termux is authorized. Verify both `command -v rish` and `rish -c 'id'` from Termux. The latter must report Android shell identity (`uid=2000(shell)`). The native runtime does not silently substitute Termux's own UID if `rish` is unavailable.
 7. Grant Termux shared-storage access separately if commands need to access shared storage.
 
 The app declares the Termux permission and package visibility query. It checks that Termux is installed and that the caller permission is granted before dispatch.
