@@ -26,6 +26,7 @@ enum class ToolActionName() {
   ASK_INFO,
   REQUEST_PERMISSION,
   ASK_MCP_TOOL_CALL_PERMISSION,
+  ASK_SHELL_COMMAND_PERMISSION,
 }
 
 /**
@@ -125,6 +126,19 @@ class AskMcpToolCallPermissionAction(
  * @property image An optional image side-effect returned by the script.
  * @property webview An optional embedded web view side-effect returned by the script.
  */
+/**
+ * Requests one-time approval for an exact native shell execution request. Unlike MCP tools, shell
+ * commands never support persistent "always allow" approval.
+ */
+class AskShellCommandPermissionAction(
+  val backend: String,
+  val command: String,
+  val workingDirectory: String,
+  val timeoutMs: Long,
+  val maxOutputChars: Int,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.ASK_SHELL_COMMAND_PERMISSION)
+
 @JsonClass(generateAdapter = true)
 data class CallJsSkillResult(
   val result: String?,

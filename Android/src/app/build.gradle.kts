@@ -51,6 +51,20 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  flavorDimensions += "distribution"
+  productFlavors {
+    create("shizuku") {
+      dimension = "distribution"
+      applicationIdSuffix = ".shizuku"
+
+      // The Shizuku distribution targets the user's Galaxy S21 (64-bit ARM).
+      // Keep the upstream/default distribution ABI configuration unchanged.
+      ndk {
+        abiFilters += "arm64-v8a"
+      }
+    }
+  }
+
   buildTypes {
     release {
       isMinifyEnabled = false
@@ -65,6 +79,7 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+    aidl = true
   }
   packaging { jniLibs { pickFirsts.add("**/liblitertlm_jni.so") } }
 }
@@ -145,6 +160,8 @@ dependencies {
   implementation(libs.tasks.audio)
   implementation(libs.androidx.pdf.core)
   implementation(libs.androidx.pdf.document.service)
+  implementation(libs.shizuku.api)
+  implementation(libs.shizuku.provider)
 }
 
 configurations.all { resolutionStrategy.force("org.jetbrains.kotlin:kotlin-metadata-jvm:2.4.0") }

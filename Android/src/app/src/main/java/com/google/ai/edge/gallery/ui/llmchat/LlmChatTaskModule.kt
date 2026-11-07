@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.ui.llmchat
 
 import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,11 +29,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Mms
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -40,6 +45,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.ai.edge.gallery.R
@@ -150,6 +156,11 @@ abstract class BaseLlmChatTask(
       showImagePicker = true,
       showAudioPicker = true,
       showTextFilePicker = true,
+      composableBelowMessageList = { model ->
+        if (task.id == BuiltInTaskId.LLM_CHAT) {
+          GemmaToolCallingDiagnostic(model = model, viewModel = viewModel)
+        }
+      },
       onSystemPromptChanged = { newPrompt ->
         val selectedModel = myData.modelManagerViewModel.uiState.value.selectedModel
         viewModel.applySystemPromptChange(
@@ -211,6 +222,68 @@ abstract class BaseLlmChatTask(
           }
         }
       },
+    )
+  }
+}
+
+
+
+/** Temporary on-device acceptance control for the native LiteRT-LM → coordinator → Shizuku path. */
+@Composable
+private fun GemmaToolCallingDiagnostic(
+  model: Model,
+  viewModel: LlmChatViewModel,
+) {
+  val context = androidx.compose.ui.platform.LocalContext.current
+  val chatState by viewModel.uiState.collectAsStateWithLifecycle()
+  // Model.instance is a computed getter over initStatusFlow, not Compose state. Observe the
+  // StateFlow directly so the control recomposes when initialization completes or is reset.
+  val modelInitStatus by model.initStatusFlow.collectAsStateWithLifecycle()
+  val currentModelInitStatus = modelInitStatus
+  val modelLoaded =
+    currentModelInitStatus is Model.InitializationStatus.Initialized &&
+      currentModelInitStatus.instance != null
+  var running by remember(model.name) { mutableStateOf(false) }
+  var result by remember(model.name) { mutableStateOf("Only the harmless shell command id is permitted.") }
+  val disabledReason =
+    when {
+      running -> "Diagnostic is running…"
+      !modelLoaded -> "Send one normal message to Gemma first to load the model; this button will then enable."
+      chatState.inProgress -> "Wait for the current chat response to finish."
+      chatState.isResettingSession -> "Wait for the chat session reset to finish."
+      else -> null
+    }
+
+  Column(
+    modifier =
+      Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        .background(
+          MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+          RoundedCornerShape(16.dp),
+        )
+        .padding(horizontal = 12.dp, vertical = 6.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(4.dp),
+  ) {
+    Button(
+      enabled = !running && modelLoaded &&
+        !chatState.inProgress && !chatState.isResettingSession,
+      onClick = {
+        running = true
+        result = "Running Gemma → structured tool call → coordinator → Shizuku…"
+        viewModel.runGemmaToolCallingDiagnostic(context, model) { report ->
+          result = report
+          running = false
+        }
+      },
+    ) {
+      Text(if (running) "Running diagnostic…" else "Test Gemma tool calling → Shizuku")
+    }
+    Text(
+      disabledReason ?: result,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      style = MaterialTheme.typography.bodySmall,
+      maxLines = 12,
     )
   }
 }

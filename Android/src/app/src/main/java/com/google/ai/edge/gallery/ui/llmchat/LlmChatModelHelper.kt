@@ -19,6 +19,8 @@ package com.google.ai.edge.gallery.ui.llmchat
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
+import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmAgentModel
 import com.google.ai.edge.gallery.common.cleanUpMediapipeTaskErrorMessage
 import com.google.ai.edge.gallery.common.metrics.InferenceStatus
 import com.google.ai.edge.gallery.common.metrics.MetricsTracker
@@ -97,6 +99,59 @@ data class LlmModelInstance(
 }
 
 object LlmChatModelHelper : LlmModelHelper {
+  /**
+   * Creates a dedicated manual-tool-calling conversation over the already initialized engine.
+   * The normal chat conversation is left untouched.
+   */
+  @OptIn(ExperimentalApi::class)
+  fun createAgentModel(
+    model: Model,
+    tools: AgentToolRegistry,
+    systemInstruction: String? = null,
+    additionalToolProviders: List<ToolProvider> = emptyList(),
+    initialMessages: List<Message> = emptyList(),
+  ): LiteRtLmAgentModel {
+    val instance = model.instance as? LlmModelInstance
+      ?: error("LiteRT-LM model is not initialized.")
+    val accelerator = model.currentAccelerator ?: Accelerator.GPU
+    val samplerConfig =
+      if (accelerator == Accelerator.NPU || accelerator == Accelerator.TPU) {
+        null
+      } else {
+        SamplerConfig(
+          topK = model.getIntConfigValue(key = ConfigKeys.TOPK, defaultValue = DEFAULT_TOPK),
+          topP = model.getFloatConfigValue(key = ConfigKeys.TOPP, defaultValue = DEFAULT_TOPP).toDouble(),
+          temperature = model.getFloatConfigValue(
+            key = ConfigKeys.TEMPERATURE,
+            defaultValue = DEFAULT_TEMPERATURE,
+          ).toDouble(),
+        )
+      }
+    // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
+    // Enable it only while creating this dedicated agent conversation; normal chat is unchanged.
+    val previousConstrainedDecoding = ExperimentalFlags.enableConversationConstrainedDecoding
+    ExperimentalFlags.enableConversationConstrainedDecoding = true
+    val conversation =
+      try {
+        instance.engine.createConversation(
+          ConversationConfig(
+            samplerConfig = samplerConfig,
+            systemInstruction =
+              systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
+            tools = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders,
+            initialMessages = initialMessages,
+            automaticToolCalling = false,
+          )
+        )
+      } finally {
+        ExperimentalFlags.enableConversationConstrainedDecoding = previousConstrainedDecoding
+      }
+    instance.activeEphemeralConversations.add(conversation)
+    return LiteRtLmAgentModel(conversation, onClosed = {
+      instance.activeEphemeralConversations.remove(conversation)
+    })
+  }
+
   // Indexed by model name.
   private val cleanUpListeners: MutableMap<String, CleanUpListener> = mutableMapOf()
 
@@ -134,7 +189,6 @@ object LlmChatModelHelper : LlmModelHelper {
         Accelerator.GPU -> Backend.GPU()
         Accelerator.NPU -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
         Accelerator.TPU -> Backend.NPU(nativeLibraryDir = context.applicationInfo.nativeLibraryDir)
-        else -> Backend.GPU()
       }
     val shouldEnableImage = supportImage
     val shouldEnableAudio = supportAudio

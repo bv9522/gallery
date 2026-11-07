@@ -365,8 +365,6 @@ fun ChatView(
           Box {
             val curModelDownloadStatus = modelManagerUiState.modelDownloadStatus[selectedModel.name]
 
-            composableBelowMessageList(selectedModel)
-
             Column(
               modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)
             ) {
@@ -425,6 +423,18 @@ fun ChatView(
                     )
                 }
               }
+            }
+
+            // Keep task-specific controls in the foreground, centered just above the
+            // message composer rather than at the top of the chat screen.
+            Box(
+              modifier =
+                Modifier.align(Alignment.BottomCenter)
+                  .fillMaxWidth()
+                  .padding(bottom = 156.dp),
+              contentAlignment = Alignment.Center,
+            ) {
+              composableBelowMessageList(selectedModel)
             }
 
             // File viewer.
