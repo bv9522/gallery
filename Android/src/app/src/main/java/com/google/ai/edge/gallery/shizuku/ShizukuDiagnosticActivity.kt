@@ -343,7 +343,7 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
             )
           } else {
             AgentModelResponse.FinalAnswer(
-              "Termux rish returned this Android shell identity:\\n" + toolResult.content
+              "Termux rish returned this Android shell identity:\n" + toolResult.content
             )
           }
         }
