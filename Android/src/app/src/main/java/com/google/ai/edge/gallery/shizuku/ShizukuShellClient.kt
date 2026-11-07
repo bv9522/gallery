@@ -147,6 +147,9 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
           timedOut = bundle.getBoolean(ShizukuShellUserService.KEY_TIMED_OUT, false),
           outputTruncated = bundle.getBoolean(ShizukuShellUserService.KEY_OUTPUT_TRUNCATED, false),
           error = error,
+          processMayStillBeRunning = bundle.getBoolean(
+            ShizukuShellUserService.KEY_PROCESS_MAY_STILL_BE_RUNNING, false
+          ),
         )
         if (result.timedOut || error != null) sessionId = null
         result
@@ -256,6 +259,8 @@ data class ShizukuShellResult(
   val timedOut: Boolean,
   val outputTruncated: Boolean,
   val error: String? = null,
+  val processMayStillBeRunning: Boolean = false,
 ) {
-  val succeeded: Boolean get() = error == null && !timedOut && exitCode == 0
+  val succeeded: Boolean
+    get() = error == null && !timedOut && exitCode == 0 && !processMayStillBeRunning
 }
