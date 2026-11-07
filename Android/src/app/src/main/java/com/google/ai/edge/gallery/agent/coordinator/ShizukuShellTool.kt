@@ -108,11 +108,11 @@ class ShizukuShellTool(
       } else {
         ShizukuShellClient.DEFAULT_TIMEOUT_MS
       }
-    val maxOutputChars = parseInteger(arguments, "max_output_chars")
+    val maxOutputChars: Long = parseInteger(arguments, "max_output_chars")
       ?: if (arguments.has("max_output_chars")) {
         return AgentToolResult("max_output_chars must be an integer.", false)
       } else {
-        ShizukuShellClient.DEFAULT_OUTPUT_LIMIT
+        ShizukuShellClient.DEFAULT_OUTPUT_LIMIT.toLong()
       }
 
     if (timeoutMs !in MIN_TIMEOUT_MS..MAX_TIMEOUT_MS) {
@@ -120,7 +120,7 @@ class ShizukuShellTool(
     }
     if (maxOutputChars !in MIN_OUTPUT_CHARS..MAX_OUTPUT_CHARS) {
       return AgentToolResult(
-        "max_output_chars must be between $MIN_OUTPUT_CHARS and $MAX_OUTPUT_CHARS.",
+        "max_output_chars must be between $MIN_OUTPUT_CHARS and $MAX_OUTPUT_CHARS; received $maxOutputChars.",
         false,
       )
     }
