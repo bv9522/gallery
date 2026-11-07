@@ -40,7 +40,7 @@ class ShizukuShellToolTest {
     val result = tool.execute(commandArguments("id"))
 
     assertFalse(result.isSuccessful)
-    assertTrue(result.content.contains("user did not approve"))
+    assertTrue("Unexpected denial result: '${result.content}'", result.content.contains("user did not approve"))
     assertEquals("id", requested?.command)
     assertEquals(0, shell.commands.size)
   }
@@ -108,8 +108,8 @@ class ShizukuShellToolTest {
     })
 
     try {
-      tool.execute(commandArguments("id"))
-      throw AssertionError("Expected approval cancellation.")
+      val result = tool.execute(commandArguments("id"))
+      throw AssertionError("Expected approval cancellation, but tool returned: $result")
     } catch (_: CancellationException) {
       assertTrue(shell.commands.isEmpty())
     }
