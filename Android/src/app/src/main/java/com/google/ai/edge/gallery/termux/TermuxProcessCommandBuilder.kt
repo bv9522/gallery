@@ -51,7 +51,7 @@ internal object TermuxProcessCommandBuilder {
     require(pidFile.isNotBlank() && '\u0000' !in pidFile)
     val quotedPidFile = shellQuote(pidFile)
     return """
-      pid_file=$quotedPidFile
+      pid_file="\$HOME"/$quotedPidFile
       for attempt in 1 2 3 4 5; do
         [ -s "\$pid_file" ] && break
         sleep 0.2
