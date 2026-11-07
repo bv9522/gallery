@@ -29,7 +29,9 @@ import java.io.Closeable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * Model-neutral coordinator adapter for a manually-driven LiteRT-LM conversation.
@@ -78,18 +80,18 @@ class LiteRtLmAgentModel(
           "${userMessages.size} user and ${toolMessages.size} tool messages."
       }
 
-      val response = withContext(ioDispatcher) {
+      val message =
         if (userMessages.isNotEmpty()) {
-          conversation.sendMessage(Message.user(userMessages.single().content))
+          Message.user(userMessages.single().content)
         } else {
           val toolResponses = toolMessages.map { message ->
             val name = message.toolName
               ?: error("Tool result is missing its tool name.")
             Content.ToolResponse(name, message.content)
           }
-          conversation.sendMessage(Message.tool(Contents.of(toolResponses)))
+          Message.tool(Contents.of(toolResponses))
         }
-      }
+      val response = sendMessageCancellable(message)
 
       if (response.toolCalls.isNotEmpty()) {
         val calls = response.toolCalls.mapIndexed { index, call ->
@@ -105,11 +107,33 @@ class LiteRtLmAgentModel(
       }
     }
 
+  /**
+   * LiteRT-LM's synchronous sendMessage() is not coroutine-aware. Dispatch it to IO and attach
+   * cancellation directly to Conversation.cancelProcess(), so cancelling AgentCoordinator.run()
+   * interrupts native generation rather than merely abandoning the waiting coroutine.
+   */
+  private suspend fun sendMessageCancellable(message: Message): Message =
+    suspendCancellableCoroutine { continuation ->
+      ioDispatcher.dispatch(continuation.context, Runnable {
+        try {
+          val response = conversation.sendMessage(message)
+          if (continuation.isActive) continuation.resume(response)
+        } catch (error: Throwable) {
+          if (continuation.isActive) continuation.resumeWithException(error)
+        }
+      })
+      continuation.invokeOnCancellation {
+        runCatching { conversation.cancelProcess() }
+      }
+    }
+
   override fun close() {
     if (closed) return
     closed = true
     try {
       if (conversation.isAlive) {
+        // Also cancel before closing: this is the final safety net for lifecycle teardown.
+        runCatching { conversation.cancelProcess() }
         runCatching { conversation.close() }
       }
     } finally {
