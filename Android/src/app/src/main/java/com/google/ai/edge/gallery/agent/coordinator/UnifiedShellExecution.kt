@@ -337,7 +337,7 @@ class UnifiedShellTool(
       }
       if (result.outputTruncated) appendLine("Warning: output was truncated.")
       if (result.processMayStillBeRunning) {
-        appendLine("Warning: Termux may still be running this command; reliable process cancellation is not available through this transport yet.")
+        appendLine("Warning: the backend could not confirm that the process group has stopped.")
       }
     }.trim()
     return AgentToolResult(response, result.succeeded)
