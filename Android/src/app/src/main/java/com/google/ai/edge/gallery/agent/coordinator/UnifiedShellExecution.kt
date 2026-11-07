@@ -18,6 +18,10 @@ package com.google.ai.edge.gallery.agent.coordinator
 
 import com.google.ai.edge.gallery.shizuku.ShizukuShellExecutor
 import com.google.ai.edge.gallery.termux.TermuxShellExecutor
+import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
+import com.google.ai.edge.gallery.tools.ToolAction
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.channels.SendChannel
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CancellationException
 
@@ -87,6 +91,31 @@ fun interface ShellExecutionTransport {
 /** One policy owns approval for every execution identity. */
 fun interface ShellExecutionApprovalPolicy {
   suspend fun requestApproval(request: ShellExecutionRequest): Boolean
+}
+
+/**
+ * Bridges the shared approval policy to Agent Chat's existing action channel. Missing UI
+ * collectors, closed channels, dismissal, and the approval deadline all fail closed.
+ */
+class ChannelShellExecutionApprovalPolicy(
+  private val actionChannel: SendChannel<ToolAction>,
+  private val approvalTimeoutMs: Long = 120_000L,
+) : ShellExecutionApprovalPolicy {
+  override suspend fun requestApproval(request: ShellExecutionRequest): Boolean {
+    val action = AskShellCommandPermissionAction(
+      backend = request.backend.name,
+      command = request.command,
+      workingDirectory = request.workingDirectory,
+      timeoutMs = request.timeoutMs,
+      maxOutputChars = request.maxOutputChars,
+    )
+    return try {
+      actionChannel.send(action)
+      withTimeoutOrNull(approvalTimeoutMs) { action.result.await() } ?: false
+    } finally {
+      if (!action.result.isCompleted) action.result.complete(false)
+    }
+  }
 }
 
 /**
