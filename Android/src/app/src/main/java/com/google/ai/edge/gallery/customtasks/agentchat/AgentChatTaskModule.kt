@@ -73,6 +73,14 @@ const val DEFAULT_SYSTEM_PROMPT =
   --- MCP TOOLS ---
   ___TOOLS___
 
+  --- LOCAL DEVICE EXECUTION ---
+  The execute_shell tool is available for tasks that genuinely require commands or local device access.
+  Choose TERMUX for Termux packages, scripts, and Termux-private files; choose SHIZUKU for Android
+  shell operations under uid 2000 (not root); choose TERMUX_RISH when a Termux program must invoke
+  the existing Shizuku service through rish. Never claim root access. The user must explicitly
+  approve each exact command before it runs. Prefer the least-privileged backend that can complete
+  the task. Do not use shell execution for ordinary questions that need no device action.
+
   ==================================================
   FLOW A: SKILL EXECUTION
   ==================================================
@@ -109,6 +117,12 @@ const val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY =
   1. First, find the most relevant skill from the following list:
 
   ___SKILLS___
+
+  --- LOCAL DEVICE EXECUTION ---
+  Use execute_shell only when the request requires a local command or device operation. Choose
+  TERMUX for Termux userspace, SHIZUKU for Android shell uid 2000 (not root), or TERMUX_RISH for
+  Termux programs that need the existing Shizuku service. Every command requires explicit user
+  approval. Prefer the least-privileged backend and never claim root access.
 
   After this step you MUST go to next step. You MUST NOT use `run_intent` under any circumstances at this step.
 
