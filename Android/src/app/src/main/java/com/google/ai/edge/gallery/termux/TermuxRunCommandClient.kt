@@ -132,9 +132,9 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         printf '%s\\n' 'Android MCP requires Termux util-linux (setsid) for process supervision.' >&2
         exit 127
       }
-      mkdir -p "$HOME/.cache" || exit 125
+      mkdir -p "\\$HOME/.cache" || exit 125
       pid_file=$quotedPidFile
-      rm -f "$pid_file"
+      rm -f "\\$pid_file"
       setsid bash -lc $quotedCommand &
       child_pid=\$!
       printf '%s\\n' "\$child_pid" > "\$pid_file"
