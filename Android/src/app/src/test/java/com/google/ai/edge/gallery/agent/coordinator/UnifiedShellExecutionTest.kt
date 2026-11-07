@@ -267,7 +267,7 @@ class UnifiedShellExecutionTest {
   }
 
   @Test
-  fun channelApprovalShowsExactRequestAndWaitsForOneTimeDecision() = runBlocking {
+  fun channelApprovalShowsExactRequestAndWaitsForOneTimeDecision(): Unit = runBlocking {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
     val policy = ChannelShellExecutionApprovalPolicy(channel)
     val request = ShellExecutionRequest(
@@ -291,7 +291,7 @@ class UnifiedShellExecutionTest {
   }
 
   @Test
-  fun missingApprovalResponseFailsClosed() = runBlocking {
+  fun missingApprovalResponseFailsClosed(): Unit = runBlocking {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
     val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10)
     val approved = policy.requestApproval(
