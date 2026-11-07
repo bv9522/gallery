@@ -134,6 +134,7 @@ class NativeAgentRuntimeExecutor(
       val job = currentCoroutineContext()[Job]
       activeJob.set(job)
       emit(AgentEvent.LoopInitiated(request))
+      var coordinatorStarted = false
       try {
         val currentConfig = checkNotNull(config) { "Agent Chat has not been initialized." }
         val requestedSessionId = request.metadata[AgentRequest.SESSION_ID] as? String
@@ -145,6 +146,7 @@ class NativeAgentRuntimeExecutor(
         val contents = withContext(Dispatchers.IO) { buildUserContents(currentContext, request) }
         ensureAgentModel(currentConfig)
         val currentCoordinator = checkNotNull(coordinator)
+        coordinatorStarted = true
         val result: AgentRunResult = currentCoordinator.run(request.query, contents)
         emit(AgentEvent.StreamToken(token = result.finalText, done = true))
         emit(AgentEvent.LoopTerminated(result.finalText))
@@ -152,6 +154,7 @@ class NativeAgentRuntimeExecutor(
         discardAgentConversation()
         throw cancelled
       } catch (error: Exception) {
+        if (coordinatorStarted) discardAgentConversation()
         emit(AgentEvent.Error(error.message ?: error.javaClass.simpleName))
       } finally {
         activeJob.compareAndSet(job, null)
