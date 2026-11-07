@@ -117,7 +117,10 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         }
 
         val state = awaitCompletion(directory)
-        processFinished = true
+        // A command can leave background descendants behind after its main shell exits. Always
+        // tear down the isolated process group, even after normal completion, before deleting the
+        // supervisor directory or reporting that the request is finished.
+        processFinished = withContext(NonCancellable) { terminateSupervisor(directory) }
         val stdoutLimit = minOf(state.stdoutBytes, maxOutputChars.toLong()).toInt()
         val stderrLimit = minOf(
           state.stderrBytes,
@@ -131,7 +134,12 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           stderr = stderr,
           exitCode = state.exitCode,
           timedOut = state.timedOut,
-          error = if (state.timedOut) "Termux command reached its process-side timeout." else null,
+          error = when {
+            state.timedOut -> "Termux command reached its process-side timeout."
+            !processFinished -> "The command finished, but Termux could not confirm that its process group stopped."
+            else -> null
+          },
+          processMayStillBeRunning = !processFinished,
           outputTruncated = state.outputTruncated ||
             state.stdoutBytes + state.stderrBytes > maxOutputChars ||
             stdout.length < stdoutLimit || stderr.length < stderrLimit,
@@ -227,27 +235,16 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
 
   private suspend fun terminateSupervisor(directory: String): Boolean {
     val quotedDirectory = shellQuote(directory)
+    // pid is the process-group leader created by setsid. Killing only this group avoids ever
+    // signalling an unrelated process if a stale PID is reused.
     val command =
-      "if [ -f $quotedDirectory/status ]; then printf STOPPED; exit 0; fi; " +
-        "found=0; for file in pid timeout_pid; do " +
-        "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
-        "case \"\$pid\" in ''|*[!0-9]*) continue ;; esac; found=1; " +
-        "kill -TERM -- \"-\$pid\" 2>/dev/null || " +
-        "kill -TERM \"\$pid\" 2>/dev/null || true; done; " +
-        "[ \"\$found\" -eq 1 ] || { printf UNKNOWN; exit 0; }; " +
+      "pid=\$(cat $quotedDirectory/pid 2>/dev/null || true); " +
+        "case \"\$pid\" in ''|*[!0-9]*) printf UNKNOWN; exit 0 ;; esac; " +
+        "kill -TERM -- \"-\$pid\" 2>/dev/null || true; " +
         "sleep 0.25; " +
-        "for file in pid timeout_pid; do " +
-        "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
-        "case \"\$pid\" in ''|*[!0-9]*) continue ;; esac; " +
-        "kill -KILL -- \"-\$pid\" 2>/dev/null || " +
-        "kill -KILL \"\$pid\" 2>/dev/null || true; done; " +
-        "sleep 0.25; alive=0; " +
-        "for file in pid timeout_pid; do " +
-        "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
-        "case \"\$pid\" in ''|*[!0-9]*) continue ;; esac; " +
-        "if kill -0 -- \"-\$pid\" 2>/dev/null || kill -0 \"\$pid\" 2>/dev/null; " +
-        "then alive=1; fi; done; " +
-        "if [ \"\$alive\" -eq 0 ]; then printf STOPPED; else printf RUNNING; fi"
+        "kill -KILL -- \"-\$pid\" 2>/dev/null || true; " +
+        "sleep 0.25; " +
+        "if kill -0 -- \"-\$pid\" 2>/dev/null; then printf RUNNING; else printf STOPPED; fi"
     val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, CLEANUP_TIMEOUT_MS, MIN_OUTPUT_CHARS)
     return result.succeeded && result.stdout.trim() == "STOPPED"
   }
