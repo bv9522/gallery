@@ -142,12 +142,15 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       }
       throw cancelled
     } catch (error: Exception) {
+      val stopped = runDirectory?.let { directory ->
+        withContext(NonCancellable) { terminateSupervisor(directory) }
+      } ?: true
       return TermuxShellResult(
         stdout = "",
         stderr = "",
         exitCode = -1,
         error = error.message ?: error.javaClass.simpleName,
-        processMayStillBeRunning = runDirectory != null,
+        processMayStillBeRunning = !stopped,
       )
     } finally {
       runDirectory?.let { directory ->
