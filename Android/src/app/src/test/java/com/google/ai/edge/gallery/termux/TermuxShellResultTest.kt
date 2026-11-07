@@ -44,6 +44,18 @@ class TermuxShellResultTest {
   }
 
   @Test
+  fun unconfirmedProcessTerminationIsNeverReportedAsSuccess() {
+    val result = TermuxShellResult(
+      stdout = "partial",
+      stderr = "",
+      exitCode = 0,
+      processMayStillBeRunning = true,
+    )
+
+    assertFalse(result.succeeded)
+  }
+
+  @Test
   fun outputTruncationDoesNotChangeExitStatus() {
     val result = TermuxShellResult(
       stdout = "partial output",
