@@ -6,6 +6,7 @@
       branches: [ "main", "phase-6-unified-execution-runtime" ]
       paths:
         - 'Android/**'
+        - '.github/workflows/build_android.yaml'
     pull_request:
       branches: [ "main" ]
       paths:
