@@ -202,17 +202,18 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
   private suspend fun terminateSupervisor(directory: String): Boolean {
     val quotedDirectory = shellQuote(directory)
     val command =
-      "for file in pid timeout_pid; do " +
-        "pid=\\$(cat $quotedDirectory/\\$file 2>/dev/null || true); " +
-        "if [ -n \\"\\$pid\\" ]; then " +
-        "kill -TERM -- \\"-\\$pid\\" 2>/dev/null || " +
-        "kill -TERM \\"\\$pid\\" 2>/dev/null || true; fi; done; " +
+      "if [ -f $quotedDirectory/status ]; then printf STOPPED; exit 0; fi; " +
+        "for file in pid timeout_pid; do " +
+        "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
+        "if [ -n \"\$pid\" ]; then " +
+        "kill -TERM -- \"-\$pid\" 2>/dev/null || " +
+        "kill -TERM \"\$pid\" 2>/dev/null || true; fi; done; " +
         "sleep 0.25; " +
         "for file in pid timeout_pid; do " +
-        "pid=\\$(cat $quotedDirectory/\\$file 2>/dev/null || true); " +
-        "if [ -n \\"\\$pid\\" ]; then " +
-        "kill -KILL -- \\"-\\$pid\\" 2>/dev/null || " +
-        "kill -KILL \\"\\$pid\\" 2>/dev/null || true; fi; done; " +
+        "pid=\$(cat $quotedDirectory/\$file 2>/dev/null || true); " +
+        "if [ -n \"\$pid\" ]; then " +
+        "kill -KILL -- \"-\$pid\" 2>/dev/null || " +
+        "kill -KILL \"\$pid\" 2>/dev/null || true; fi; done; " +
         "printf STOPPED"
     val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, CLEANUP_TIMEOUT_MS, MIN_OUTPUT_CHARS)
     return result.succeeded && result.stdout.trim() == "STOPPED"
