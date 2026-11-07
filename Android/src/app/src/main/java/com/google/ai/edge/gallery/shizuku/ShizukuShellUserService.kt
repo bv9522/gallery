@@ -86,6 +86,11 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     sessions.remove(sessionId)?.close()
   }
 
+  /** Interrupts an in-flight command by destroying its shell process and all attached streams. */
+  override fun cancelSession(sessionId: String) {
+    sessions.remove(sessionId)?.close()
+  }
+
   override fun closeAllSessions() {
     sessions.values.toList().forEach { session ->
       sessions.remove(session.id, session)
