@@ -85,7 +85,8 @@ class LiteRtLmAgentModel(
 
       val message =
         if (userMessages.isNotEmpty()) {
-          Message.user(userMessages.single().content)
+          userMessages.single().userContents?.let(Message::user)
+            ?: Message.user(userMessages.single().content)
         } else {
           val toolResponses = toolMessages.map { message ->
             val name = message.toolName
