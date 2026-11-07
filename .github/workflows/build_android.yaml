@@ -27,7 +27,15 @@
             java-version: '21'
         - name: Install Android SDK Platform 37
           run: echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37.0"
-        - name: Build
-          run: ./gradlew assembleRelease
+        - name: Run Shizuku unit tests
+          run: ./gradlew :app:testShizukuDebugUnitTest
+        - name: Build Shizuku debug APK and release variants
+          run: ./gradlew :app:assembleShizukuDebug assembleRelease
+        - name: Upload Shizuku debug APK
+          uses: actions/upload-artifact@v4
+          with:
+            name: android-mcp-shizuku-debug
+            path: Android/src/app/build/outputs/apk/shizuku/debug/app-shizuku-debug.apk
+            if-no-files-found: error
   
   
