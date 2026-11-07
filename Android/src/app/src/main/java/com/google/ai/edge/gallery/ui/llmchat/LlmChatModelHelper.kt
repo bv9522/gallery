@@ -108,6 +108,7 @@ object LlmChatModelHelper : LlmModelHelper {
     model: Model,
     tools: AgentToolRegistry,
     systemInstruction: String? = null,
+    additionalToolProviders: List<ToolProvider> = emptyList(),
   ): LiteRtLmAgentModel {
     val instance = model.instance as? LlmModelInstance
       ?: error("LiteRT-LM model is not initialized.")
@@ -136,7 +137,7 @@ object LlmChatModelHelper : LlmModelHelper {
             samplerConfig = samplerConfig,
             systemInstruction =
               systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
-            tools = LiteRtLmAgentModel.toolProviders(tools),
+            tools = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders,
             automaticToolCalling = false,
           )
         )
