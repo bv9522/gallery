@@ -3,7 +3,7 @@
   on:
     workflow_dispatch:
     push:
-      branches: [ "main" ]
+      branches: [ "main", "phase-6-unified-execution-runtime" ]
       paths:
         - 'Android/**'
     pull_request:
