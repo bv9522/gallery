@@ -147,7 +147,11 @@ class NativeAgentRuntimeExecutor(
         ensureAgentModel(currentConfig)
         val currentCoordinator = checkNotNull(coordinator)
         coordinatorStarted = true
-        val result: AgentRunResult = currentCoordinator.run(request.query, contents)
+        @Suppress("UNCHECKED_CAST")
+        val extraContext = request.metadata[AgentRequest.LITERTLM_EXTRA_CONTEXT] as? Map<String, Any>
+          ?: emptyMap()
+        val result: AgentRunResult =
+          currentCoordinator.run(request.query, contents, extraContext)
         emit(AgentEvent.StreamToken(token = result.finalText, done = true))
         emit(AgentEvent.LoopTerminated(result.finalText))
       } catch (cancelled: CancellationException) {
