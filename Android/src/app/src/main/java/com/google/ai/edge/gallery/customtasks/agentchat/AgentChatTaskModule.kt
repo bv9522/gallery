@@ -237,11 +237,16 @@ internal object AgentChatTaskModule {
     agentTools: AgentTools,
     llmSessionManager: LlmSessionManager,
   ): AgentRuntimeExecutor {
-    return DefaultAgentRuntimeExecutor(
-      skillsProvider = skillManager,
-      toolsProvider = agentTools,
-      toolDispatcher = RuntimeToolDispatcher(),
-      llmSessionManager = llmSessionManager,
+    val fallbackExecutor =
+      DefaultAgentRuntimeExecutor(
+        skillsProvider = skillManager,
+        toolsProvider = agentTools,
+        toolDispatcher = RuntimeToolDispatcher(),
+        llmSessionManager = llmSessionManager,
+      )
+    return com.google.ai.edge.gallery.agent.NativeAgentRuntimeExecutor(
+      agentTools = agentTools,
+      fallbackExecutor = fallbackExecutor,
     )
   }
 
