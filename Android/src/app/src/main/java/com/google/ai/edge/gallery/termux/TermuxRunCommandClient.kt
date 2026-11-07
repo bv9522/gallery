@@ -307,7 +307,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       "${shellQuote(directory)} ${shellQuote(workingDirectory)} " +
       "${shellQuote(command)} $timeoutSeconds $maxOutputChars && " +
       "for n in 1 2 3 4 5 6 7 8 9 10; do " +
-      "[ -f ${shellQuote("$directory/timeout_pid")} ] && break; sleep 0.05; done; " +
+      "[ -f ${shellQuote("$directory/timeout_pid")} ] && break; sleep 0.05; done && " +
       "printf '%s' ${shellQuote(directory)}"
   }
 
