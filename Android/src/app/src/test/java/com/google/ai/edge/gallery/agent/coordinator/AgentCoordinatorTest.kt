@@ -178,6 +178,37 @@ class AgentCoordinatorTest {
   }
 
   @Test
+  fun coordinatorRetainsConversationHistoryAcrossUserTurns() = runBlocking {
+    var calls = 0
+    val model = AgentModel { history ->
+      calls++
+      if (calls == 1) {
+        AgentModelResponse.FinalAnswer("First answer.")
+      } else {
+        assertEquals(
+          listOf(
+            AgentMessage.Role.USER,
+            AgentMessage.Role.ASSISTANT,
+            AgentMessage.Role.USER,
+          ),
+          history.map { it.role },
+        )
+        assertEquals("First question.", history[0].content)
+        assertEquals("First answer.", history[1].content)
+        assertEquals("Second question.", history[2].content)
+        AgentModelResponse.FinalAnswer("Second answer.")
+      }
+    }
+    val coordinator = AgentCoordinator(model, AgentToolRegistry(emptyList()))
+
+    coordinator.run("First question.")
+    val second = coordinator.run("Second question.")
+
+    assertEquals("Second answer.", second.finalText)
+    assertEquals(4, second.messages.size)
+  }
+
+  @Test
   fun duplicateToolNamesAreRejected() {
     val first = testTool("duplicate")
     val second = testTool("duplicate")
