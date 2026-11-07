@@ -185,6 +185,7 @@ class ShizukuShellTransport(private val executor: ShizukuShellExecutor) : ShellE
       timedOut = result.timedOut,
       outputTruncated = result.outputTruncated,
       error = result.error,
+      processMayStillBeRunning = result.processMayStillBeRunning,
     )
   }
 }
