@@ -96,7 +96,10 @@ class LiteRtLmAgentModel(
           }
           Message.tool(Contents.of(toolResponses))
         }
-      val response = sendMessageCancellable(message)
+      val response = sendMessageCancellable(
+        message,
+        extraContext = userMessages.singleOrNull()?.extraContext.orEmpty(),
+      )
 
       if (response.toolCalls.isNotEmpty()) {
         val calls = response.toolCalls.mapIndexed { index, call ->
@@ -117,11 +120,14 @@ class LiteRtLmAgentModel(
    * cancellation directly to Conversation.cancelProcess(), so cancelling AgentCoordinator.run()
    * interrupts native generation rather than merely abandoning the waiting coroutine.
    */
-  private suspend fun sendMessageCancellable(message: Message): Message =
+  private suspend fun sendMessageCancellable(
+    message: Message,
+    extraContext: Map<String, Any> = emptyMap(),
+  ): Message =
     suspendCancellableCoroutine { continuation ->
       ioDispatcher.dispatch(continuation.context, Runnable {
         try {
-          val response = conversation.sendMessage(message)
+          val response = conversation.sendMessage(message, extraContext = extraContext)
           if (continuation.isActive) continuation.resume(response)
         } catch (error: Throwable) {
           if (continuation.isActive) continuation.resumeWithException(error)
