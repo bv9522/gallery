@@ -29,6 +29,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
 import java.io.Closeable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -148,7 +149,9 @@ class LiteRtLmAgentModel(
         override val parametersSchema: JsonObject = schema
 
         override suspend fun execute(arguments: JsonObject): AgentToolResult {
-          val result = conversation.toolManager.execute(toolName, arguments)
+          val result = withContext(Dispatchers.IO) {
+            conversation.toolManager.execute(toolName, arguments)
+          }
           val content =
             if (result is JsonPrimitive && result.isString) result.asString else result.toString()
           val failed =
