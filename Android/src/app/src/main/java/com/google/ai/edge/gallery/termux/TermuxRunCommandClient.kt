@@ -202,12 +202,18 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
   private suspend fun terminateSupervisor(directory: String): Boolean {
     val quotedDirectory = shellQuote(directory)
     val command =
-      "pid=\$(cat $quotedDirectory/pid 2>/dev/null || true); " +
-        "if [ -n \"\$pid\" ]; then " +
-        "kill -TERM -- \"-\$pid\" 2>/dev/null || true; sleep 0.25; " +
-        "kill -KILL -- \"-\$pid\" 2>/dev/null || true; " +
-        "if kill -0 -- \"-\$pid\" 2>/dev/null; then printf RUNNING; " +
-        "else printf STOPPED; fi; else printf STOPPED; fi"
+      "for file in pid timeout_pid; do " +
+        "pid=\\$(cat $quotedDirectory/\\$file 2>/dev/null || true); " +
+        "if [ -n \\"\\$pid\\" ]; then " +
+        "kill -TERM -- \\"-\\$pid\\" 2>/dev/null || " +
+        "kill -TERM \\"\\$pid\\" 2>/dev/null || true; fi; done; " +
+        "sleep 0.25; " +
+        "for file in pid timeout_pid; do " +
+        "pid=\\$(cat $quotedDirectory/\\$file 2>/dev/null || true); " +
+        "if [ -n \\"\\$pid\\" ]; then " +
+        "kill -KILL -- \\"-\\$pid\\" 2>/dev/null || " +
+        "kill -KILL \\"\\$pid\\" 2>/dev/null || true; fi; done; " +
+        "printf STOPPED"
     val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, CLEANUP_TIMEOUT_MS, MIN_OUTPUT_CHARS)
     return result.succeeded && result.stdout.trim() == "STOPPED"
   }
