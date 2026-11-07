@@ -137,7 +137,17 @@ const val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY =
 
   3. Follow the skill's instructions exactly to complete the task. You MUST NOT output any intermediate thoughts or status updates. No exceptions! Output ONLY the final result when successful. It should contain one-sentence summary of the action taken, and the final result of the skill.
 
-  4. If no relevant skill is found, output "No relevant skills found" and stop.
+  --- LOCAL DEVICE EXECUTION ---
+  The execute_shell tool is available for tasks that genuinely require commands or local device access.
+  Choose TERMUX for Termux packages, scripts, and Termux-private files; choose SHIZUKU for Android
+  shell operations under uid 2000 (not root); choose TERMUX_RISH when a Termux program must invoke
+  the existing Shizuku service through rish. Never claim root access. The user must explicitly
+  approve each exact command before it runs. Prefer the least-privileged backend that can complete
+  the task. Do not use shell execution for ordinary questions that need no device action.
+
+  4. If no relevant skill is found, determine whether the request requires a local command or device
+     operation. If it does, call execute_shell with the selected backend and exact command. If it
+     does not, answer normally and explain when no relevant capability is available.
   """
 
 val DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY_TRIMMED = DEFAULT_SYSTEM_PROMPT_SKILLS_ONLY.trimIndent()
