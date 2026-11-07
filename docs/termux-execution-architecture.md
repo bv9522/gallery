@@ -14,7 +14,7 @@ There must be one Shizuku backend, not a second Shizuku implementation hidden in
 
 ## Initial transport
 
-The first implementation uses Termux's documented Android `RUN_COMMAND` service:
+The implementation uses Termux's documented Android `RUN_COMMAND` service:
 
 - Package: `com.termux`
 - Service: `com.termux.app.RunCommandService`
@@ -33,7 +33,7 @@ The integration intentionally avoids a TCP listener, local server, Termux:Tasker
 3. In Termux's `~/.termux/termux.properties`, set:
    `allow-external-apps=true`
 4. Reload Termux settings or restart Termux after changing the property.
-5. Grant Termux shared-storage access separately if commands need to access shared storage.
+5. Install Termux's `util-linux` package (`pkg install util-linux`) so the `setsid` process-group supervisor is available. The app fails closed if it is missing.\n6. Grant Termux shared-storage access separately if commands need to access shared storage.
 
 The app declares the Termux permission and package visibility query. It checks that Termux is installed and that the caller permission is granted before dispatch.
 
@@ -45,17 +45,18 @@ The Termux permission plus `allow-external-apps=true` authorizes this app to exe
 
 The direct Shizuku backend remains separate and continues to require Shizuku permission. The combined mode must use `rish` from within Termux and must not create another Shizuku UserService.
 
+## Process supervision and cancellation
+
+Each command is launched beneath Termux's `setsid` utility in its own process group. The wrapper records the process-group leader PID in a private Termux-home pid file and removes it on normal completion. On timeout or coroutine cancellation, the client dispatches a separate Termux control command that sends SIGTERM to the process group, waits briefly, escalates to SIGKILL, and confirms that the group is gone before reporting successful cleanup.
+
+This supervises ordinary child processes. A command that deliberately daemonizes, creates a new session, or otherwise escapes its process group can outlive the supervisor; such a case is reported as unconfirmed rather than falsely reported as terminated. If the pid file cannot be read or the cleanup callback fails, the result sets `processMayStillBeRunning=true`.
+
 ## Current adapter limitations
 
-The initial `TermuxRunCommandClient` is a one-shot execution adapter and a transport proof:
-
-- It returns stdout, stderr, exit status, Termux internal errors, and truncation metadata.
+- The adapter is one-shot: each invocation starts a new Bash process and does not preserve shell variables, current directory, or interactive stdin between calls.
+- The supervisor requires Termux's `util-linux` `setsid` command. If it is absent, the requested command is not started.
 - Termux caps callback output to approximately 100 KiB combined; the client applies a stricter caller-provided limit.
-- A client-side timeout stops waiting for the result but does **not** guarantee that an already-dispatched Termux process has been terminated.
-- Each invocation starts a new Bash process. It does not preserve shell variables, current directory, or interactive stdin between calls.
-- It does not yet invoke `rish` or expose arbitrary Termux commands to Gemma.
-
-These are explicit limitations, not hidden guarantees. Before the backend is exposed for unrestricted agent execution, the next execution-runtime stage must provide managed cancellation/process cleanup, bounded sessions, and a persistent session strategy. If the Termux API cannot supply the required semantics, a small app-owned bridge process launched and supervised through Termux will be evaluated. No network service should be added unless the native service API proves insufficient.
+- The `rish` backend requires a working Termux-side `rish` installation and an active, authorized Shizuku service. It never silently falls back to Termux's own UID.
 
 ## Device validation
 
