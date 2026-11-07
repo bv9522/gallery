@@ -26,6 +26,7 @@ import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import java.io.Closeable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -128,6 +129,50 @@ class LiteRtLmAgentModel(
         runCatching { conversation.cancelProcess() }
       }
     }
+
+  /**
+   * Adapts the legacy Gallery tools registered on this manual conversation's ToolManager. The
+   * coordinator remains the only dispatcher; the ToolManager is used only as the existing
+   * reflection-backed invocation adapter for Gallery ToolDefinitions.
+   */
+  fun toolRegistry(additionalTools: AgentToolRegistry = AgentToolRegistry(emptyList())): AgentToolRegistry {
+    val legacyTools = conversation.toolManager.getToolsDescription().map { entry ->
+      val function = entry.asJsonObject.getAsJsonObject("function")
+      val toolName = function.get("name").asString
+      val toolDescription = function.get("description")?.asString.orEmpty()
+      val schema = function.getAsJsonObject("parameters")?.deepCopy() ?: JsonObject()
+      object : AgentTool {
+        override val name: String = toolName
+        override val description: String = toolDescription
+        override val parametersSchema: JsonObject = schema
+
+        override suspend fun execute(arguments: JsonObject): AgentToolResult {
+          val result = conversation.toolManager.execute(toolName, arguments)
+          val content =
+            if (result is JsonPrimitive && result.isString) result.asString else result.toString()
+          val failed =
+            (result.isJsonObject && (
+              result.asJsonObject.get("status")?.asString == "failed" ||
+                result.asJsonObject.has("error")
+            )) ||
+              (result is JsonPrimitive && result.isString &&
+                result.asString.startsWith("Error occured."))
+          return AgentToolResult(content, !failed)
+        }
+      }
+    }
+    val preferredNames = additionalTools.names()
+    return AgentToolRegistry(
+      additionalTools.all() + legacyTools.filterNot { it.name in preferredNames }
+    )
+  }
+
+  /** Interrupts native inference without closing the shared model engine. */
+  fun interrupt() {
+    if (!closed && conversation.isAlive) {
+      runCatching { conversation.cancelProcess() }
+    }
+  }
 
   override fun close() {
     if (closed) return
