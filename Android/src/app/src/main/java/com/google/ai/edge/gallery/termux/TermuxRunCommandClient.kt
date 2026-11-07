@@ -30,6 +30,8 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 /**
  * Executes Termux commands through a detached, process-group-supervised Termux-side runner.
@@ -83,9 +85,12 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     }
 
     var runDirectory: String? = null
+    var processFinished = false
     try {
       return withTimeout(timeoutMs) {
         val id = UUID.randomUUID().toString().replace("-", "")
+        val directory = "$TERMUX_RUN_DIRECTORY_ROOT/$id"
+        runDirectory = directory
         val start = invokeTermux(
           buildStartCommand(
             id = id,
@@ -98,15 +103,21 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           START_TIMEOUT_MS,
           MIN_OUTPUT_CHARS,
         )
-        if (!start.succeeded) return@withTimeout start
+        if (!start.succeeded) {
+          val stopped = withContext(NonCancellable) { terminateSupervisor(directory) }
+          processFinished = stopped
+          return@withTimeout start.copy(processMayStillBeRunning = start.processMayStillBeRunning || !stopped)
+        }
 
-        val directory = start.stdout.trim()
-        check(directory.startsWith(TERMUX_RUN_DIRECTORY_PREFIX) && directory.endsWith("/$id")) {
+        val returnedDirectory = start.stdout.trim()
+        check(returnedDirectory == directory &&
+          returnedDirectory.startsWith(TERMUX_RUN_DIRECTORY_PREFIX) &&
+          returnedDirectory.endsWith("/$id")) {
           "Termux returned an invalid process supervisor identifier."
         }
-        runDirectory = directory
 
         val state = awaitCompletion(directory)
+        processFinished = true
         val stdoutLimit = minOf(state.stdoutBytes, maxOutputChars.toLong()).toInt()
         val stderrLimit = minOf(
           state.stderrBytes,
@@ -128,6 +139,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       val stopped = runDirectory?.let { directory ->
         withContext(NonCancellable) { terminateSupervisor(directory) }
       } ?: true
+      processFinished = stopped
+      currentCoroutineContext().ensureActive()
       return TermuxShellResult(
         stdout = "",
         stderr = "",
@@ -139,14 +152,15 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         processMayStillBeRunning = !stopped,
       )
     } catch (cancelled: CancellationException) {
-      runDirectory?.let { directory ->
+      processFinished = runDirectory?.let { directory ->
         withContext(NonCancellable) { terminateSupervisor(directory) }
-      }
+      } ?: true
       throw cancelled
     } catch (error: Exception) {
       val stopped = runDirectory?.let { directory ->
         withContext(NonCancellable) { terminateSupervisor(directory) }
       } ?: true
+      processFinished = stopped
       return TermuxShellResult(
         stdout = "",
         stderr = "",
@@ -155,8 +169,10 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         processMayStillBeRunning = !stopped,
       )
     } finally {
-      runDirectory?.let { directory ->
-        withContext(NonCancellable) { cleanupSupervisor(directory) }
+      if (processFinished) {
+        runDirectory?.let { directory ->
+          withContext(NonCancellable) { cleanupSupervisor(directory) }
+        }
       }
     }
   }
@@ -337,6 +353,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       val bundle = try {
         withTimeout(timeoutMs) { deferred.await() }
       } catch (timeout: TimeoutCancellationException) {
+        currentCoroutineContext().ensureActive()
         return TermuxShellResult(
           stdout = "",
           stderr = "",
