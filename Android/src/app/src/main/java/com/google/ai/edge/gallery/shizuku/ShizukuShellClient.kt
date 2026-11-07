@@ -56,7 +56,7 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
   private val sessionMutex = Mutex()
   private val stateLock = Any()
   @Volatile private var service: IShizukuShellService? = null
-  private var sessionId: String? = null
+  @Volatile private var sessionId: String? = null
   private var connectionResult: CompletableDeferred<IShizukuShellService>? = null
   private var bound = false
   @Volatile private var closed = false
@@ -158,6 +158,15 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
   suspend fun close() {
     if (closed) return
     closed = true
+    // Do not wait behind a blocking Binder execute() call. Cancel the remote process group first,
+    // then acquire the session mutex to finish local state teardown and unbind.
+    val activeService = service
+    val activeSession = sessionId
+    if (activeService != null && activeSession != null) {
+      withContext(Dispatchers.IO) {
+        runCatching { activeService.cancelSession(activeSession) }
+      }
+    }
     withContext(Dispatchers.IO) {
       sessionMutex.withLock {
         val remote = service
