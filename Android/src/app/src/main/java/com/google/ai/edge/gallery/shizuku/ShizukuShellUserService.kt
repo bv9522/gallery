@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.shizuku
 
 import android.os.Bundle
+import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import java.io.BufferedWriter
@@ -166,9 +167,10 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
 
         if (!completed) {
           val timedOut = process.isAlive
-          close()
+          val processStopped = close()
           return@synchronized Bundle().apply {
             putString(KEY_ERROR, if (timedOut) "Command timed out; the shell session was closed." else "Shell process exited before command completion.")
+            putBoolean(KEY_PROCESS_MAY_STILL_BE_RUNNING, !processStopped)
             putBoolean(KEY_TIMED_OUT, timedOut)
             putInt(KEY_EXIT_CODE, -1)
             putString(KEY_STDOUT, capture.stdout())
@@ -180,7 +182,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         capture.toBundle()
       }
 
-    fun close() {
+    fun close(): Boolean {
       activeCapture.getAndSet(null)?.signalFailure()
       runCatching { writer.close() }
       // setsid made this session's PID its process-group ID. Signal the whole group so commands
@@ -192,6 +194,13 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         runCatching { process.destroyForcibly() }
         runCatching { process.waitFor(250, TimeUnit.MILLISECONDS) }
       }
+      val groupStopped = try {
+        Os.kill(-processGroupId, 0)
+        false
+      } catch (error: ErrnoException) {
+        error.errno == OsConstants.ESRCH
+      }
+      return !process.isAlive && groupStopped
     }
 
     private fun startReader(stream: InputStream, isStdout: Boolean) {
@@ -319,6 +328,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     const val KEY_TIMED_OUT = "timed_out"
     const val KEY_OUTPUT_TRUNCATED = "output_truncated"
     const val KEY_ERROR = "error"
+    const val KEY_PROCESS_MAY_STILL_BE_RUNNING = "process_may_still_be_running"
 
     private const val MAX_SESSIONS = 3
     private const val MIN_TIMEOUT_MS = 100L
