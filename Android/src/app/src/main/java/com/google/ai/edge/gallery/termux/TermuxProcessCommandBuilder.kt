@@ -35,7 +35,7 @@ internal object TermuxProcessCommandBuilder {
         exit 127
       }
       mkdir -p "\$HOME/.cache" || exit 125
-      pid_file=$quotedPidFile
+      pid_file="\$HOME"/$quotedPidFile
       rm -f "\$pid_file"
       setsid bash -lc $quotedCommand &
       child_pid=\$!
