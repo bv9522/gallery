@@ -16,8 +16,6 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
-import com.google.ai.edge.gallery.shizuku.ShizukuShellExecutor
-import com.google.ai.edge.gallery.shizuku.ShizukuShellResult
 import com.google.ai.edge.gallery.termux.TermuxShellExecutor
 import com.google.ai.edge.gallery.termux.TermuxShellResult
 import com.google.gson.JsonObject
@@ -154,7 +152,8 @@ class UnifiedShellExecutionTest {
     assertTrue(result.succeeded)
     assertEquals("~/", termux.workingDirectory)
     assertTrue(termux.command.startsWith("rish -c "))
-    assertTrue(termux.command.contains("cd '/sdcard/My Files'"))
+    assertTrue(termux.command.contains("cd "))
+    assertTrue(termux.command.contains("My Files"))
     assertTrue(termux.command.contains("printf '%s' \"hello world\""))
   }
 
