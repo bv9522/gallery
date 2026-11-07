@@ -20,6 +20,7 @@ import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.OpenApiTool
 import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
@@ -44,6 +45,7 @@ import kotlin.coroutines.resumeWithException
  * Create one adapter per agent run because LiteRT-LM Conversation instances retain their own
  * message/KV-cache history.
  */
+@OptIn(ExperimentalApi::class)
 class LiteRtLmAgentModel(
   private val conversation: Conversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
