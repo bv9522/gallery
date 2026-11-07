@@ -28,6 +28,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import rikka.shizuku.Shizuku
 
 /** Injectable execution boundary for tools and tests. */
@@ -122,7 +125,22 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
           id
         }
 
-        val bundle = remote.execute(activeSession, command, timeoutMs, maxOutputChars)
+        val bundle = suspendCancellableCoroutine<android.os.Bundle> { continuation ->
+          Dispatchers.IO.dispatch(continuation.context, Runnable {
+            try {
+              val response = remote.execute(activeSession, command, timeoutMs, maxOutputChars)
+              if (continuation.isActive) continuation.resume(response)
+            } catch (error: Throwable) {
+              if (continuation.isActive) continuation.resumeWithException(error)
+            }
+          })
+          continuation.invokeOnCancellation {
+            sessionId = null
+            Dispatchers.IO.dispatch(kotlin.coroutines.EmptyCoroutineContext, Runnable {
+              runCatching { remote.cancelSession(activeSession) }
+            })
+          }
+        }
         val error = bundle.getString(ShizukuShellUserService.KEY_ERROR)
         val result = ShizukuShellResult(
           stdout = bundle.getString(ShizukuShellUserService.KEY_STDOUT).orEmpty(),
