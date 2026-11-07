@@ -278,9 +278,18 @@ class NativeAgentRuntimeExecutor(
     val contents = mutableListOf<Content>()
     request.attachments.forEach { attachment ->
       when (attachment) {
-        is Attachment.ImageBitmap -> contents += Content.ImageBytes(attachment.bitmap.toPngBytes())
+        is Attachment.ImageBitmap -> {
+          val bytes = attachment.bitmap.toPngBytes()
+          require(bytes.size <= MAX_ATTACHMENT_BYTES) { "Attached image exceeds the 16 MiB limit." }
+          contents += Content.ImageBytes(bytes)
+        }
         is Attachment.ImageUri -> contents += Content.ImageBytes(readUri(context, attachment.uri))
-        is Attachment.AudioBytes -> contents += Content.AudioBytes(attachment.audioBytes)
+        is Attachment.AudioBytes -> {
+          require(attachment.audioBytes.size <= MAX_ATTACHMENT_BYTES) {
+            "Attached audio exceeds the 16 MiB limit."
+          }
+          contents += Content.AudioBytes(attachment.audioBytes)
+        }
         is Attachment.AudioUri -> contents += Content.AudioBytes(readUri(context, attachment.uri))
         is Attachment.File -> {
           val uri = Uri.parse(attachment.path)
