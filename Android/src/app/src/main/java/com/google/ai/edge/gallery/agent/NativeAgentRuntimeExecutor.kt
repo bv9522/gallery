@@ -258,36 +258,32 @@ class NativeAgentRuntimeExecutor(
   private suspend fun ensureAgentModel(config: AgentRuntimeConfig): LiteRtLmAgentModel =
     withContext(Dispatchers.IO) {
       synchronized(stateLock) {
-      agentModel?.let { return@synchronized it }
-      val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
-      val approval =
-        ChannelShellExecutionApprovalPolicy(config.actionChannel ?: agentTools.sendActionChannel)
-      val shellTools = AgentToolRegistry(
-        listOf(UnifiedShellTool(router, approval))
-      )
-      val created = com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
-        model = config.model,
-        tools = shellTools,
-        systemInstruction = config.systemInstruction,
-        additionalToolProviders = agentTools.getLiteRtToolProviders(),
-        initialMessages = config.initialMessages,
-        enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
-      )
-      Log.i(
-        TAG,
-        "Agent conversation created: model=${config.model.name}, " +
-          "accelerator=${config.model.currentAccelerator}, " +
-          "constrainedDecoding=${config.enableConversationConstrainedDecoding}",
-      )
-      agentModel = created
-      coordinator = AgentCoordinator(created, created.toolRegistry(shellTools))
-      created
+        agentModel?.let { return@synchronized it }
+        val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
+        val approval =
+          ChannelShellExecutionApprovalPolicy(config.actionChannel ?: agentTools.sendActionChannel)
+        val shellTools = AgentToolRegistry(
+          listOf(UnifiedShellTool(router, approval))
+        )
+        val created = com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
+          model = config.model,
+          tools = shellTools,
+          systemInstruction = config.systemInstruction,
+          additionalToolProviders = agentTools.getLiteRtToolProviders(),
+          initialMessages = config.initialMessages,
+          enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
+        )
+        Log.i(
+          TAG,
+          "Agent conversation created: model=${config.model.name}, " +
+            "accelerator=${config.model.currentAccelerator}, " +
+            "constrainedDecoding=${config.enableConversationConstrainedDecoding}",
+        )
+        agentModel = created
+        coordinator = AgentCoordinator(created, created.toolRegistry(shellTools))
+        created
       }
     }
-
-  private companion object {
-    const val TAG = "NativeAgentRuntime"
-  }
 
   private fun discardAgentConversation() {
     synchronized(stateLock) {
@@ -371,7 +367,8 @@ class NativeAgentRuntimeExecutor(
     return stream.toByteArray()
   }
 
-  companion object {
-    private const val MAX_ATTACHMENT_BYTES = 16 * 1_024 * 1_024
+  private companion object {
+    const val TAG = "NativeAgentRuntime"
+    const val MAX_ATTACHMENT_BYTES = 16 * 1_024 * 1_024
   }
 }
