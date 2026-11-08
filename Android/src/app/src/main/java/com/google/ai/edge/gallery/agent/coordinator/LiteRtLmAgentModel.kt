@@ -91,9 +91,14 @@ class LiteRtLmAgentModel(
   private var consumedMessageCount = 0
   private var modelTurn = 0
   @Volatile private var closed = false
-  private val registeredToolNames: List<String> =
+  private val registeredToolSummaries: List<String> =
     conversation.toolManager.getToolsDescription().mapNotNull { entry ->
-      entry.asJsonObject.getAsJsonObject("function")?.get("name")?.asString
+      val function = entry.asJsonObject.getAsJsonObject("function") ?: return@mapNotNull null
+      val name = function.get("name")?.asString ?: return@mapNotNull null
+      val schema = function.getAsJsonObject("parameters")
+      val properties = schema?.getAsJsonObject("properties")?.keySet()?.sorted().orEmpty()
+      val required = schema?.getAsJsonArray("required")?.map { it.asString }?.sorted().orEmpty()
+      "$name(properties=${properties.joinToString(",")},required=${required.joinToString(",")})"
     }.sorted()
 
   init {
@@ -103,7 +108,7 @@ class LiteRtLmAgentModel(
     Log.i(
       TAG,
       "Conversation ready: automaticToolCalling=${conversation.automaticToolCalling}, " +
-        "registeredTools=${registeredToolNames.joinToString(prefix = "[", postfix = "]")}",
+        "registeredTools=${registeredToolSummaries.joinToString(prefix = "[", postfix = "]")}",
     )
   }
 
@@ -139,10 +144,14 @@ class LiteRtLmAgentModel(
           }
           Message.tool(Contents.of(toolResponses))
         }
-      val response = sendMessageCancellable(
-        message,
-        extraContext = userMessages.singleOrNull()?.extraContext.orEmpty(),
+      val turnExtraContext = userMessages.singleOrNull()?.extraContext.orEmpty()
+      val thinkingRequested = turnExtraContext["enable_thinking"]?.toString() ?: "not-provided"
+      Log.i(
+        TAG,
+        "Turn request: turn=$modelTurn, thinkingRequested=$thinkingRequested, " +
+          "toolResultCount=${toolMessages.size}",
       )
+      val response = sendMessageCancellable(message, extraContext = turnExtraContext)
 
       val content = response.toString()
       val responseSummary = LiteRtLmResponseProtocol.summarizeResponse(
@@ -166,7 +175,7 @@ class LiteRtLmAgentModel(
           val failure =
             "The model emitted native tool-call markers, but LiteRT-LM did not return a structured " +
               "toolCalls entry. No tool was executed. Protocol diagnostics: $responseSummary. " +
-              "Registered tools: ${registeredToolNames.joinToString(prefix = "[", postfix = "]")}."
+              "Registered tool schemas: ${registeredToolSummaries.joinToString(prefix = "[", postfix = "]")}."
           Log.e(TAG, failure)
           throw IllegalStateException(failure)
         }
