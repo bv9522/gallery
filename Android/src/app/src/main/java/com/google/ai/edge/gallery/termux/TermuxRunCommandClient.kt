@@ -275,7 +275,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       printf '%s' "${'$'}${'$'}" > "${'$'}run_dir/pid"
       case "${'$'}work_dir" in
         "~") work_dir="${'$'}HOME" ;;
-        "~/"*) work_dir="${' ;;
+        "~/"*) work_dir="${'$'}HOME/${'$'}{work_dir#\~/}" ;;
       esac
       cd "${'$'}work_dir" || { printf '126' > "${'$'}run_dir/status"; exit 126; }
       capture_stream() {
