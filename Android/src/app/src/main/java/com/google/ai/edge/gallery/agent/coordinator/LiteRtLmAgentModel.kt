@@ -52,8 +52,34 @@ import kotlin.coroutines.resumeWithException
 @OptIn(ExperimentalApi::class)
 internal object LiteRtLmResponseProtocol {
   /** Native Gemma tool-call delimiters must be parsed into Message.toolCalls, never executed as text. */
-  fun hasUnparsedToolCallMarkers(content: String): Boolean =
-    content.contains("<|tool_call>") || content.contains("<tool_call|")
+  fun hasUnparsedToolCallMarkers(
+    content: String,
+    channels: Map<String, String> = emptyMap(),
+  ): Boolean =
+    containsNativeToolCallMarkers(content) || channels.values.any(::containsNativeToolCallMarkers)
+
+  /**
+   * Produces a privacy-safe protocol summary. Argument values, message text, and thinking text are
+   * intentionally excluded; names, keys, channel names, and lengths are sufficient for diagnosis.
+   */
+  fun summarizeResponse(
+    content: String,
+    toolCalls: List<ToolCall>,
+    channels: Map<String, String>,
+  ): String {
+    val calls = toolCalls.joinToString(prefix = "[", postfix = "]", separator = ", ") { call ->
+      "${call.name}(${call.arguments.keys.sorted().joinToString(",")})"
+    }
+    val channelLengths = channels.toSortedMap().entries.joinToString(prefix = "[", postfix = "]") {
+      "${it.key}:${it.value.length}"
+    }
+    return "contentLength=${content.length}, structuredToolCalls=${toolCalls.size}$calls, " +
+      "channels=$channelLengths, nativeToolMarkers=" +
+      hasUnparsedToolCallMarkers(content, channels)
+  }
+
+  private fun containsNativeToolCallMarkers(value: String): Boolean =
+    value.contains("<|tool_call>") || value.contains("<tool_call|>")
 }
 
 class LiteRtLmAgentModel(
