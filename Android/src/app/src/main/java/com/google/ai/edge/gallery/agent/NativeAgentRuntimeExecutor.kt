@@ -19,6 +19,7 @@ package com.google.ai.edge.gallery.agent
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import android.util.Log
 import com.google.ai.edge.gallery.agent.coordinator.AgentCoordinator
 import com.google.ai.edge.gallery.agent.coordinator.AgentRunResult
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
@@ -264,11 +265,21 @@ class NativeAgentRuntimeExecutor(
         initialMessages = config.initialMessages,
         enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
       )
+      Log.i(
+        TAG,
+        "Agent conversation created: model=${config.model.name}, " +
+          "accelerator=${config.model.currentAccelerator}, " +
+          "constrainedDecoding=${config.enableConversationConstrainedDecoding}",
+      )
       agentModel = created
       coordinator = AgentCoordinator(created, created.toolRegistry(shellTools))
       created
       }
     }
+
+  private companion object {
+    const val TAG = "NativeAgentRuntime"
+  }
 
   private fun discardAgentConversation() {
     synchronized(stateLock) {
