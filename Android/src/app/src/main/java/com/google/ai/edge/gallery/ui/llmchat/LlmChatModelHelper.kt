@@ -99,6 +99,22 @@ data class LlmModelInstance(
 }
 
 object LlmChatModelHelper : LlmModelHelper {
+  // LiteRT-LM stores constrained-decoding configuration in a process-wide mutable flag.
+  private val conversationCreationLock = Any()
+
+  private fun <T> withConversationConstrainedDecoding(
+    enabled: Boolean,
+    create: () -> T,
+  ): T = synchronized(conversationCreationLock) {
+    val previous = ExperimentalFlags.enableConversationConstrainedDecoding
+    ExperimentalFlags.enableConversationConstrainedDecoding = enabled
+    try {
+      create()
+    } finally {
+      ExperimentalFlags.enableConversationConstrainedDecoding = previous
+    }
+  }
+
   /**
    * Creates a dedicated manual-tool-calling conversation over the already initialized engine.
    * The normal chat conversation is left untouched.
@@ -110,6 +126,7 @@ object LlmChatModelHelper : LlmModelHelper {
     systemInstruction: String? = null,
     additionalToolProviders: List<ToolProvider> = emptyList(),
     initialMessages: List<Message> = emptyList(),
+    enableConversationConstrainedDecoding: Boolean = true,
   ): LiteRtLmAgentModel {
     val instance = model.instance as? LlmModelInstance
       ?: error("LiteRT-LM model is not initialized.")
@@ -128,11 +145,9 @@ object LlmChatModelHelper : LlmModelHelper {
         )
       }
     // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
-    // Enable it only while creating this dedicated agent conversation; normal chat is unchanged.
-    val previousConstrainedDecoding = ExperimentalFlags.enableConversationConstrainedDecoding
-    ExperimentalFlags.enableConversationConstrainedDecoding = true
+    // Serialize access because LiteRT-LM exposes this setting as a process-wide mutable flag.
     val conversation =
-      try {
+      withConversationConstrainedDecoding(enableConversationConstrainedDecoding) {
         instance.engine.createConversation(
           ConversationConfig(
             samplerConfig = samplerConfig,
@@ -143,8 +158,6 @@ object LlmChatModelHelper : LlmModelHelper {
             automaticToolCalling = false,
           )
         )
-      } finally {
-        ExperimentalFlags.enableConversationConstrainedDecoding = previousConstrainedDecoding
       }
     instance.activeEphemeralConversations.add(conversation)
     return LiteRtLmAgentModel(conversation, onClosed = {
@@ -366,8 +379,7 @@ object LlmChatModelHelper : LlmModelHelper {
           temperature = temperature.toDouble(),
         )
       }
-    ExperimentalFlags.enableConversationConstrainedDecoding = enableConversationConstrainedDecoding
-    return try {
+    return withConversationConstrainedDecoding(enableConversationConstrainedDecoding) {
       engine.createConversation(
         ConversationConfig(
           samplerConfig = samplerConfig,
@@ -376,8 +388,6 @@ object LlmChatModelHelper : LlmModelHelper {
           initialMessages = initialMessages,
         )
       )
-    } finally {
-      ExperimentalFlags.enableConversationConstrainedDecoding = false
     }
   }
 
