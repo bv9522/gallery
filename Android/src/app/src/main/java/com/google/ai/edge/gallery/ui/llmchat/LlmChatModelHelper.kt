@@ -102,6 +102,7 @@ object LlmChatModelHelper : LlmModelHelper {
   // LiteRT-LM stores constrained-decoding configuration in a process-wide mutable flag.
   private val conversationCreationLock = Any()
 
+  @OptIn(ExperimentalApi::class)
   private fun <T> withConversationConstrainedDecoding(
     enabled: Boolean,
     create: () -> T,
