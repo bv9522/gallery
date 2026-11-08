@@ -496,20 +496,22 @@ object LlmChatModelHelper : LlmModelHelper {
             key = ConfigKeys.TEMPERATURE,
             defaultValue = DEFAULT_TEMPERATURE,
           )
-        instance.engine.createConversation(
-          ConversationConfig(
-            samplerConfig =
-              if (accelerator == Accelerator.NPU || accelerator == Accelerator.TPU) {
-                null
-              } else {
-                SamplerConfig(
-                  topK = topK,
-                  topP = topP.toDouble(),
-                  temperature = temperature.toDouble(),
-                )
-              },
+        withConversationConstrainedDecoding(enabled = false) {
+          instance.engine.createConversation(
+            ConversationConfig(
+              samplerConfig =
+                if (accelerator == Accelerator.NPU || accelerator == Accelerator.TPU) {
+                  null
+                } else {
+                  SamplerConfig(
+                    topK = topK,
+                    topP = topP.toDouble(),
+                    temperature = temperature.toDouble(),
+                  )
+                },
+            )
           )
-        )
+        }
       } else {
         instance.conversation
       }
