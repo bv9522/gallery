@@ -24,6 +24,7 @@ import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.OpenApiTool
 import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.JsonPrimitive
@@ -48,6 +49,12 @@ import kotlin.coroutines.resumeWithException
  * message/KV-cache history.
  */
 @OptIn(ExperimentalApi::class)
+internal object LiteRtLmResponseProtocol {
+  /** Native Gemma tool-call delimiters must be parsed into Message.toolCalls, never executed as text. */
+  fun hasUnparsedToolCallMarkers(content: String): Boolean =
+    content.contains("<|tool_call>") || content.contains("<tool_call|")
+}
+
 class LiteRtLmAgentModel(
   private val conversation: Conversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
@@ -101,6 +108,7 @@ class LiteRtLmAgentModel(
         extraContext = userMessages.singleOrNull()?.extraContext.orEmpty(),
       )
 
+      Log.d(TAG, "LiteRT-LM agent response: turn=$modelTurn, structuredToolCalls=${response.toolCalls.size}")
       if (response.toolCalls.isNotEmpty()) {
         val calls = response.toolCalls.mapIndexed { index, call ->
           AgentModelResponse.ToolCall(
@@ -111,7 +119,19 @@ class LiteRtLmAgentModel(
         }
         AgentModelResponse.ToolCalls(calls)
       } else {
-        AgentModelResponse.FinalAnswer(response.toString())
+        val content = response.toString()
+        if (LiteRtLmResponseProtocol.hasUnparsedToolCallMarkers(content)) {
+          Log.e(
+            TAG,
+            "LiteRT-LM returned native tool-call markers as plain content " +
+              "(turn=$modelTurn, contentLength=${content.length}); refusing to treat it as a final answer.",
+          )
+          throw IllegalStateException(
+            "The model emitted a tool call, but LiteRT-LM did not return a structured toolCalls entry. " +
+              "No tool was executed. Check the LiteRT-LM/Gemma tool-call parser."
+          )
+        }
+        AgentModelResponse.FinalAnswer(content)
       }
     }
 
@@ -199,6 +219,7 @@ class LiteRtLmAgentModel(
   }
 
   companion object {
+    private const val TAG = "LiteRtLmAgentModel"
     /**
      * Builds description-only LiteRT-LM providers. Their execute methods deliberately fail closed:
      * automatic execution is forbidden and the AgentCoordinator is the only tool dispatcher.
