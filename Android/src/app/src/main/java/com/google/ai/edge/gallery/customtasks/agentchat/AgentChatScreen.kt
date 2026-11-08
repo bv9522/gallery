@@ -30,7 +30,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -449,9 +448,7 @@ fun AgentChatScreen(
       }
 
       GalleryWebView(
-        // Keep the JavaScript execution WebView attached and at a useful viewport size, but
-        // move it completely outside the visible window so it cannot cover the chat UI.
-        modifier = Modifier.size(300.dp).absoluteOffset(x = -(screenWidthDp + 300.dp)),
+        modifier = Modifier.size(300.dp),
         onWebViewCreated = { webView ->
           webViewRef = webView
           webView.addJavascriptInterface(chatViewJavascriptInterface, "AiEdgeGallery")
