@@ -207,9 +207,18 @@ class NativeAgentRuntimeExecutor(
       return
     }
     interrupt()
-    this.config = config
-    sessionId = config.sessionId.ifBlank { sessionId ?: UUID.randomUUID().toString() }
-    attachLegacyToolContext(config)
+    val previousConfig = this.config
+    val effectiveConfig = config.copy(
+      actionChannel = config.actionChannel ?: previousConfig?.actionChannel ?: agentTools.sendActionChannel,
+      // Agent Chat's stop/restart path rebuilds a partial config. Preserve the established
+      // constrained-decoding requirement instead of silently disabling tool-call constraints.
+      enableConversationConstrainedDecoding =
+        config.enableConversationConstrainedDecoding ||
+          previousConfig?.enableConversationConstrainedDecoding == true,
+    )
+    this.config = effectiveConfig
+    sessionId = effectiveConfig.sessionId.ifBlank { sessionId ?: UUID.randomUUID().toString() }
+    attachLegacyToolContext(effectiveConfig)
     discardAgentConversation()
   }
 
@@ -252,8 +261,7 @@ class NativeAgentRuntimeExecutor(
       agentModel?.let { return@synchronized it }
       val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
       val approval =
-        config.actionChannel?.let { ChannelShellExecutionApprovalPolicy(it) }
-          ?: com.google.ai.edge.gallery.agent.coordinator.ShellExecutionApprovalPolicy { false }
+        ChannelShellExecutionApprovalPolicy(config.actionChannel ?: agentTools.sendActionChannel)
       val shellTools = AgentToolRegistry(
         listOf(UnifiedShellTool(router, approval))
       )
