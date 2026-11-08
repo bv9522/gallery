@@ -262,6 +262,7 @@ class NativeAgentRuntimeExecutor(
         systemInstruction = config.systemInstruction,
         additionalToolProviders = agentTools.getLiteRtToolProviders(),
         initialMessages = config.initialMessages,
+        enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
       )
       agentModel = created
       coordinator = AgentCoordinator(created, created.toolRegistry(shellTools))
