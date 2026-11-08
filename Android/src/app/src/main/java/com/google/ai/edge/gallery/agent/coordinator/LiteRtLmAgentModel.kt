@@ -20,6 +20,7 @@ import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.ToolCall
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.OpenApiTool
 import com.google.ai.edge.litertlm.ToolProvider
@@ -64,11 +65,20 @@ class LiteRtLmAgentModel(
   private var consumedMessageCount = 0
   private var modelTurn = 0
   @Volatile private var closed = false
+  private val registeredToolNames: List<String> =
+    conversation.toolManager.getToolsDescription().mapNotNull { entry ->
+      entry.asJsonObject.getAsJsonObject("function")?.get("name")?.asString
+    }.sorted()
 
   init {
     require(!conversation.automaticToolCalling) {
       "Agent conversations must disable automatic tool calling."
     }
+    Log.i(
+      TAG,
+      "Conversation ready: automaticToolCalling=${conversation.automaticToolCalling}, " +
+        "registeredTools=${registeredToolNames.joinToString(prefix = "[", postfix = "]")}",
+    )
   }
 
   override suspend fun generate(messages: List<AgentMessage>): AgentModelResponse =
@@ -108,7 +118,14 @@ class LiteRtLmAgentModel(
         extraContext = userMessages.singleOrNull()?.extraContext.orEmpty(),
       )
 
-      Log.d(TAG, "LiteRT-LM agent response: turn=$modelTurn, structuredToolCalls=${response.toolCalls.size}")
+      val content = response.toString()
+      val responseSummary = LiteRtLmResponseProtocol.summarizeResponse(
+        content = content,
+        toolCalls = response.toolCalls,
+        channels = response.channels,
+      )
+      Log.i(TAG, "Response protocol: turn=$modelTurn, $responseSummary")
+
       if (response.toolCalls.isNotEmpty()) {
         val calls = response.toolCalls.mapIndexed { index, call ->
           AgentModelResponse.ToolCall(
@@ -119,17 +136,20 @@ class LiteRtLmAgentModel(
         }
         AgentModelResponse.ToolCalls(calls)
       } else {
-        val content = response.toString()
-        if (LiteRtLmResponseProtocol.hasUnparsedToolCallMarkers(content)) {
-          Log.e(
-            TAG,
-            "LiteRT-LM returned native tool-call markers as plain content " +
-              "(turn=$modelTurn, contentLength=${content.length}); refusing to treat it as a final answer.",
-          )
-          throw IllegalStateException(
-            "The model emitted a tool call, but LiteRT-LM did not return a structured toolCalls entry. " +
-              "No tool was executed. Check the LiteRT-LM/Gemma tool-call parser."
-          )
+        if (LiteRtLmResponseProtocol.hasUnparsedToolCallMarkers(content, response.channels)) {
+          val failure =
+            "The model emitted native tool-call markers, but LiteRT-LM did not return a structured " +
+              "toolCalls entry. No tool was executed. Protocol diagnostics: $responseSummary. " +
+              "Registered tools: ${registeredToolNames.joinToString(prefix = "[", postfix = "]")}."
+          Log.e(TAG, failure)
+          throw IllegalStateException(failure)
+        }
+        if (content.isBlank() && response.channels.isNotEmpty()) {
+          val failure =
+            "LiteRT-LM returned channel-only output without a final content message or structured " +
+              "tool call. No tool was executed. Protocol diagnostics: $responseSummary."
+          Log.e(TAG, failure)
+          throw IllegalStateException(failure)
         }
         AgentModelResponse.FinalAnswer(content)
       }
