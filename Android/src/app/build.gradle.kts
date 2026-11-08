@@ -87,7 +87,6 @@ android {
 kotlin {
   compilerOptions {
     jvmTarget.set(JvmTarget.JVM_11)
-    freeCompilerArgs.addAll("-Xskip-metadata-version-check")
   }
 }
 
