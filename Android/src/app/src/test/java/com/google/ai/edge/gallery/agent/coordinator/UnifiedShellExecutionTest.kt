@@ -271,6 +271,26 @@ class UnifiedShellExecutionTest {
   }
 
   @Test
+  fun rishManagerResolutionFailureDoesNotInvokeTermux() = runBlocking {
+    val termux = RecordingTermux()
+    val transport = TermuxRishShellTransport(termux) {
+      throw IllegalStateException("Multiple Shizuku managers were discovered.")
+    }
+
+    val result = transport.execute(
+      ShellExecutionRequest(
+        backend = ShellExecutionBackend.TERMUX_RISH,
+        command = "id",
+        workingDirectory = "/",
+      )
+    )
+
+    assertFalse(result.succeeded)
+    assertTrue(result.error.orEmpty().contains("Multiple Shizuku managers"))
+    assertEquals("", termux.command)
+  }
+
+  @Test
   fun channelApprovalShowsExactRequestAndWaitsForOneTimeDecision(): Unit = runBlocking {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
     val policy = ChannelShellExecutionApprovalPolicy(channel)
