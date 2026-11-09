@@ -26,7 +26,7 @@ internal object TermuxProcessSupervisionPreflight {
     append("if ! command -v \"\$utility\" >/dev/null 2>&1; then ")
     append("if [ -n \"\$missing\" ]; then missing=\"\$missing \"; fi; ")
     append("missing=\"\$missing\$utility\"; fi; done; ")
-    append("if [ -n \"\$missing\" ]; then printf '%s\\\n' \"\$missing\"; exit 127; fi")
+    append("if [ -n \"\$missing\" ]; then printf '%s' \"\$missing\"; exit 127; fi")
   }
 
   fun failureMessage(result: TermuxShellResult): String {
