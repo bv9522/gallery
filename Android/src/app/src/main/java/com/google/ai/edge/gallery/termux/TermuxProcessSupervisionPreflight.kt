@@ -26,7 +26,7 @@ internal object TermuxProcessSupervisionPreflight {
     append("if ! command -v \"\$utility\" >/dev/null 2>&1; then ")
     append("if [ -n \"\$missing\" ]; then missing=\"\$missing \"; fi; ")
     append("missing=\"\$missing\$utility\"; fi; done; ")
-    append("if [ -n \"\$missing\" ]; then printf '%s\\\\n' \"\$missing\"; exit 127; fi")
+    append("if [ -n \"\$missing\" ]; then printf '%s\\\n' \"\$missing\"; exit 127; fi")
   }
 
   fun failureMessage(result: TermuxShellResult): String {
@@ -51,8 +51,8 @@ internal object TermuxProcessSupervisionPreflight {
 
     return buildString {
       append("Termux process-supervision preflight failed before dependency detection")
-      append(" (exit code \${result.exitCode}")
-      result.errorCode?.let { append(", Termux error code \$it") }
+      append(" (exit code ${result.exitCode}")
+      result.errorCode?.let { append(", Termux error code $it") }
       append(").")
       result.error?.takeIf { it.isNotBlank() }?.let {
         append(" ")
