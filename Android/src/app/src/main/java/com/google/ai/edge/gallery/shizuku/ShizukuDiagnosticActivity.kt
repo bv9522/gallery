@@ -319,7 +319,9 @@ class ShizukuDiagnosticActivity : ComponentActivity() {
         val router = ShellExecutionRouter(
           mapOf(
             ShellExecutionBackend.TERMUX_RISH to
-              TermuxRishShellTransport(TermuxRunCommandClient(this@ShizukuDiagnosticActivity)) {\n                ShizukuManagerPackageResolver.resolve(this@ShizukuDiagnosticActivity)\n              }
+              TermuxRishShellTransport(TermuxRunCommandClient(this@ShizukuDiagnosticActivity)) {
+                ShizukuManagerPackageResolver.resolve(this@ShizukuDiagnosticActivity)
+              }
           )
         )
         val shellTool = UnifiedShellTool(
