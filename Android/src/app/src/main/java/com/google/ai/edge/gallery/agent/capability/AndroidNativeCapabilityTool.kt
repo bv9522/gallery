@@ -119,6 +119,23 @@ class AndroidNativeCapabilityTool(
     }
     val operation = arguments.string("operation")
       ?: return failure("Missing required string argument: operation.")
+    val operationArguments = mapOf(
+      "status" to setOf("operation"),
+      "device_info" to setOf("operation"),
+      "battery_status" to setOf("operation"),
+      "volume_status" to setOf("operation", "stream"),
+      "list_apps" to setOf("operation"),
+      "set_volume" to setOf("operation", "stream", "volume"),
+      "set_flashlight" to setOf("operation", "enabled"),
+      "launch_app" to setOf("operation", "package_name"),
+      "open_url" to setOf("operation", "url"),
+    )[operation] ?: return failure("Unsupported operation '$operation'.")
+    val unexpectedForOperation = arguments.keySet() - operationArguments
+    if (unexpectedForOperation.isNotEmpty()) {
+      return failure(
+        "Unsupported argument(s) for $operation: ${unexpectedForOperation.sorted().joinToString(", ")}."
+      )
+    }
 
     return try {
       when (operation) {
@@ -203,8 +220,11 @@ class AndroidNativeCapabilityTool(
     )
   }
 
-  private fun audioStream(arguments: JsonObject): NativeAudioStream? =
-    arguments.string("stream")?.let(NativeAudioStream::fromName) ?: NativeAudioStream.MUSIC
+  private fun audioStream(arguments: JsonObject): NativeAudioStream? {
+    if (!arguments.has("stream")) return NativeAudioStream.MUSIC
+    val value = arguments.string("stream") ?: return null
+    return NativeAudioStream.fromName(value)
+  }
 
   private fun failure(message: String) = AgentToolResult(message, false)
 
@@ -212,7 +232,8 @@ class AndroidNativeCapabilityTool(
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
 
   private fun JsonObject.int(name: String): Int? =
-    get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+    get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+      ?.asString?.toIntOrNull()
 
   private fun JsonObject.boolean(name: String): Boolean? =
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
