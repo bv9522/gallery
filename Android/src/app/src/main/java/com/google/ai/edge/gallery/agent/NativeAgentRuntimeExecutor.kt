@@ -31,6 +31,7 @@ import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionRouter
 import com.google.ai.edge.gallery.agent.coordinator.TermuxRishShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
+import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.runtime.runtimeHelper
@@ -66,7 +67,13 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
     append("\n\n")
   }
   append(
-    "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
+    "DEVICE CONTROL TOOL RULES: Use android_control for native device information, battery, " +
+      "volume, launcher-visible apps, flashlight, and HTTP(S) URL actions. Use list_apps before " +
+      "launch_app and pass an exact returned package_name. Never guess package names. Read-only " +
+      "operations do not require approval; every mutation requires the user's one-time approval. " +
+      "Report unavailable capabilities and permission requirements honestly. Do not use shell " +
+      "commands as an automatic fallback for android_control failures.\\n\\n" +
+      "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
       "native execute_shell tool directly. Do not call run_mcp_tool to execute shell commands; " +
       "run_mcp_tool is only for tools hosted by external MCP servers. The execute_shell tool " +
       "requires an explicit backend and command. If the user names a backend, use that exact " +
@@ -285,14 +292,20 @@ class NativeAgentRuntimeExecutor(
       synchronized(stateLock) {
         agentModel?.let { return@synchronized it }
         val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
-        val approval =
-          ChannelShellExecutionApprovalPolicy(config.actionChannel ?: agentTools.sendActionChannel)
-        val shellTools = AgentToolRegistry(
-          listOf(UnifiedShellTool(router, approval))
+        val actionChannel = config.actionChannel ?: agentTools.sendActionChannel
+        val approval = ChannelShellExecutionApprovalPolicy(actionChannel)
+        val runtimeTools = AgentToolRegistry(
+          listOf(
+            UnifiedShellTool(router, approval),
+            AndroidNativeCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+            ),
+          )
         )
         val created = com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
           model = config.model,
-          tools = shellTools,
+          tools = runtimeTools,
           systemInstruction = buildAgentSystemInstruction(config.systemInstruction),
           additionalToolProviders = agentTools.getLiteRtToolProviders(),
           initialMessages = config.initialMessages,
@@ -305,7 +318,7 @@ class NativeAgentRuntimeExecutor(
             "constrainedDecoding=${config.enableConversationConstrainedDecoding}",
         )
         agentModel = created
-        coordinator = AgentCoordinator(created, created.toolRegistry(shellTools))
+        coordinator = AgentCoordinator(created, created.toolRegistry(runtimeTools))
         created
       }
     }
