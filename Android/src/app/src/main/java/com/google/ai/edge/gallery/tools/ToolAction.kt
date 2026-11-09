@@ -27,6 +27,7 @@ enum class ToolActionName() {
   REQUEST_PERMISSION,
   ASK_MCP_TOOL_CALL_PERMISSION,
   ASK_SHELL_COMMAND_PERMISSION,
+  ASK_NATIVE_CAPABILITY_PERMISSION,
 }
 
 /**
@@ -138,6 +139,16 @@ class AskShellCommandPermissionAction(
   val maxOutputChars: Int,
   val result: CompletableDeferred<Boolean> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.ASK_SHELL_COMMAND_PERMISSION)
+
+/**
+ * Requests one-time approval for an exact native Android capability mutation.
+ * No persistent approval is supported; the user reviews the concrete operation each time.
+ */
+class AskNativeCapabilityPermissionAction(
+  val capability: String,
+  val summary: String,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.ASK_NATIVE_CAPABILITY_PERMISSION)
 
 @JsonClass(generateAdapter = true)
 data class CallJsSkillResult(
