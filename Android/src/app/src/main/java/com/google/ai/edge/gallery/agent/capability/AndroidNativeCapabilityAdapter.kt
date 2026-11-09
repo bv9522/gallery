@@ -354,7 +354,7 @@ class AndroidNativeCapabilityAdapter(
     @Suppress("DEPRECATION")
     val activities = appContext.packageManager.queryIntentActivities(
       intent,
-      PackageManager.MATCH_DEFAULT_ONLY,
+      0,
     )
     return activities.mapNotNull { resolveInfo ->
       val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
