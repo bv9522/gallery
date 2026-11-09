@@ -35,6 +35,7 @@ import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.runtime.runtimeHelper
 import com.google.ai.edge.gallery.shizuku.ShizukuShellClient
+import com.google.ai.edge.gallery.shizuku.ShizukuManagerPackageResolver
 import com.google.ai.edge.gallery.termux.TermuxRunCommandClient
 import com.google.ai.edge.gallery.tools.RuntimeToolDispatcher
 import com.google.ai.edge.gallery.tools.ToolExecutionContext
@@ -63,6 +64,27 @@ import kotlinx.coroutines.withContext
  * AICore remains on the established executor because it does not expose the LiteRT-LM Conversation
  * API used by the manual structured-tool-call adapter.
  */
+/**
+ * Keeps native shell execution distinct from the external MCP wrapper for small on-device models.
+ * Backend choice is explicit and is never inferred from whichever transport happens to be alive.
+ */
+internal fun buildAgentSystemInstruction(existing: String?): String = buildString {
+  existing?.takeIf { it.isNotBlank() }?.let {
+    append(it.trim())
+    append("\n\n")
+  }
+  append(
+    "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
+      "native execute_shell tool directly. Do not call run_mcp_tool to execute shell commands; " +
+      "run_mcp_tool is only for tools hosted by external MCP servers. The execute_shell tool " +
+      "requires an explicit backend and command. If the user names a backend, use that exact " +
+      "backend. TERMUX, SHIZUKU, and TERMUX_RISH are distinct identities. Never silently switch " +
+      "or fall back to another backend. If the tool returns an error, report that actual error " +
+      "instead of guessing that a service is stopped. For a multi-part information request, " +
+      "retrieve every requested field and clearly mark any field that could not be retrieved."
+  )
+}
+
 class NativeAgentRuntimeExecutor(
   private val agentTools: AgentTools,
   private val fallbackExecutor: AgentRuntimeExecutor,
@@ -99,14 +121,17 @@ class NativeAgentRuntimeExecutor(
 
     usingFallback = false
     attachLegacyToolContext(config)
-    val termux = TermuxRunCommandClient(context)
-    val shizuku = ShizukuShellClient(context)
+    val appContext = context.applicationContext
+    val termux = TermuxRunCommandClient(appContext)
+    val shizuku = ShizukuShellClient(appContext)
     shizukuClient = shizuku
     shellRouter = ShellExecutionRouter(
       mapOf(
         ShellExecutionBackend.TERMUX to TermuxShellTransport(termux),
         ShellExecutionBackend.SHIZUKU to ShizukuShellTransport(shizuku),
-        ShellExecutionBackend.TERMUX_RISH to TermuxRishShellTransport(termux),
+        ShellExecutionBackend.TERMUX_RISH to TermuxRishShellTransport(termux) {
+          ShizukuManagerPackageResolver.resolve(appContext)
+        },
       )
     )
 
@@ -268,7 +293,7 @@ class NativeAgentRuntimeExecutor(
         val created = com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
           model = config.model,
           tools = shellTools,
-          systemInstruction = config.systemInstruction,
+          systemInstruction = Contents.of(buildAgentSystemInstruction(config.systemInstruction)),
           additionalToolProviders = agentTools.getLiteRtToolProviders(),
           initialMessages = config.initialMessages,
           enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
