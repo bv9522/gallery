@@ -328,6 +328,28 @@ fun HomeScreen(
               }
               Spacer(modifier = Modifier.height(16.dp))
               Row(modifier = Modifier.fillMaxWidth()) {
+                SquareDrawerItem(
+                  label = stringResource(R.string.drawer_notifications_label),
+                  description = stringResource(R.string.drawer_notifications_description),
+                  icon = Icons.Rounded.Notifications,
+                  onClick = {
+                    scope.launch { drawerState.close() }
+                    scope.launch {
+                      delay(50)
+                      onNotificationsClicked()
+                    }
+                  },
+                  modifier = Modifier.weight(1f),
+                  iconBrush =
+                    linearGradient(
+                      colors =
+                        listOf(
+                          MaterialTheme.customColors.taskBgGradientColors[0][0],
+                          MaterialTheme.customColors.taskBgGradientColors[0][1],
+                        )
+                    ),
+                )
+                Spacer(modifier = Modifier.weight(1f))
               }
             }
           }

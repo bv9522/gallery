@@ -34,6 +34,8 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="com.google.android.apps.aicore.service.BIND_SERVICE" />
+    <!-- Allows this app to request commands from the user's explicitly configured Termux install. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
     <!-- Additional permission required for push notification handling -->
     <!-- Required for resurfacing notifications after boot -->
@@ -96,6 +98,15 @@
             </intent-filter>
         </activity>
 
+        <receiver
+            android:name=".termux.TermuxCommandResultReceiver"
+            android:exported="false" />
+
+        <activity
+            android:name=".shizuku.ShizukuDiagnosticActivity"
+            android:exported="false"
+            android:label="Shizuku diagnostic" />
+
         <!-- Set themes for activities that are used for viewing open source licenses -->
         <activity
             android:name="com.google.android.gms.oss.licenses.OssLicensesMenuActivity"
@@ -105,6 +116,14 @@
             android:name="com.google.android.gms.oss.licenses.OssLicensesActivity"
             android:exported="true"
             android:theme="@style/Theme.Gallery.OssLicenses" />
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -181,6 +200,11 @@
 
     <!-- Text-to-speech engines and the XR glasses service used by speech and XR Language Teacher. -->
     <queries>
+        <package android:name="com.termux" />
+        <!-- Discover the installed Shizuku manager package, including renamed/stealth builds. -->
+        <intent>
+            <action android:name="rikka.shizuku.intent.action.REQUEST_BINDER" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>

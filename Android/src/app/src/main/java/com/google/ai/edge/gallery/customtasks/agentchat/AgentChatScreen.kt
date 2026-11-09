@@ -88,6 +88,7 @@ import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.skills.formatSelectedSkills
 import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
+import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
 import com.google.ai.edge.gallery.tools.CallJsToolAction
 import com.google.ai.edge.gallery.tools.PermissionResult
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
@@ -148,6 +149,9 @@ fun AgentChatScreen(
   var currentAskInfoAction by remember { mutableStateOf<AskInfoToolAction?>(null) }
   var currentMcpPermissionAction by remember {
     mutableStateOf<AskMcpToolCallPermissionAction?>(null)
+  }
+  var currentShellPermissionAction by remember {
+    mutableStateOf<AskShellCommandPermissionAction?>(null)
   }
   var askInfoInputValue by remember { mutableStateOf("") }
   var webViewRef: WebView? by remember { mutableStateOf(null) }
@@ -436,6 +440,9 @@ fun AgentChatScreen(
             is AskMcpToolCallPermissionAction -> {
               currentMcpPermissionAction = action
             }
+            is AskShellCommandPermissionAction -> {
+              currentShellPermissionAction = action
+            }
           }
         }
       }
@@ -633,6 +640,21 @@ fun AgentChatScreen(
           }
         }
         currentMcpPermissionAction = null
+      },
+    )
+  }
+
+  if (currentShellPermissionAction != null) {
+    val action = currentShellPermissionAction!!
+    ShellCommandPermissionDialog(
+      backend = action.backend,
+      command = action.command,
+      workingDirectory = action.workingDirectory,
+      timeoutMs = action.timeoutMs,
+      maxOutputChars = action.maxOutputChars,
+      onResult = { approved ->
+        action.result.complete(approved)
+        currentShellPermissionAction = null
       },
     )
   }

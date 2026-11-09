@@ -365,6 +365,8 @@ fun ChatView(
           Box {
             val curModelDownloadStatus = modelManagerUiState.modelDownloadStatus[selectedModel.name]
 
+            // Keep task-specific execution hosts behind the chat surface. The Agent Skills
+            // WebView is a JavaScript runtime, not visible chat content.
             composableBelowMessageList(selectedModel)
 
             Column(

@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.ai.edge.gallery.BuildConfig
+import com.google.ai.edge.gallery.shizuku.ShizukuDiagnosticActivity
 import com.google.ai.edge.gallery.R
 import com.google.ai.edge.gallery.proto.Theme
 import com.google.ai.edge.gallery.services.asr.AsrEngineType
@@ -380,6 +381,29 @@ fun SettingsDialog(
                   }
                 }
               }
+            }
+          }
+
+          // Shizuku shell diagnostic.
+          Column(
+            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+          ) {
+            Text(
+              "Shizuku shell",
+              style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
+            )
+            Text(
+              "Verify that this app can execute a command through Shizuku with Android shell privileges.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(
+              onClick = {
+                context.startActivity(Intent(context, ShizukuDiagnosticActivity::class.java))
+              }
+            ) {
+              Text("Run Shizuku diagnostic")
             }
           }
 

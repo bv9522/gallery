@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only access to the on-device Shizuku acceptance screen.
+  The main manifest keeps this activity non-exported; this overlay applies only
+  to the shizukuDebug variant and does not change release component exposure.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <activity
+            android:name="com.google.ai.edge.gallery.shizuku.ShizukuDiagnosticActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

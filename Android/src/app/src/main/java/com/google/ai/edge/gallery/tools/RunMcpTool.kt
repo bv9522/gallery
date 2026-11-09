@@ -172,7 +172,12 @@ class RunMcpTool(
     type: String,
   ): Map<String, String> {
     val isSkill = skillsProvider.loadSkill(name) != null
-    val error = if (isSkill) "$type not found. Try to run it as a skill" else "Tool not found"
+    val error = if (isSkill) {
+      "$type '$name' not found in configured MCP servers. Try to run it as a skill."
+    } else {
+      "$type '$name' not found in configured external MCP servers. This wrapper only invokes " +
+        "external MCP-server tools; native Agent Chat tools such as execute_shell must be called directly."
+    }
     return mapOf("error" to error, "status" to "failed")
   }
 
