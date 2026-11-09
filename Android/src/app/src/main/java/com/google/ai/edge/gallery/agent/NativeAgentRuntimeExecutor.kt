@@ -293,7 +293,7 @@ class NativeAgentRuntimeExecutor(
         val created = com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
           model = config.model,
           tools = shellTools,
-          systemInstruction = Contents.of(buildAgentSystemInstruction(config.systemInstruction)),
+          systemInstruction = buildAgentSystemInstruction(config.systemInstruction),
           additionalToolProviders = agentTools.getLiteRtToolProviders(),
           initialMessages = config.initialMessages,
           enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
