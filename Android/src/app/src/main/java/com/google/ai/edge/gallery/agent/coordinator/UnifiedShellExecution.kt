@@ -216,11 +216,11 @@ class TermuxRishShellTransport(
           (error.message ?: error.javaClass.simpleName),
       )
     }
-    val remoteCommand = "cd \${shellQuote(request.workingDirectory)} && \${request.command}"
+    val remoteCommand = "cd ${shellQuote(request.workingDirectory)} && ${request.command}"
     val wrappedCommand =
-      "export RISH_APPLICATION_ID=\${shellQuote(TERMUX_APPLICATION_ID)} && " +
-        "export MANAGER_APPLICATION_ID=\${shellQuote(managerApplicationId)} && " +
-        "rish -c \${shellQuote(remoteCommand)}"
+      "export RISH_APPLICATION_ID=${shellQuote(TERMUX_APPLICATION_ID)} && " +
+        "export MANAGER_APPLICATION_ID=${shellQuote(managerApplicationId)} && " +
+        "rish -c ${shellQuote(remoteCommand)}"
     val result = executor.execute(
       command = wrappedCommand,
       workingDirectory = "~/",
@@ -239,7 +239,7 @@ class TermuxRishShellTransport(
     )
   }
 
-  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\\\''") + "'"
+  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
   private companion object {
     const val TERMUX_APPLICATION_ID = "com.termux"
