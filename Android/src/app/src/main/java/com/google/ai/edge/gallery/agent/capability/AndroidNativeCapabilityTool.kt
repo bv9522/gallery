@@ -77,7 +77,7 @@ class AndroidNativeCapabilityTool(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "list_apps",
               "set_volume", "set_flashlight", "launch_app", "open_url",
-            ).forEach(::add)
+            ).forEach { add(it) }
           })
         })
         add("stream", JsonObject().apply {
