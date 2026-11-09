@@ -248,7 +248,7 @@ class UnifiedShellExecutionTest {
   @Test
   fun rishTransportQuotesCommandAndUsesExistingRishClient() = runBlocking {
     val termux = RecordingTermux()
-    val transport = TermuxRishShellTransport(termux)
+    val transport = TermuxRishShellTransport(termux) { "org.example.shizuku.manager" }
 
     val result = transport.execute(
       ShellExecutionRequest(
@@ -260,7 +260,10 @@ class UnifiedShellExecutionTest {
 
     assertTrue(result.succeeded)
     assertEquals("~/", termux.workingDirectory)
-    assertTrue(termux.command.startsWith("rish -c "))
+    assertTrue(termux.command.startsWith(
+      "export RISH_APPLICATION_ID='com.termux' && " +
+        "export MANAGER_APPLICATION_ID='org.example.shizuku.manager' && rish -c "
+    ))
     assertTrue(termux.command.contains("cd "))
     assertTrue(termux.command.contains("My Files"))
     assertTrue(termux.command.contains("printf"))
