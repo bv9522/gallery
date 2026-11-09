@@ -197,11 +197,30 @@ class ShizukuShellTransport(private val executor: ShizukuShellExecutor) : ShellE
  * rish is an optional Termux-side prerequisite. A missing or stale rish installation fails
  * explicitly; this transport never falls back to Termux's own UID.
  */
-class TermuxRishShellTransport(private val executor: TermuxShellExecutor) : ShellExecutionTransport {
+class TermuxRishShellTransport(
+  private val executor: TermuxShellExecutor,
+  private val managerApplicationIdProvider: () -> String,
+) : ShellExecutionTransport {
   override suspend fun execute(request: ShellExecutionRequest): ShellExecutionResult {
     require(request.backend == ShellExecutionBackend.TERMUX_RISH)
-    val remoteCommand = "cd ${shellQuote(request.workingDirectory)} && ${request.command}"
-    val wrappedCommand = "rish -c ${shellQuote(remoteCommand)}"
+    val managerApplicationId = try {
+      managerApplicationIdProvider().takeIf { it.isNotBlank() }
+        ?: throw IllegalStateException("The Shizuku manager package ID is empty.")
+    } catch (error: Exception) {
+      return ShellExecutionResult(
+        backend = request.backend,
+        stdout = "",
+        stderr = "",
+        exitCode = -1,
+        error = "Could not resolve the installed Shizuku manager package: " +
+          (error.message ?: error.javaClass.simpleName),
+      )
+    }
+    val remoteCommand = "cd \${shellQuote(request.workingDirectory)} && \${request.command}"
+    val wrappedCommand =
+      "export RISH_APPLICATION_ID=\${shellQuote(TERMUX_APPLICATION_ID)} && " +
+        "export MANAGER_APPLICATION_ID=\${shellQuote(managerApplicationId)} && " +
+        "rish -c \${shellQuote(remoteCommand)}"
     val result = executor.execute(
       command = wrappedCommand,
       workingDirectory = "~/",
@@ -220,7 +239,11 @@ class TermuxRishShellTransport(private val executor: TermuxShellExecutor) : Shel
     )
   }
 
-  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\\\''") + "'"
+
+  private companion object {
+    const val TERMUX_APPLICATION_ID = "com.termux"
+  }
 }
 
 /**
@@ -233,9 +256,10 @@ class UnifiedShellTool(
 ) : AgentTool {
   override val name: String = "execute_shell"
   override val description: String =
-    "Execute a shell command using an explicitly selected backend: TERMUX (Termux app UID), " +
-      "SHIZUKU (Android shell UID 2000, not root), or TERMUX_RISH (Termux invoking the existing " +
-      "Shizuku service). Every command requires explicit user approval."
+    "Native device shell tool. Use execute_shell directly for all shell-command requests; do not " +
+      "call run_mcp_tool for shell execution. Select the backend explicitly: TERMUX (Termux app " +
+      "UID), SHIZUKU (Android shell UID 2000, not root), or TERMUX_RISH (Termux invoking the " +
+      "existing Shizuku service). Never substitute another backend. Every command requires user approval."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
