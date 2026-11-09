@@ -255,8 +255,10 @@ class AndroidNativeCapabilityAdapter(
     ) {
       return NativeCapabilityActionResult(false, "Flashlight change was not approved.")
     }
+    val cameraManager = appContext.getSystemService(CameraManager::class.java)
+      ?: return NativeCapabilityActionResult(false, "Camera service is unavailable.")
     return try {
-      appContext.getSystemService(CameraManager::class.java).setTorchMode(cameraId, enabled)
+      cameraManager.setTorchMode(cameraId, enabled)
       NativeCapabilityActionResult(true, "Flashlight turned ${if (enabled) "on" else "off"}.")
     } catch (error: CameraAccessException) {
       NativeCapabilityActionResult(false, "Camera service could not change the flashlight: ${error.message}")
