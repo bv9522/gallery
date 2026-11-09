@@ -109,11 +109,11 @@ class CapabilityRegistryTest {
 
   @Test
   fun discoveryReturnsValidatedProviderObservations() = runBlocking {
-    val descriptor = registry.providers().first {
+    val providerDescriptor = registry.providers().first {
       it.id == CapabilityProviderId.ANDROID_NATIVE
     }
     val probe = object : CapabilityProviderProbe {
-      override val descriptor = descriptor
+      override val descriptor = providerDescriptor
       override suspend fun inspect() = CapabilityProviderObservation(
         descriptor.id,
         ProviderAvailability.AVAILABLE,
