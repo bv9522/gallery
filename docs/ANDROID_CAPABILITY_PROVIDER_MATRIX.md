@@ -1,7 +1,8 @@
 # Android capability provider matrix
 
-This Phase 3A inventory describes preferred implementations, not guaranteed live availability.
-Android-specific probes report whether a provider is installed, permissioned, and running.
+This inventory describes preferred implementations, not guaranteed live availability. Phase 3B adds
+an observational native Android probe and typed framework adapter. Availability is reported per
+capability because a provider can support some operations but not others.
 
 ## Brahma-inspired capabilities
 
@@ -20,6 +21,23 @@ Android-specific probes report whether a provider is installed, permissioned, an
 | UI tree / UI dump | Native AccessibilityService | No equivalent live semantic shell fallback | A one-off uiautomator dump is not a live actionable accessibility hierarchy. |
 | Tap / swipe | Accessibility node actions and dispatchGesture | Shell input tap / input swipe | Semantic actions are robust; coordinate gestures remain a universal fallback. |
 | Text entry | Accessibility node ACTION_SET_TEXT | Shell input text | Native actions target semantic controls; shell text entry needs escaping and is less expressive. |
+
+## Phase 3B native Android adapter
+
+`AndroidNativeCapabilityAdapter` uses the Gallery app's own Android framework identity. It exposes
+structured device and battery facts, audio stream state, launcher-visible app discovery, flashlight
+availability, and HTTPS handler discovery. Its mutation methods (volume, flashlight, app launch,
+open URL) require an injected `NativeCapabilityAuthorizer`; there is no permissive default and the
+adapter never requests runtime permissions.
+
+The probe reports per-capability status, including `PERMISSION_REQUIRED` for camera access and
+`UNSUPPORTED` when no controllable flash or matching system service is present. It does not prompt,
+change settings, start apps, or open links. App visibility is intentionally scoped to launcher
+activities through `<queries>`; the app does not request `QUERY_ALL_PACKAGES`. URL handler visibility
+is scoped to HTTPS intents. `MODIFY_AUDIO_SETTINGS` is a normal permission used for volume control.
+
+This is a provider/adaptation layer, not yet a new model-facing tool surface. Production wiring must
+supply the existing user-approval implementation before exposing mutation methods to Gemma.
 
 ## Provider boundaries
 
@@ -48,8 +66,10 @@ repository license is restrictive for derivative redistribution.
 ## Routing and safety rules
 
 1. Provider discovery is observational only; it must not request permissions or mutate device state.
-2. Capability routing is per operation; there is no global always-use-Rish rule.
-3. An explicit backend choice remains authoritative. Automatic selection is separate.
-4. Availability is not authorization. Existing approval policy remains the final gate for risky
+2. Provider observations may override availability per capability; provider-wide status is only a fallback.
+3. Native mutations require an explicit authorizer and fail closed when approval is absent.
+4. Capability routing is per operation; there is no global always-use-Rish rule.
+5. An explicit backend choice remains authoritative. Automatic selection is separate.
+6. Availability is not authorization. Existing approval policy remains the final gate for risky
    operations, especially file writes/deletes and shell commands.
-5. A missing provider observation is UNKNOWN, never assumed available.
+7. A missing provider observation is UNKNOWN, never assumed available.
