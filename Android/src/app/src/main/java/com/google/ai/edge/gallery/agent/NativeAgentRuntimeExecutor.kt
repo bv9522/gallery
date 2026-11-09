@@ -57,14 +57,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Agent Chat runtime backed by one coordinator and one manually-driven LiteRT-LM conversation.
- *
- * Existing Gallery tools are supplied to the same conversation ToolManager and adapted back into
- * AgentTools, so skills, MCP, JS, intents, and native shell all pass through AgentCoordinator.
- * AICore remains on the established executor because it does not expose the LiteRT-LM Conversation
- * API used by the manual structured-tool-call adapter.
- */
-/**
  * Keeps native shell execution distinct from the external MCP wrapper for small on-device models.
  * Backend choice is explicit and is never inferred from whichever transport happens to be alive.
  */
@@ -85,6 +77,14 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
   )
 }
 
+/**
+ * Agent Chat runtime backed by one coordinator and one manually-driven LiteRT-LM conversation.
+ *
+ * Existing Gallery tools are supplied to the same conversation ToolManager and adapted back into
+ * AgentTools, so skills, MCP, JS, intents, and native shell all pass through AgentCoordinator.
+ * AICore remains on the established executor because it does not expose the LiteRT-LM Conversation
+ * API used by the manual structured-tool-call adapter.
+ */
 class NativeAgentRuntimeExecutor(
   private val agentTools: AgentTools,
   private val fallbackExecutor: AgentRuntimeExecutor,
