@@ -24,6 +24,7 @@ import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -37,6 +38,10 @@ class ChannelNativeCapabilityAuthorizer(
     return try {
       actionChannel.send(action)
       withTimeoutOrNull(approvalTimeoutMs) { action.result.await() } ?: false
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      false
     } finally {
       if (!action.result.isCompleted) action.result.complete(false)
     }
@@ -151,6 +156,8 @@ class AndroidNativeCapabilityTool(
         }
         else -> failure("Unsupported operation '$operation'.")
       }
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (error: Exception) {
       failure(error.message ?: error.javaClass.simpleName)
     }
