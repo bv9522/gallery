@@ -49,10 +49,17 @@ data class CapabilityRoutePreference(
   }
 }
 
+/**
+ * Provider-wide availability is retained for simple providers. Native providers can report
+ * capability-specific availability because, for example, a phone may have no flash LED while
+ * its battery and audio framework services are fully available.
+ */
 data class CapabilityProviderObservation(
   val providerId: CapabilityProviderId,
   val availability: ProviderAvailability,
   val detail: String? = null,
+  val capabilityAvailability: Map<AndroidCapability, ProviderAvailability> = emptyMap(),
+  val capabilityDetails: Map<AndroidCapability, String> = emptyMap(),
 )
 
 data class CapabilityCandidate(
@@ -71,7 +78,6 @@ data class CapabilityResolution(
 }
 
 /**
- * Android-specific adapters implement this probe contract in later Phase 3 work.
  * Probes are observational only: they must not request permissions or mutate device state.
  */
 interface CapabilityProviderProbe {
@@ -125,10 +131,8 @@ class CapabilityRegistry(
   fun providers(): List<CapabilityProviderDescriptor> = providersById.values.toList()
 
   /**
-   * Inspects the supplied providers in a deterministic order.
-   *
-   * The caller supplies only probes it can construct; omitted providers remain UNKNOWN when
-   * the returned observations are passed to resolve(). Probe identity must match the catalog.
+   * Inspects supplied providers. Omitted providers remain UNKNOWN when resolved.
+   * Probe identity and per-capability declarations are validated against the catalog.
    */
   suspend fun discover(
     probes: Collection<CapabilityProviderProbe>,
@@ -139,12 +143,25 @@ class CapabilityRegistry(
     }
 
     return probes.map { probe ->
-      require(providersById[probe.descriptor.id] == probe.descriptor) {
+      val descriptor = providersById[probe.descriptor.id]
+      require(descriptor == probe.descriptor) {
         "Probe descriptor '${probe.descriptor.id}' does not match the capability catalog."
       }
       val observation = probe.inspect()
       require(observation.providerId == probe.descriptor.id) {
         "Probe '${probe.descriptor.id}' returned an observation for '${observation.providerId}'."
+      }
+      val undeclared = observation.capabilityAvailability.keys -
+        probe.descriptor.capabilities
+      require(undeclared.isEmpty()) {
+        "Probe '${probe.descriptor.id}' reported undeclared capabilities: " +
+          undeclared.joinToString(", ")
+      }
+      val undeclaredDetails = observation.capabilityDetails.keys -
+        probe.descriptor.capabilities
+      require(undeclaredDetails.isEmpty()) {
+        "Probe '${probe.descriptor.id}' detailed undeclared capabilities: " +
+          undeclaredDetails.joinToString(", ")
       }
       observation
     }
@@ -167,9 +184,11 @@ class CapabilityRegistry(
       val observation = observationsByProvider[route.providerId]
       CapabilityCandidate(
         providerId = route.providerId,
-        availability = observation?.availability ?: ProviderAvailability.UNKNOWN,
+        availability = observation?.capabilityAvailability?.get(capability)
+          ?: observation?.availability
+          ?: ProviderAvailability.UNKNOWN,
         priority = route.priority,
-        detail = observation?.detail,
+        detail = observation?.capabilityDetails?.get(capability) ?: observation?.detail,
       )
     }
     val selected = candidates.firstOrNull {
