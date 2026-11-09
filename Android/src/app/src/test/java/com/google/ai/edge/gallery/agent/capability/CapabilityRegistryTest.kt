@@ -10,6 +10,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.runBlocking
 
 class CapabilityRegistryTest {
   private val registry = CapabilityCatalog.createRegistry()
@@ -103,6 +104,28 @@ class CapabilityRegistryTest {
     } catch (expected: IllegalArgumentException) {
       assertTrue(expected.message.orEmpty().contains("Duplicate provider observations"))
     }
+  }
+
+
+  @Test
+  fun discoveryReturnsValidatedProviderObservations() = runBlocking {
+    val descriptor = registry.providers().first {
+      it.id == CapabilityProviderId.ANDROID_NATIVE
+    }
+    val probe = object : CapabilityProviderProbe {
+      override val descriptor = descriptor
+      override suspend fun inspect() = CapabilityProviderObservation(
+        descriptor.id,
+        ProviderAvailability.AVAILABLE,
+        "Native framework services are ready.",
+      )
+    }
+
+    val observations = registry.discover(listOf(probe))
+
+    assertEquals(1, observations.size)
+    assertEquals(CapabilityProviderId.ANDROID_NATIVE, observations.single().providerId)
+    assertEquals(ProviderAvailability.AVAILABLE, observations.single().availability)
   }
 
   private fun observation(
