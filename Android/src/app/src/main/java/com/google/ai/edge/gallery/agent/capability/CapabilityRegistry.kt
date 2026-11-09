@@ -124,6 +124,32 @@ class CapabilityRegistry(
 
   fun providers(): List<CapabilityProviderDescriptor> = providersById.values.toList()
 
+  /**
+   * Inspects the supplied providers in a deterministic order.
+   *
+   * The caller supplies only probes it can construct; omitted providers remain UNKNOWN when
+   * the returned observations are passed to resolve(). Probe identity must match the catalog.
+   */
+  suspend fun discover(
+    probes: Collection<CapabilityProviderProbe>,
+  ): List<CapabilityProviderObservation> {
+    val duplicateProbes = probes.groupBy { it.descriptor.id }.filterValues { it.size > 1 }.keys
+    require(duplicateProbes.isEmpty()) {
+      "Duplicate capability probes: " + duplicateProbes.joinToString(", ")
+    }
+
+    return probes.map { probe ->
+      require(providersById[probe.descriptor.id] == probe.descriptor) {
+        "Probe descriptor '${probe.descriptor.id}' does not match the capability catalog."
+      }
+      val observation = probe.inspect()
+      require(observation.providerId == probe.descriptor.id) {
+        "Probe '${probe.descriptor.id}' returned an observation for '${observation.providerId}'."
+      }
+      observation
+    }
+  }
+
   fun resolve(
     capability: AndroidCapability,
     observations: Collection<CapabilityProviderObservation>,
