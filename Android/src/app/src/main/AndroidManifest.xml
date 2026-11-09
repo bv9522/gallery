@@ -222,6 +222,7 @@
             <category android:name="android.intent.category.DEFAULT" />
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="https" />
+            <data android:scheme="http" />
         </intent>
     </queries>
 </manifest>
