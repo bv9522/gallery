@@ -68,19 +68,14 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
 
     ensureTermuxReady()
     val utilities = invokeTermux(
-      "command -v setsid >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1 && " +
-        "command -v head >/dev/null 2>&1 && command -v wc >/dev/null 2>&1",
+      TermuxProcessSupervisionPreflight.command(),
       DEFAULT_TERMUX_WORKDIR,
       PREFLIGHT_TIMEOUT_MS,
       MIN_OUTPUT_CHARS,
     )
     if (!utilities.succeeded) {
-      return TermuxShellResult(
-        stdout = "",
-        stderr = utilities.stderr,
-        exitCode = -1,
-        error = "Termux process supervision requires setsid and GNU timeout. " +
-          "Install them with: pkg install -y util-linux coreutils",
+      return utilities.copy(
+        error = TermuxProcessSupervisionPreflight.failureMessage(utilities),
       )
     }
 
