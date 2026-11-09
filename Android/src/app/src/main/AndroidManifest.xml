@@ -201,6 +201,10 @@
     <!-- Text-to-speech engines and the XR glasses service used by speech and XR Language Teacher. -->
     <queries>
         <package android:name="com.termux" />
+        <!-- Discover the installed Shizuku manager package, including renamed/stealth builds. -->
+        <intent>
+            <action android:name="rikka.shizuku.intent.action.REQUEST_BINDER" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
