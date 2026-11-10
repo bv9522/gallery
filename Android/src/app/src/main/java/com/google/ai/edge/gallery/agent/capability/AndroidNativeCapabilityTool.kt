@@ -68,9 +68,11 @@ class AndroidNativeCapabilityTool(
   override val name: String = "android_control"
   override val description: String =
     "Read device and battery information, inspect volume and launchable apps, or perform an " +
-      "approved native Android action. Use operation values: status, device_info, battery_status, " +
-      "volume_status, list_apps, set_volume, set_flashlight, launch_app, open_url. Mutations " +
-      "always require one-time user approval. This tool never executes shell commands."
+      "approved native Android action. Use status to inspect availability of each native Android " +
+      "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
+      "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
+      "set_flashlight, launch_app, open_url. Mutations always require one-time user approval. " +
+      "This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -119,14 +121,18 @@ class AndroidNativeCapabilityTool(
     return try {
       when (operation) {
         "status" -> status()
-        "device_info" -> read(AndroidCapability.DEVICE_INFO) { Gson().toJson(adapter.getDeviceInfo()) }
-        "battery_status" -> read(AndroidCapability.BATTERY_STATUS) { Gson().toJson(adapter.getBatteryStatus()) }
+        "device_info" -> read(AndroidCapability.DEVICE_INFO) {
+          NativeCapabilityResultFormatter.deviceInfo(adapter.getDeviceInfo())
+        }
+        "battery_status" -> read(AndroidCapability.BATTERY_STATUS) {
+          NativeCapabilityResultFormatter.batteryStatus(adapter.getBatteryStatus())
+        }
         "volume_status" -> {
           val stream = audioStream(arguments) ?: return failure("Unsupported audio stream.")
           read(AndroidCapability.VOLUME_CONTROL) { Gson().toJson(adapter.getVolumeStatus(stream)) }
         }
         "list_apps" -> read(AndroidCapability.APP_DISCOVERY) {
-          formatLaunchableApps(adapter.listLaunchableApps())
+          NativeCapabilityResultFormatter.launchableApps(adapter.listLaunchableApps())
         }
         "set_volume" -> {
           val stream = audioStream(arguments) ?: return failure("Unsupported audio stream.")
@@ -160,15 +166,10 @@ class AndroidNativeCapabilityTool(
   }
 
   private suspend fun status(): AgentToolResult {
-    val observation = adapter.inspect()
-    val resolutions = registry.resolveAll(listOf(observation))
-    val summary = resolutions.entries.sortedBy { it.key.name }.joinToString("\n") { (capability, resolution) ->
-      val selected = resolution.selectedProviderId?.name ?: "UNAVAILABLE"
-      val candidate = resolution.candidates.firstOrNull()
-      "${capability.name}: $selected" +
-        (candidate?.detail?.let { " ($it)" } ?: "")
-    }
-    return AgentToolResult(summary)
+    // Provider discovery is deliberately distinct from reading device state.
+    return AgentToolResult(
+      NativeCapabilityResultFormatter.providerAvailability(adapter.inspect())
+    )
   }
 
   private suspend fun read(
@@ -199,30 +200,6 @@ class AndroidNativeCapabilityTool(
     )
   }
 
-  /**
-   * Keep app discovery results small enough for compact on-device models. Package names are
-   * retained because launch_app requires an exact package returned by this operation.
-   */
-  internal fun formatLaunchableApps(
-    apps: List<NativeLaunchableApp>,
-    limit: Int = MAX_APPS_IN_TOOL_RESULT,
-  ): String {
-    val safeLimit = limit.coerceIn(1, MAX_APPS_IN_TOOL_RESULT)
-    if (apps.isEmpty()) return "No launcher-visible apps were found."
-    val entries = apps.take(safeLimit).map { app ->
-      val label = app.label.replace("\n", " ").replace("\r", " ").take(MAX_APP_LABEL_LENGTH)
-      "$label — ${app.packageName}"
-    }
-    val remaining = apps.size - entries.size
-    return buildString {
-      append("Launcher-visible apps (${entries.size} of ${apps.size}):\n")
-      append(entries.joinToString("\n"))
-      if (remaining > 0) {
-        append("\n…and $remaining more. Ask for a smaller filtered list if needed.")
-      }
-    }
-  }
-
   private fun audioStream(arguments: JsonObject): NativeAudioStream? {
     if (!arguments.has("stream")) return NativeAudioStream.MUSIC
     val value = arguments.string("stream") ?: return null
@@ -242,7 +219,5 @@ class AndroidNativeCapabilityTool(
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
 
   private companion object {
-    const val MAX_APPS_IN_TOOL_RESULT = 25
-    const val MAX_APP_LABEL_LENGTH = 48
   }
 }
