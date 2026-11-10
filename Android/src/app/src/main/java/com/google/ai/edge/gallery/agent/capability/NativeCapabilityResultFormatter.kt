@@ -46,7 +46,7 @@ internal object NativeCapabilityResultFormatter {
     appendLine("provider=${observation.providerId.name}")
     appendLine("providerAvailability=${observation.availability.name}")
     appendLine("diagnosticOnly=true")
-    observation.capabilityAvailability.toSortedMap(compareBy { it.name }).forEach { (capability, state) ->
+    observation.capabilityAvailability.toSortedMap().forEach { (capability, state) ->
       appendLine("${capability.name}=${state.name}")
       observation.capabilityDetails[capability]?.let { detail ->
         appendLine("${capability.name}_detail=${oneLine(detail)}")
