@@ -378,7 +378,7 @@ class AndroidNativeCapabilityAdapter(
     return activities.mapNotNull { resolveInfo ->
       val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
       val packageName = activityInfo.packageName
-      val label = resolveInfo.loadLabel(appContext.packageManager)?.toString()
+      val label = resolveInfo.loadLabel(appContext.packageManager).toString()
         ?.takeIf { it.isNotBlank() } ?: packageName
       NativeLaunchableApp(packageName, label)
     }.distinctBy { it.packageName }
