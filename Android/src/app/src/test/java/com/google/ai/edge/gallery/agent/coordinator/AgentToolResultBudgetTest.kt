@@ -42,7 +42,7 @@ class AgentToolResultBudgetTest {
 
     assertTrue(first.length <= 80)
     assertTrue(second.contains("omitted") || second.contains("TRUNCATED"))
-    assertTrue(first.length + second.length <= 160)
+    assertTrue(first.length + second.length <= 100)
   }
 
   @Test
