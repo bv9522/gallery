@@ -23,7 +23,7 @@ The transport uses Termux's documented Android `RUN_COMMAND` service as a contro
 - Arguments: `-lc` and a short supervisor/control command
 - Runner: a detached `setsid` process group executes the user command; stdout/stderr are captured into bounded files
 - Supervision: GNU `timeout` provides a process-side deadline; the app records supervisor and timeout PIDs and sends TERM followed by KILL on cancellation
-- Service startup: Android 8.0+ uses `startForegroundService()` because Termux's `RunCommandService` promotes itself to foreground in `onCreate()`; older Android versions use `startService()`.
+- Service startup: uses `startForegroundService()` because Termux's `RunCommandService` promotes itself to foreground in `onCreate()`.
 - Result: short control commands use one-shot explicit mutable PendingIntent callbacks to the app's private BroadcastReceiver; the app polls the supervisor status file until completion
 
 The integration intentionally avoids a TCP listener, local server, Termux:Tasker, or another inference/runtime dependency.
