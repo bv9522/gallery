@@ -47,11 +47,9 @@ class AgentToolResultBudget(
       return content
     }
 
-    if (allowance == 0) {
-      val omitted = "[Tool output omitted: per-turn result budget exhausted.]"
-      usedChars += omitted.length
-      return omitted
-    }
+    // Never exceed the configured per-turn ceiling merely to append an omission message.
+    // With no remaining allowance, an empty result is the only strictly bounded representation.
+    if (allowance == 0) return ""
 
     val marker = "\n...[TRUNCATED original_chars=${content.length}; output budget applied]...\n"
     if (allowance <= marker.length) {
