@@ -30,7 +30,7 @@ internal fun formatAuthoritativeToolResults(messages: List<AgentMessage>): Strin
 
   val results = messages.drop(currentTurnStart + 1).filter { message ->
     message.role == AgentMessage.Role.TOOL &&
-      message.toolName in AUTHORITATIVE_TOOL_NAMES
+      message.toolName?.let { it in AUTHORITATIVE_TOOL_NAMES } == true
   }
   if (results.isEmpty()) return null
 
