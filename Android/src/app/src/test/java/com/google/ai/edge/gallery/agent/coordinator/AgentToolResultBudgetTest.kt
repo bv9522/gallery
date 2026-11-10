@@ -44,7 +44,7 @@ class AgentToolResultBudgetTest {
 
     assertTrue(first.length <= 80)
     assertTrue(second.contains("TRUNCATED"))
-    assertTrue(third.length <= 9)
+    assertTrue(third.isEmpty())
     assertTrue(fourth.isEmpty())
     assertTrue(first.length + second.length + third.length + fourth.length <= 100)
   }
