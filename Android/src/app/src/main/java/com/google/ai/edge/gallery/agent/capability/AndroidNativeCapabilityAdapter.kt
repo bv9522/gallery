@@ -180,11 +180,10 @@ class AndroidNativeCapabilityAdapter(
     val intent = appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
     val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
     val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-    val percent = capacity ?: if (level >= 0 && scale > 0) {
-      (level * 100f / scale).toInt().coerceIn(0, 100)
-    } else {
-      null
-    }
+    // The sticky ACTION_BATTERY_CHANGED snapshot is the authoritative source for the
+    // level/scale pair used alongside status, temperature, and voltage. BatteryManager's
+    // capacity property is a fallback only when that snapshot is absent or invalid.
+    val percent = resolveBatteryPercent(level, scale, capacity)
     val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
     val state = when (status) {
       BatteryManager.BATTERY_STATUS_CHARGING -> "CHARGING"

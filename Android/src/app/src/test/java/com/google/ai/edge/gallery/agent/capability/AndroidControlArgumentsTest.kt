@@ -14,13 +14,14 @@ package com.google.ai.edge.gallery.agent.capability
 
 import com.google.gson.JsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AndroidControlArgumentsTest {
   @Test
-  fun statusWithStreamExplainsCorrectVolumeOperation() {
+  fun statusWithStreamIsRejectedByTheGenericOperationSchema() {
     val arguments = JsonObject().apply {
       addProperty("operation", "status")
       addProperty("stream", "MUSIC")
@@ -28,8 +29,9 @@ class AndroidControlArgumentsTest {
 
     val error = AndroidControlArguments.validate(arguments)
 
-    assertTrue(error.orEmpty().contains("operation='volume_status'"))
-    assertTrue(error.orEmpty().contains("stream='MUSIC'"))
+    assertTrue(error.orEmpty().contains("Unsupported argument(s) for status: stream"))
+    assertTrue(error.orEmpty().contains("Accepted arguments: operation"))
+    assertFalse(error.orEmpty().contains("volume_status"))
   }
 
   @Test

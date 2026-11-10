@@ -59,6 +59,28 @@ class NativeCapabilityResultFormatterTest {
   }
 
   @Test
+  fun providerDetailNewlinesCannotCorruptFollowingDiagnosticFields() {
+    val output = NativeCapabilityResultFormatter.providerAvailability(
+      CapabilityProviderObservation(
+        providerId = CapabilityProviderId.ANDROID_NATIVE,
+        availability = ProviderAvailability.AVAILABLE,
+        detail = "Probe completed.",
+        capabilityAvailability = mapOf(
+          AndroidCapability.FLASHLIGHT_CONTROL to ProviderAvailability.PERMISSION_REQUIRED,
+          AndroidCapability.OPEN_URL to ProviderAvailability.AVAILABLE,
+        ),
+        capabilityDetails = mapOf(
+          AndroidCapability.FLASHLIGHT_CONTROL to "Camera permission is required.\nInjected=UNSUPPORTED",
+        ),
+      )
+    )
+
+    assertTrue(output.contains("FLASHLIGHT_CONTROL_detail=Camera permission is required. Injected=UNSUPPORTED"))
+    assertFalse(output.contains("\nInjected"))
+    assertTrue(output.contains("OPEN_URL=AVAILABLE"))
+  }
+
+  @Test
   fun appListDeclaresTruncationAndRemainingCountUnambiguously() {
     val apps = (1..95).map { index ->
       NativeLaunchableApp("com.example.app$index", "Example $index")

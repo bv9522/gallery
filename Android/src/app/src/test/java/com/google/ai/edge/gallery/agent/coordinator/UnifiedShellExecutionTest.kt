@@ -95,6 +95,28 @@ class UnifiedShellExecutionTest {
   }
 
   @Test
+  fun shellToolReportsBackendTruncationExplicitly() = runBlocking {
+    val router = ShellExecutionRouter(
+      mapOf(ShellExecutionBackend.TERMUX to ShellExecutionTransport { request ->
+        ShellExecutionResult(
+          backend = request.backend,
+          stdout = "first line\\nlast retained line",
+          stderr = "",
+          exitCode = 0,
+          outputTruncated = true,
+        )
+      })
+    )
+    val tool = UnifiedShellTool(router, ShellExecutionApprovalPolicy { true })
+
+    val result = tool.execute(arguments("TERMUX", "generate-output"))
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("Backend output truncated: true"))
+    assertTrue(result.content.contains("Warning: output was truncated."))
+  }
+
+  @Test
   fun everyBackendUsesTheSameApprovalBoundaryAndExactIdentity() = runBlocking {
     val executions = mutableListOf<ShellExecutionBackend>()
     val approvals = mutableListOf<ShellExecutionRequest>()

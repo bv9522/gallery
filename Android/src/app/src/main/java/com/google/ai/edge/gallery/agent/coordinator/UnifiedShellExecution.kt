@@ -360,6 +360,7 @@ class UnifiedShellTool(
       result.error?.let { appendLine("Execution error: $it") }
       if (result.timedOut) appendLine("Command timed out.")
       appendLine("Exit code: ${result.exitCode}")
+      appendLine("Backend output truncated: ${result.outputTruncated}")
       if (result.stdout.isNotEmpty()) {
         appendLine("STDOUT:")
         appendLine(result.stdout.trimEnd())

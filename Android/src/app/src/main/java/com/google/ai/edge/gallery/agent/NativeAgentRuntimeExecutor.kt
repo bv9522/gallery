@@ -71,7 +71,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "volume, launcher-visible apps, flashlight, and HTTP(S) URL actions. Use list_apps before " +
       "launch_app and pass an exact returned package_name. Never guess package names. Read-only " +
       "operations do not require approval; every mutation requires the user's one-time approval. " +
-      "Report unavailable capabilities and permission requirements honestly. When a tool returns an argument-validation error with a suggested correction, retry once using the exact corrected operation and arguments; do not repeat the invalid call. Do not use shell " +
+      "Report unavailable capabilities and permission requirements honestly. When a tool returns an argument-validation error with accepted arguments, retry once using the same operation and only those accepted arguments; never infer or substitute another operation. Do not use shell " +
       "commands as an automatic fallback for android_control failures. When reporting device " +
       "identity, copy modelIdentifier exactly character-for-character from device_info; do not " +
       "remove punctuation, alter digits, or infer a product tier. When reporting battery status, " +
@@ -196,8 +196,17 @@ class NativeAgentRuntimeExecutor(
         val result: AgentRunResult =
           currentCoordinator.run(request.query, contents, extraContext)
         if (result.isSuccessful) {
-          emit(AgentEvent.StreamToken(token = result.finalText, done = true))
-          emit(AgentEvent.LoopTerminated(result.finalText))
+          // Gemma's final prose can miscopy identifiers, counts, and command output. Append the
+          // coordinator-retained, budgeted tool payload verbatim so the user can inspect the
+          // authoritative result without relying on model transcription.
+          val authoritativeResults = formatAuthoritativeToolResults(result.messages)
+          val finalText = if (authoritativeResults.isNullOrBlank()) {
+            result.finalText
+          } else {
+            result.finalText + "\n\n" + authoritativeResults
+          }
+          emit(AgentEvent.StreamToken(token = finalText, done = true))
+          emit(AgentEvent.LoopTerminated(finalText))
         } else {
           discardAgentConversation()
           emit(AgentEvent.Error(result.finalText))
