@@ -70,13 +70,13 @@ class NativeCapabilityResultFormatterTest {
           AndroidCapability.OPEN_URL to ProviderAvailability.AVAILABLE,
         ),
         capabilityDetails = mapOf(
-          AndroidCapability.FLASHLIGHT_CONTROL to "Camera permission is required.\\nInjected=UNSUPPORTED",
+          AndroidCapability.FLASHLIGHT_CONTROL to "Camera permission is required.\nInjected=UNSUPPORTED",
         ),
       )
     )
 
     assertTrue(output.contains("FLASHLIGHT_CONTROL_detail=Camera permission is required. Injected=UNSUPPORTED"))
-    assertFalse(output.contains("\\nInjected"))
+    assertFalse(output.contains("\nInjected"))
     assertTrue(output.contains("OPEN_URL=AVAILABLE"))
   }
 
