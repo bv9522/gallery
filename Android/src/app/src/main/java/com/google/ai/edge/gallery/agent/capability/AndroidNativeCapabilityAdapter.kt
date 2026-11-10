@@ -48,6 +48,28 @@ data class NativeBatteryStatus(
   val voltageMillivolts: Int?,
 )
 
+/**
+ * Resolves battery percentage from Android's broadcast snapshot first, falling back to the
+ * BatteryManager property only when the broadcast level/scale pair is invalid.
+ *
+ * Kept independent of Android framework classes so conflicting and malformed source values can
+ * be covered by deterministic unit tests.
+ */
+internal fun resolveBatteryPercent(
+  broadcastLevel: Int,
+  broadcastScale: Int,
+  propertyCapacity: Int?,
+): Int? {
+  val broadcastPercent = if (
+    broadcastLevel >= 0 && broadcastScale > 0 && broadcastLevel <= broadcastScale
+  ) {
+    ((broadcastLevel.toLong() * 100L) / broadcastScale).toInt().coerceIn(0, 100)
+  } else {
+    null
+  }
+  return broadcastPercent ?: propertyCapacity?.takeIf { it in 0..100 }
+}
+
 enum class NativeAudioStream(val androidValue: Int) {
   VOICE_CALL(AudioManager.STREAM_VOICE_CALL),
   SYSTEM(AudioManager.STREAM_SYSTEM),
@@ -180,11 +202,10 @@ class AndroidNativeCapabilityAdapter(
     val intent = appContext.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
     val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
     val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-    val percent = capacity ?: if (level >= 0 && scale > 0) {
-      (level * 100f / scale).toInt().coerceIn(0, 100)
-    } else {
-      null
-    }
+    // The sticky ACTION_BATTERY_CHANGED snapshot is the authoritative source for the
+    // level/scale pair used alongside status, temperature, and voltage. BatteryManager's
+    // capacity property is a fallback only when that snapshot is absent or invalid.
+    val percent = resolveBatteryPercent(level, scale, capacity)
     val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
     val state = when (status) {
       BatteryManager.BATTERY_STATUS_CHARGING -> "CHARGING"
