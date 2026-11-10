@@ -216,9 +216,9 @@ class AndroidNativeCapabilityAdapter(
       value < 0 -> "UNKNOWN"
       value == 0 -> "NOT_PLUGGED"
       else -> buildList {
-        if (value and BatteryManager.BATTERY_PLUGGED_AC != 0) add("AC")
-        if (value and BatteryManager.BATTERY_PLUGGED_USB != 0) add("USB")
-        if (value and BatteryManager.BATTERY_PLUGGED_WIRELESS != 0) add("WIRELESS")
+        if ((value and BatteryManager.BATTERY_PLUGGED_AC) != 0) add("AC")
+        if ((value and BatteryManager.BATTERY_PLUGGED_USB) != 0) add("USB")
+        if ((value and BatteryManager.BATTERY_PLUGGED_WIRELESS) != 0) add("WIRELESS")
       }.ifEmpty { listOf("OTHER") }.joinToString("|")
     }
 
