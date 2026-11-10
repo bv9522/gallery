@@ -147,7 +147,7 @@ class AndroidNativeCapabilityTool(
           read(AndroidCapability.VOLUME_CONTROL) { Gson().toJson(adapter.getVolumeStatus(stream)) }
         }
         "list_apps" -> read(AndroidCapability.APP_DISCOVERY) {
-          Gson().toJson(adapter.listLaunchableApps())
+          formatLaunchableApps(adapter.listLaunchableApps())
         }
         "set_volume" -> {
           val stream = audioStream(arguments) ?: return failure("Unsupported audio stream.")
@@ -220,6 +220,30 @@ class AndroidNativeCapabilityTool(
     )
   }
 
+  /**
+   * Keep app discovery results small enough for compact on-device models. Package names are
+   * retained because launch_app requires an exact package returned by this operation.
+   */
+  internal fun formatLaunchableApps(
+    apps: List<NativeLaunchableApp>,
+    limit: Int = MAX_APPS_IN_TOOL_RESULT,
+  ): String {
+    val safeLimit = limit.coerceIn(1, MAX_APPS_IN_TOOL_RESULT)
+    if (apps.isEmpty()) return "No launcher-visible apps were found."
+    val entries = apps.take(safeLimit).map { app ->
+      val label = app.label.replace('\\n', ' ').replace('\\r', ' ').take(MAX_APP_LABEL_LENGTH)
+      "$label — ${app.packageName}"
+    }
+    val remaining = apps.size - entries.size
+    return buildString {
+      append("Launcher-visible apps (${entries.size} of ${apps.size}):\\n")
+      append(entries.joinToString("\\n"))
+      if (remaining > 0) {
+        append("\\n…and $remaining more. Ask for a smaller filtered list if needed.")
+      }
+    }
+  }
+
   private fun audioStream(arguments: JsonObject): NativeAudioStream? {
     if (!arguments.has("stream")) return NativeAudioStream.MUSIC
     val value = arguments.string("stream") ?: return null
@@ -237,4 +261,9 @@ class AndroidNativeCapabilityTool(
 
   private fun JsonObject.boolean(name: String): Boolean? =
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+
+  private companion object {
+    const val MAX_APPS_IN_TOOL_RESULT = 25
+    const val MAX_APP_LABEL_LENGTH = 48
+  }
 }
