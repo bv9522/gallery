@@ -39,10 +39,14 @@ class AgentToolResultBudgetTest {
 
     val first = budget.constrain("a".repeat(80))
     val second = budget.constrain("b".repeat(80))
+    val third = budget.constrain("c".repeat(80))
+    val fourth = budget.constrain("d".repeat(80))
 
     assertTrue(first.length <= 80)
-    assertTrue(second.contains("omitted") || second.contains("TRUNCATED"))
-    assertTrue(first.length + second.length <= 100)
+    assertTrue(second.contains("TRUNCATED"))
+    assertTrue(third.length <= 9)
+    assertTrue(fourth.isEmpty())
+    assertTrue(first.length + second.length + third.length + fourth.length <= 100)
   }
 
   @Test
