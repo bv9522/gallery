@@ -46,12 +46,12 @@ class NativeAgentRuntimeExecutorTest {
       AgentMessage(AgentMessage.Role.USER, content = "Current turn"),
       AgentMessage(
         AgentMessage.Role.TOOL,
-        content = "modelIdentifier=SM-G991U\\nstatus=AVAILABLE",
+        content = "modelIdentifier=SM-G991U\nstatus=AVAILABLE",
         toolName = "android_control",
       ),
       AgentMessage(
         AgentMessage.Role.TOOL,
-        content = "line-1\\n...[TRUNCATED original_chars=50000]...\\nline-9",
+        content = "line-1\n...[TRUNCATED original_chars=50000]...\nline-9",
         toolName = "execute_shell",
       ),
       AgentMessage(
@@ -63,7 +63,7 @@ class NativeAgentRuntimeExecutorTest {
 
     val transcript = formatAuthoritativeToolResults(messages)
 
-    assertTrue(transcript.orEmpty().contains("modelIdentifier=SM-G991U\\nstatus=AVAILABLE"))
+    assertTrue(transcript.orEmpty().contains("modelIdentifier=SM-G991U\nstatus=AVAILABLE"))
     assertTrue(transcript.orEmpty().contains("TRUNCATED original_chars=50000"))
     assertFalse(transcript.orEmpty().contains("OLD-VALUE"))
     assertFalse(transcript.orEmpty().contains("unrelated"))
