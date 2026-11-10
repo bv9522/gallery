@@ -231,15 +231,15 @@ class AndroidNativeCapabilityTool(
     val safeLimit = limit.coerceIn(1, MAX_APPS_IN_TOOL_RESULT)
     if (apps.isEmpty()) return "No launcher-visible apps were found."
     val entries = apps.take(safeLimit).map { app ->
-      val label = app.label.replace('\\n', ' ').replace('\\r', ' ').take(MAX_APP_LABEL_LENGTH)
+      val label = app.label.replace("\n", " ").replace("\r", " ").take(MAX_APP_LABEL_LENGTH)
       "$label — ${app.packageName}"
     }
     val remaining = apps.size - entries.size
     return buildString {
-      append("Launcher-visible apps (${entries.size} of ${apps.size}):\\n")
-      append(entries.joinToString("\\n"))
+      append("Launcher-visible apps (${entries.size} of ${apps.size}):\n")
+      append(entries.joinToString("\n"))
       if (remaining > 0) {
-        append("\\n…and $remaining more. Ask for a smaller filtered list if needed.")
+        append("\n…and $remaining more. Ask for a smaller filtered list if needed.")
       }
     }
   }
