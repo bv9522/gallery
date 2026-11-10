@@ -48,7 +48,6 @@ data class NativeBatteryStatus(
   val voltageMillivolts: Int?,
 )
 
-
 enum class NativeAudioStream(val androidValue: Int) {
   VOICE_CALL(AudioManager.STREAM_VOICE_CALL),
   SYSTEM(AudioManager.STREAM_SYSTEM),
