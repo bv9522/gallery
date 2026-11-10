@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.gallery.termux
 
-import android.util.Log
 import com.google.ai.edge.gallery.agent.ExecutionFingerprint
+import com.google.ai.edge.gallery.agent.logExecutionIntegrity
 
 import android.app.PendingIntent
 import android.content.Context
@@ -96,7 +96,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
           timeoutSeconds = ((timeoutMs + 999L) / 1_000L).coerceAtLeast(1L),
           maxOutputChars = maxOutputChars,
         )
-        Log.i(
+        logExecutionIntegrity(
           TAG,
           "RUN_COMMAND dispatch: commandChars=${command.length}, " +
             "commandSha256=${ExecutionFingerprint.sha256(command)}, " +
@@ -134,7 +134,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         ).toInt()
         val stdout = readCaptured(directory, "stdout", stdoutLimit)
         val stderr = readCaptured(directory, "stderr", stderrLimit)
-        Log.i(
+        logExecutionIntegrity(
           TAG,
           "Captured process output: stdoutChars=${stdout.length}, " +
             "stdoutSha256=${ExecutionFingerprint.sha256(stdout)}, " +
