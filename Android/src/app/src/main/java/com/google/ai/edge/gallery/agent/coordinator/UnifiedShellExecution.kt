@@ -16,8 +16,8 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
-import android.util.Log
 import com.google.ai.edge.gallery.agent.ExecutionFingerprint
+import com.google.ai.edge.gallery.agent.logExecutionIntegrity
 
 import com.google.ai.edge.gallery.shizuku.ShizukuShellExecutor
 import com.google.ai.edge.gallery.termux.TermuxShellExecutor
@@ -224,7 +224,7 @@ class TermuxRishShellTransport(
       "export RISH_APPLICATION_ID=${shellQuote(TERMUX_APPLICATION_ID)} && " +
         "export MANAGER_APPLICATION_ID=${shellQuote(managerApplicationId)} && " +
         "rish -c ${shellQuote(remoteCommand)}"
-    Log.i(
+    logExecutionIntegrity(
       SHELL_INTEGRITY_TAG,
       "Rish dispatch: requestChars=${request.command.length}, " +
         "requestSha256=${ExecutionFingerprint.sha256(request.command)}, " +
@@ -239,7 +239,7 @@ class TermuxRishShellTransport(
       timeoutMs = request.timeoutMs,
       maxOutputChars = request.maxOutputChars,
     )
-    Log.i(
+    logExecutionIntegrity(
       SHELL_INTEGRITY_TAG,
       "Rish result: stdoutChars=${result.stdout.length}, " +
         "stdoutSha256=${ExecutionFingerprint.sha256(result.stdout)}, " +
@@ -358,7 +358,7 @@ class UnifiedShellTool(
       return AgentToolResult("Rejected: ${error.message}", false)
     }
 
-    Log.i(
+    logExecutionIntegrity(
       SHELL_INTEGRITY_TAG,
       "Approved-request candidate: backend=${request.backend}, " +
         "commandChars=${request.command.length}, " +
@@ -381,7 +381,7 @@ class UnifiedShellTool(
       return AgentToolResult("Execution failed: ${error.message ?: error.javaClass.simpleName}", false)
     }
 
-    Log.i(
+    logExecutionIntegrity(
       SHELL_INTEGRITY_TAG,
       "Tool result: backend=${result.backend}, stdoutChars=${result.stdout.length}, " +
         "stdoutSha256=${ExecutionFingerprint.sha256(result.stdout)}, " +
