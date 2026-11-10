@@ -48,27 +48,6 @@ data class NativeBatteryStatus(
   val voltageMillivolts: Int?,
 )
 
-/**
- * Resolves battery percentage from Android's broadcast snapshot first, falling back to the
- * BatteryManager property only when the broadcast level/scale pair is invalid.
- *
- * Kept independent of Android framework classes so conflicting and malformed source values can
- * be covered by deterministic unit tests.
- */
-internal fun resolveBatteryPercent(
-  broadcastLevel: Int,
-  broadcastScale: Int,
-  propertyCapacity: Int?,
-): Int? {
-  val broadcastPercent = if (
-    broadcastLevel >= 0 && broadcastScale > 0 && broadcastLevel <= broadcastScale
-  ) {
-    ((broadcastLevel.toLong() * 100L) / broadcastScale).toInt().coerceIn(0, 100)
-  } else {
-    null
-  }
-  return broadcastPercent ?: propertyCapacity?.takeIf { it in 0..100 }
-}
 
 enum class NativeAudioStream(val androidValue: Int) {
   VOICE_CALL(AudioManager.STREAM_VOICE_CALL),
