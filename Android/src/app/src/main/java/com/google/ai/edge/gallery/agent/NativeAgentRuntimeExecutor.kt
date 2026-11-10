@@ -72,7 +72,11 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "launch_app and pass an exact returned package_name. Never guess package names. Read-only " +
       "operations do not require approval; every mutation requires the user's one-time approval. " +
       "Report unavailable capabilities and permission requirements honestly. Do not use shell " +
-      "commands as an automatic fallback for android_control failures.\n\n" +
+      "commands as an automatic fallback for android_control failures. When reporting device " +
+      "identity, repeat the exact model identifier returned by device_info; do not infer a product " +
+      "tier such as Ultra from the identifier. When reporting volume, preserve the exact current " +
+      "and maximum values returned by volume_status and name the stream. For list_apps, summarize " +
+      "only the entries returned and mention if the result says more apps are available.\n\n" +
       "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
       "native execute_shell tool directly. Do not call run_mcp_tool to execute shell commands; " +
       "run_mcp_tool is only for tools hosted by external MCP servers. The execute_shell tool " +
