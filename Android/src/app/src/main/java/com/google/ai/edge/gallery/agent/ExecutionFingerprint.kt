@@ -12,6 +12,7 @@
 
 package com.google.ai.edge.gallery.agent
 
+import android.util.Log
 import java.security.MessageDigest
 
 internal object ExecutionFingerprint {
@@ -22,4 +23,9 @@ internal object ExecutionFingerprint {
       "%02x".format(byte.toInt() and 0xff)
     }
   }
+}
+
+/** Logging is best-effort so local JVM tests without Android's Log runtime remain executable. */
+internal fun logExecutionIntegrity(tag: String, message: String) {
+  runCatching { Log.i(tag, message) }
 }
