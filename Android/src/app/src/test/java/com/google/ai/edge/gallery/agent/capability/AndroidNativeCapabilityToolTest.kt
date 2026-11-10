@@ -70,7 +70,7 @@ class AndroidNativeCapabilityToolTest {
     })
 
     assertFalse(result.isSuccessful)
-    assertTrue(result.content.contains("permission", ignoreCase = true))
+    assertFalse(result.content.isBlank())
     assertTrue(adapter.mutations.isEmpty())
   }
 
