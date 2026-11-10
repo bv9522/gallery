@@ -31,7 +31,7 @@ class NativeAgentRuntimeExecutorTest {
     assertTrue(instruction.contains("run_mcp_tool"))
     assertTrue(instruction.contains("Never silently switch or fall back"))
     assertTrue(instruction.contains("actual error"))
-    assertTrue(instruction.contains("retry once using the exact corrected operation and arguments"))
+    assertTrue(instruction.contains("retry once using the same operation and only those accepted arguments"))
   }
 
   @Test
