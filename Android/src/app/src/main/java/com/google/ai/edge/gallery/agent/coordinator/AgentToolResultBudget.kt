@@ -55,7 +55,8 @@ class AgentToolResultBudget(
     if (allowance <= marker.length) {
       // Do not emit a misleading partial marker such as "TRUNCAT".
       val compact = if (allowance >= "[TRUNCATED]".length) "[TRUNCATED]" else ""
-      usedChars += compact.length
+      // Reserve the remaining allowance even when it is too small to hold a complete marker.
+      usedChars += allowance
       return compact
     }
 
