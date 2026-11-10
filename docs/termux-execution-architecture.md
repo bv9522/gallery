@@ -23,6 +23,7 @@ The transport uses Termux's documented Android `RUN_COMMAND` service as a contro
 - Arguments: `-lc` and a short supervisor/control command
 - Runner: a detached `setsid` process group executes the user command; stdout/stderr are captured into bounded files
 - Supervision: GNU `timeout` provides a process-side deadline; the app records supervisor and timeout PIDs and sends TERM followed by KILL on cancellation
+- Service startup: uses `startForegroundService()` because Termux's `RunCommandService` promotes itself to foreground in `onCreate()`.
 - Result: short control commands use one-shot explicit mutable PendingIntent callbacks to the app's private BroadcastReceiver; the app polls the supervisor status file until completion
 
 The integration intentionally avoids a TCP listener, local server, Termux:Tasker, or another inference/runtime dependency.
@@ -38,7 +39,7 @@ The integration intentionally avoids a TCP listener, local server, Termux:Tasker
 6. For `TERMUX_RISH`, install and initialize the `rish` client using the Shizuku app's supported setup instructions. Ensure the `rish` executable is discoverable on Termux's `PATH` (the Shizuku documentation notes it may not be on `PATH` by default), the Shizuku service is running, and Termux is authorized. Verify both `command -v rish` and `rish -c 'id'` from Termux. The latter must report Android shell identity (`uid=2000(shell)`). The native runtime does not silently substitute Termux's own UID if `rish` is unavailable.
 7. Grant Termux shared-storage access separately if commands need to access shared storage.
 
-The app declares the Termux permission and package visibility query. It checks that Termux is installed and that the caller permission is granted before dispatch.
+The app declares the Termux permission and package visibility query. It checks that Termux is installed and that the caller permission is granted before dispatch. The caller starts Termux's documented `RunCommandService` as a foreground service on Android 8.0+; Termux's service implementation immediately posts its own foreground notification. If Android rejects a foreground-service start because Android MCP is background-restricted, the transport returns an explicit error stating that no command was executed and that Android MCP must be brought to the foreground before retrying. It does not misreport the transport failure as a missing Termux utility.
 
 Clearing Termux app data resets its userspace and configuration, including `allow-external-apps`. The user can restore the environment using their own setup/reset command document.
 
@@ -74,7 +75,7 @@ The `execute_shell` tool requires an explicit backend and command. The shared ap
 
 ## Validation status
 
-The existing Termux-only diagnostic verifies the standalone RUN_COMMAND transport. Unit tests cover routing, approval, no-fallback behavior, argument validation, and rish command quoting. Device-level validation of all three identities and real Gemma-generated tool calls is still required after building and installing the current APK. In particular, test `TERMUX_RISH` only after confirming the user's Termux `rish` client is installed and reports `uid=2000(shell)`.
+The Termux RUN_COMMAND client uses the foreground-service startup contract implemented by Termux's `RunCommandService` (`onCreate()` calls `startForeground()` on Android 8.0+). Unit tests cover actionable classification of Android background-start rejections and ensure unrelated service errors are not mislabeled. The existing Termux-only diagnostic verifies the standalone RUN_COMMAND transport. Unit tests cover routing, approval, no-fallback behavior, argument validation, and rish command quoting. Device-level validation of all three identities and real Gemma-generated tool calls is still required after building and installing the current APK. In particular, test `TERMUX_RISH` only after confirming the user's Termux `rish` client is installed and reports `uid=2000(shell)`.
 
 
 ## Guiding principle and next capability roadmap

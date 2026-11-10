@@ -350,7 +350,10 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     }
 
     try {
-      withContext(Dispatchers.IO) { appContext.startService(runIntent) }
+      // Termux's RunCommandService calls startForeground() from onCreate(). Starting it as a
+      // foreground service is required on modern Android; startService() can be rejected when
+      // Termux's process is background-restricted before its service gets a chance to promote.
+      withContext(Dispatchers.IO) { appContext.startForegroundService(runIntent) }
       val bundle = try {
         withTimeout(timeoutMs) { deferred.await() }
       } catch (timeout: TimeoutCancellationException) {
@@ -374,6 +377,15 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         exitCode = -1,
         error = "Termux rejected the request. Check RUN_COMMAND permission and " +
           "allow-external-apps=true in Termux.",
+      )
+    } catch (error: IllegalStateException) {
+      val startupError = TermuxRunCommandStartFailure.describe(error.message)
+      return TermuxShellResult(
+        stdout = "",
+        stderr = "",
+        exitCode = -1,
+        error = startupError ?: "Could not communicate with Termux: " +
+          (error.message ?: error.javaClass.simpleName),
       )
     } catch (error: Exception) {
       return TermuxShellResult(
