@@ -54,11 +54,6 @@ internal object AndroidControlArguments {
     val unexpected = arguments.keySet() - accepted
     if (unexpected.isNotEmpty()) {
       val names = unexpected.sorted().joinToString(", ")
-      if (operation == "status" && "stream" in unexpected) {
-        return "The status operation does not accept 'stream'. To read an audio stream, " +
-          "retry android_control with operation='volume_status' and stream='MUSIC'. " +
-          "Do not call status for volume readings."
-      }
       return "Unsupported argument(s) for $operation: $names. Accepted arguments: " +
         accepted.sorted().joinToString(", ") + ". Retry using the same operation with only " +
         "its accepted arguments."
