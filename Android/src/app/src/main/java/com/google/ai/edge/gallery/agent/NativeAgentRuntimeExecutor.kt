@@ -196,8 +196,17 @@ class NativeAgentRuntimeExecutor(
         val result: AgentRunResult =
           currentCoordinator.run(request.query, contents, extraContext)
         if (result.isSuccessful) {
-          emit(AgentEvent.StreamToken(token = result.finalText, done = true))
-          emit(AgentEvent.LoopTerminated(result.finalText))
+          // Gemma's final prose can miscopy identifiers, counts, and command output. Append the
+          // coordinator-retained, budgeted tool payload verbatim so the user can inspect the
+          // authoritative result without relying on model transcription.
+          val authoritativeResults = formatAuthoritativeToolResults(result.messages)
+          val finalText = if (authoritativeResults.isNullOrBlank()) {
+            result.finalText
+          } else {
+            result.finalText + "\n\n" + authoritativeResults
+          }
+          emit(AgentEvent.StreamToken(token = finalText, done = true))
+          emit(AgentEvent.LoopTerminated(finalText))
         } else {
           discardAgentConversation()
           emit(AgentEvent.Error(result.finalText))
