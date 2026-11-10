@@ -13,7 +13,6 @@
 package com.google.ai.edge.gallery.agent.capability
 
 import com.google.gson.JsonObject
-import com.google.gson.JsonPrimitive
 
 /**
  * Validates the compact android_control contract and returns actionable recovery guidance.
