@@ -88,6 +88,7 @@ import com.google.ai.edge.gallery.firebaseAnalytics
 import com.google.ai.edge.gallery.skills.formatSelectedSkills
 import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
+import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
 import com.google.ai.edge.gallery.tools.CallJsToolAction
 import com.google.ai.edge.gallery.tools.PermissionResult
@@ -152,6 +153,9 @@ fun AgentChatScreen(
   }
   var currentShellPermissionAction by remember {
     mutableStateOf<AskShellCommandPermissionAction?>(null)
+  }
+  var currentNativeCapabilityPermissionAction by remember {
+    mutableStateOf<AskNativeCapabilityPermissionAction?>(null)
   }
   var askInfoInputValue by remember { mutableStateOf("") }
   var webViewRef: WebView? by remember { mutableStateOf(null) }
@@ -443,6 +447,9 @@ fun AgentChatScreen(
             is AskShellCommandPermissionAction -> {
               currentShellPermissionAction = action
             }
+            is AskNativeCapabilityPermissionAction -> {
+              currentNativeCapabilityPermissionAction = action
+            }
           }
         }
       }
@@ -655,6 +662,18 @@ fun AgentChatScreen(
       onResult = { approved ->
         action.result.complete(approved)
         currentShellPermissionAction = null
+      },
+    )
+  }
+
+  if (currentNativeCapabilityPermissionAction != null) {
+    val action = currentNativeCapabilityPermissionAction!!
+    NativeCapabilityPermissionDialog(
+      capability = action.capability,
+      summary = action.summary,
+      onResult = { approved ->
+        action.result.complete(approved)
+        currentNativeCapabilityPermissionAction = null
       },
     )
   }
