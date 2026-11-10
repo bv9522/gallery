@@ -24,7 +24,7 @@ package com.google.ai.edge.gallery.agent.coordinator
  * context. Budgets reset for each user turn; the coordinator's existing turn limit still bounds
  * repeated tool-call loops.
  */
-internal class AgentToolResultBudget(
+class AgentToolResultBudget(
   private val maxCharsPerTool: Int = DEFAULT_MAX_CHARS_PER_TOOL,
   private val maxCharsPerTurn: Int = DEFAULT_MAX_CHARS_PER_TURN,
 ) {
