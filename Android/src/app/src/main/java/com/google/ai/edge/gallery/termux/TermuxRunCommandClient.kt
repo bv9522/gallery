@@ -16,6 +16,9 @@
 
 package com.google.ai.edge.gallery.termux
 
+import com.google.ai.edge.gallery.agent.ExecutionFingerprint
+import com.google.ai.edge.gallery.agent.logExecutionIntegrity
+
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -86,14 +89,22 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         val id = UUID.randomUUID().toString().replace("-", "")
         val directory = "$TERMUX_RUN_DIRECTORY_ROOT/$id"
         runDirectory = directory
+        val startCommand = buildStartCommand(
+          id = id,
+          command = command,
+          workingDirectory = workingDirectory,
+          timeoutSeconds = ((timeoutMs + 999L) / 1_000L).coerceAtLeast(1L),
+          maxOutputChars = maxOutputChars,
+        )
+        logExecutionIntegrity(
+          TAG,
+          "RUN_COMMAND dispatch: commandChars=${command.length}, " +
+            "commandSha256=${ExecutionFingerprint.sha256(command)}, " +
+            "startScriptChars=${startCommand.length}, " +
+            "startScriptSha256=${ExecutionFingerprint.sha256(startCommand)}",
+        )
         val start = invokeTermux(
-          buildStartCommand(
-            id = id,
-            command = command,
-            workingDirectory = workingDirectory,
-            timeoutSeconds = ((timeoutMs + 999L) / 1_000L).coerceAtLeast(1L),
-            maxOutputChars = maxOutputChars,
-          ),
+          startCommand,
           DEFAULT_TERMUX_WORKDIR,
           START_TIMEOUT_MS,
           MIN_OUTPUT_CHARS,
@@ -123,6 +134,14 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
         ).toInt()
         val stdout = readCaptured(directory, "stdout", stdoutLimit)
         val stderr = readCaptured(directory, "stderr", stderrLimit)
+        logExecutionIntegrity(
+          TAG,
+          "Captured process output: stdoutChars=${stdout.length}, " +
+            "stdoutSha256=${ExecutionFingerprint.sha256(stdout)}, " +
+            "stderrChars=${stderr.length}, " +
+            "stderrSha256=${ExecutionFingerprint.sha256(stderr)}, " +
+            "exitCode=${state.exitCode}, truncated=${state.outputTruncated}",
+        )
 
         TermuxShellResult(
           stdout = stdout,
@@ -439,6 +458,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
   )
 
   companion object {
+    private const val TAG = "TermuxRunCommandClient"
     const val DEFAULT_TIMEOUT_MS = 30_000L
     const val DEFAULT_OUTPUT_LIMIT = 32 * 1_024
     const val DEFAULT_WORKING_DIRECTORY = "~/"

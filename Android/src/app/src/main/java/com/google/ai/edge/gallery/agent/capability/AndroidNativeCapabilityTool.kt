@@ -55,14 +55,20 @@ class ChannelNativeCapabilityAuthorizer(
  * framework call. Every operation is routed through the capability registry; this tool does not
  * fall back to a shell provider when native Android support is unavailable.
  */
-class AndroidNativeCapabilityTool(
-  context: Context,
-  actionChannel: SendChannel<ToolAction>,
+class AndroidNativeCapabilityTool internal constructor(
+  private val adapter: NativeCapabilityOperations,
   private val registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
 ) : AgentTool {
-  private val adapter = AndroidNativeCapabilityAdapter(
-    context = context.applicationContext,
-    authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
+  constructor(
+    context: Context,
+    actionChannel: SendChannel<ToolAction>,
+    registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
+  ) : this(
+    AndroidNativeCapabilityAdapter(
+      context = context.applicationContext,
+      authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
+    ),
+    registry,
   )
 
   override val name: String = "android_control"

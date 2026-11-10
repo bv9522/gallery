@@ -95,7 +95,7 @@ fun interface NativeCapabilityAuthorizer {
 class AndroidNativeCapabilityAdapter(
   context: Context,
   private val authorizer: NativeCapabilityAuthorizer,
-) : CapabilityProviderProbe {
+) : NativeCapabilityOperations {
   private val appContext = context.applicationContext
 
   override val descriptor: CapabilityProviderDescriptor =
@@ -162,7 +162,7 @@ class AndroidNativeCapabilityAdapter(
     )
   }
 
-  fun getDeviceInfo(): NativeDeviceInfo =
+  override fun getDeviceInfo(): NativeDeviceInfo =
     NativeDeviceInfo(
       manufacturer = Build.MANUFACTURER.orEmpty(),
       brand = Build.BRAND.orEmpty(),
@@ -173,7 +173,7 @@ class AndroidNativeCapabilityAdapter(
       securityPatch = Build.VERSION.SECURITY_PATCH.takeIf { it.isNotBlank() },
     )
 
-  fun getBatteryStatus(): NativeBatteryStatus {
+  override fun getBatteryStatus(): NativeBatteryStatus {
     val batteryManager = appContext.getSystemService(BatteryManager::class.java)
     val capacity = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
       ?.takeIf { it in 0..100 }
@@ -221,7 +221,7 @@ class AndroidNativeCapabilityAdapter(
       }.ifEmpty { listOf("OTHER") }.joinToString("|")
     }
 
-  fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus {
+  override fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus {
     val audio = requireNotNull(appContext.getSystemService(AudioManager::class.java)) {
       "AudioManager is unavailable."
     }
@@ -232,7 +232,7 @@ class AndroidNativeCapabilityAdapter(
     )
   }
 
-  suspend fun setVolume(
+  override suspend fun setVolume(
     stream: NativeAudioStream,
     volume: Int,
   ): NativeCapabilityActionResult {
@@ -257,7 +257,7 @@ class AndroidNativeCapabilityAdapter(
     }
   }
 
-  suspend fun setFlashlight(enabled: Boolean): NativeCapabilityActionResult {
+  override suspend fun setFlashlight(enabled: Boolean): NativeCapabilityActionResult {
     val availability = flashlightAvailability()
     if (availability == ProviderAvailability.PERMISSION_REQUIRED) {
       return NativeCapabilityActionResult(false, "Camera permission is required.")
@@ -286,10 +286,10 @@ class AndroidNativeCapabilityAdapter(
     }
   }
 
-  fun listLaunchableApps(): List<NativeLaunchableApp> =
+  override fun listLaunchableApps(): List<NativeLaunchableApp> =
     queryLaunchableApps().sortedBy { it.label.lowercase() }
 
-  suspend fun launchApp(packageName: String): NativeCapabilityActionResult {
+  override suspend fun launchApp(packageName: String): NativeCapabilityActionResult {
     if (packageName.isBlank()) {
       return NativeCapabilityActionResult(false, "A package name is required.")
     }
@@ -314,7 +314,7 @@ class AndroidNativeCapabilityAdapter(
     }
   }
 
-  suspend fun openUrl(url: String): NativeCapabilityActionResult {
+  override suspend fun openUrl(url: String): NativeCapabilityActionResult {
     val uri = runCatching { Uri.parse(url) }.getOrNull()
       ?: return NativeCapabilityActionResult(false, "The URL is invalid.")
     val scheme = uri.scheme?.lowercase()
@@ -378,8 +378,8 @@ class AndroidNativeCapabilityAdapter(
     return activities.mapNotNull { resolveInfo ->
       val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
       val packageName = activityInfo.packageName
-      val label = resolveInfo.loadLabel(appContext.packageManager)?.toString()
-        ?.takeIf { it.isNotBlank() } ?: packageName
+      val label = resolveInfo.loadLabel(appContext.packageManager).toString()
+        .takeIf { it.isNotBlank() } ?: packageName
       NativeLaunchableApp(packageName, label)
     }.distinctBy { it.packageName }
   }

@@ -16,6 +16,9 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.ai.edge.gallery.agent.ExecutionFingerprint
+import com.google.ai.edge.gallery.agent.logExecutionIntegrity
+
 import com.google.ai.edge.gallery.shizuku.ShizukuShellExecutor
 import com.google.ai.edge.gallery.termux.TermuxShellExecutor
 import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
@@ -221,11 +224,28 @@ class TermuxRishShellTransport(
       "export RISH_APPLICATION_ID=${shellQuote(TERMUX_APPLICATION_ID)} && " +
         "export MANAGER_APPLICATION_ID=${shellQuote(managerApplicationId)} && " +
         "rish -c ${shellQuote(remoteCommand)}"
+    logExecutionIntegrity(
+      SHELL_INTEGRITY_TAG,
+      "Rish dispatch: requestChars=${request.command.length}, " +
+        "requestSha256=${ExecutionFingerprint.sha256(request.command)}, " +
+        "remoteChars=${remoteCommand.length}, " +
+        "remoteSha256=${ExecutionFingerprint.sha256(remoteCommand)}, " +
+        "wrapperChars=${wrappedCommand.length}, " +
+        "wrapperSha256=${ExecutionFingerprint.sha256(wrappedCommand)}",
+    )
     val result = executor.execute(
       command = wrappedCommand,
       workingDirectory = "~/",
       timeoutMs = request.timeoutMs,
       maxOutputChars = request.maxOutputChars,
+    )
+    logExecutionIntegrity(
+      SHELL_INTEGRITY_TAG,
+      "Rish result: stdoutChars=${result.stdout.length}, " +
+        "stdoutSha256=${ExecutionFingerprint.sha256(result.stdout)}, " +
+        "stderrChars=${result.stderr.length}, " +
+        "stderrSha256=${ExecutionFingerprint.sha256(result.stderr)}, " +
+        "exitCode=${result.exitCode}, truncated=${result.outputTruncated}",
     )
     return ShellExecutionResult(
       backend = request.backend,
@@ -338,6 +358,12 @@ class UnifiedShellTool(
       return AgentToolResult("Rejected: ${error.message}", false)
     }
 
+    logExecutionIntegrity(
+      SHELL_INTEGRITY_TAG,
+      "Approved-request candidate: backend=${request.backend}, " +
+        "commandChars=${request.command.length}, " +
+        "commandSha256=${ExecutionFingerprint.sha256(request.command)}",
+    )
     val approved = try {
       approval.requestApproval(request)
     } catch (cancelled: CancellationException) {
@@ -355,6 +381,14 @@ class UnifiedShellTool(
       return AgentToolResult("Execution failed: ${error.message ?: error.javaClass.simpleName}", false)
     }
 
+    logExecutionIntegrity(
+      SHELL_INTEGRITY_TAG,
+      "Tool result: backend=${result.backend}, stdoutChars=${result.stdout.length}, " +
+        "stdoutSha256=${ExecutionFingerprint.sha256(result.stdout)}, " +
+        "stderrChars=${result.stderr.length}, " +
+        "stderrSha256=${ExecutionFingerprint.sha256(result.stderr)}, " +
+        "exitCode=${result.exitCode}, truncated=${result.outputTruncated}",
+    )
     val response = buildString {
       appendLine("Backend: ${result.backend}")
       result.error?.let { appendLine("Execution error: $it") }
@@ -391,3 +425,6 @@ class UnifiedShellTool(
     }.getOrNull()
   }
 }
+
+
+private const val SHELL_INTEGRITY_TAG = "ShellExecutionIntegrity"
