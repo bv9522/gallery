@@ -112,30 +112,9 @@ class AndroidNativeCapabilityTool(
     }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
-    val allowed = setOf("operation", "stream", "volume", "enabled", "package_name", "url")
-    val unexpected = arguments.keySet() - allowed
-    if (unexpected.isNotEmpty()) {
-      return failure("Unsupported argument(s): ${unexpected.sorted().joinToString(", ")}.")
-    }
+    AndroidControlArguments.validate(arguments)?.let { return failure(it) }
     val operation = arguments.string("operation")
       ?: return failure("Missing required string argument: operation.")
-    val operationArguments = mapOf(
-      "status" to setOf("operation"),
-      "device_info" to setOf("operation"),
-      "battery_status" to setOf("operation"),
-      "volume_status" to setOf("operation", "stream"),
-      "list_apps" to setOf("operation"),
-      "set_volume" to setOf("operation", "stream", "volume"),
-      "set_flashlight" to setOf("operation", "enabled"),
-      "launch_app" to setOf("operation", "package_name"),
-      "open_url" to setOf("operation", "url"),
-    )[operation] ?: return failure("Unsupported operation '$operation'.")
-    val unexpectedForOperation = arguments.keySet() - operationArguments
-    if (unexpectedForOperation.isNotEmpty()) {
-      return failure(
-        "Unsupported argument(s) for $operation: ${unexpectedForOperation.sorted().joinToString(", ")}."
-      )
-    }
 
     return try {
       when (operation) {
