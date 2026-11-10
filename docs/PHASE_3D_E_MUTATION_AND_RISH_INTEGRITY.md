@@ -86,7 +86,17 @@ Source inspection found the following boundaries:
 
 The Kotlin-side quoting is covered by a unit test, but the current test only verifies the generated wrapper string. It does not exercise the installed Rish client or prove remote command/output fidelity.
 
-No speculative Rish transport change is included. The next diagnostic must compare the exact command and output at each boundary, using deterministic markers and hashes, before changing the transport. TERMUX and SHIZUKU remain separate execution identities and must not be used as silent substitutes for TERMUX_RISH.
+No speculative Rish transport change is included. This branch adds privacy-safe SHA-256 fingerprints and character counts at the approved-request, Rish-wrapper, Termux RUN_COMMAND, captured-output, and final-tool-result boundaries. Command and output contents are never written to these diagnostic log entries. The `ShellExecutionIntegrity` and `TermuxRunCommandClient` log tags let device diagnostics compare fingerprints across boundaries before changing the transport.
+
+Interpretation:
+- The request command fingerprint should match the Rish transport's request fingerprint.
+- The Rish wrapper fingerprint should match the Termux RUN_COMMAND dispatch fingerprint.
+- The captured stdout/stderr fingerprints should match the Rish transport result fingerprints and the final tool-result fingerprints.
+- If the command fingerprints match but the captured output is already corrupted, the problem is downstream of Kotlin command construction and upstream of captured-file reading—most likely in the Rish/remote execution path.
+- If captured output matches the Rish transport result but differs at the final tool boundary, investigate result mapping or formatting.
+- Hashes are diagnostic evidence, not proof that the remote shell executed the intended command; deterministic marker output remains part of device acceptance.
+
+TERMUX and SHIZUKU remain separate execution identities and must not be used as silent substitutes for TERMUX_RISH.
 
 ## Completion criteria
 
