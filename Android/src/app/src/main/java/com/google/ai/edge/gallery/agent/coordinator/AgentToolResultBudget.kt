@@ -53,7 +53,8 @@ class AgentToolResultBudget(
 
     val marker = "\n...[TRUNCATED original_chars=${content.length}; output budget applied]...\n"
     if (allowance <= marker.length) {
-      val compact = "[TRUNCATED]".take(allowance)
+      // Do not emit a misleading partial marker such as "TRUNCAT".
+      val compact = if (allowance >= "[TRUNCATED]".length) "[TRUNCATED]" else ""
       usedChars += compact.length
       return compact
     }
