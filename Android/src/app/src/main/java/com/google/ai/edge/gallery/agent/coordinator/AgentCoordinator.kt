@@ -40,6 +40,7 @@ class AgentCoordinator(
   private val model: AgentModel,
   private val tools: AgentToolRegistry,
   private val maxModelTurns: Int = DEFAULT_MAX_MODEL_TURNS,
+  private val resultBudget: AgentToolResultBudget = AgentToolResultBudget(),
 ) {
   private val runMutex = Mutex()
   private val conversationMessages = mutableListOf<AgentMessage>()
@@ -63,6 +64,7 @@ class AgentCoordinator(
         "User input or multimodal contents must not be empty."
       }
       val previousSize = conversationMessages.size
+      resultBudget.reset()
       conversationMessages += AgentMessage(
         AgentMessage.Role.USER,
         content = userInput,
@@ -161,7 +163,7 @@ class AgentCoordinator(
           tools.names().sorted().joinToString(", "),
         isSuccessful = false,
       )
-    return try {
+    val result = try {
       tool.execute(call.arguments.deepCopy())
     } catch (cancelled: CancellationException) {
       throw cancelled
@@ -172,6 +174,7 @@ class AgentCoordinator(
         isSuccessful = false,
       )
     }
+    return result.copy(content = resultBudget.constrain(result.content))
   }
 
   companion object {

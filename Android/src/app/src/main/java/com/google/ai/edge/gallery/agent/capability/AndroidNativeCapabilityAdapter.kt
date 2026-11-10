@@ -40,8 +40,10 @@ data class NativeDeviceInfo(
 
 data class NativeBatteryStatus(
   val percent: Int?,
+  /** Stable, human-readable BatteryManager status name; never expose the raw Android integer. */
+  val state: String,
   val charging: Boolean?,
-  val plugged: Int?,
+  val plugged: String?,
   val temperatureCelsius: Float?,
   val voltageMillivolts: Int?,
 )
@@ -184,23 +186,41 @@ class AndroidNativeCapabilityAdapter(
       null
     }
     val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-    val charging = when (status) {
-      BatteryManager.BATTERY_STATUS_CHARGING,
-      BatteryManager.BATTERY_STATUS_FULL -> true
-      BatteryManager.BATTERY_STATUS_DISCHARGING,
-      BatteryManager.BATTERY_STATUS_NOT_CHARGING -> false
+    val state = when (status) {
+      BatteryManager.BATTERY_STATUS_CHARGING -> "CHARGING"
+      BatteryManager.BATTERY_STATUS_DISCHARGING -> "DISCHARGING"
+      BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "NOT_CHARGING"
+      BatteryManager.BATTERY_STATUS_FULL -> "FULL"
+      else -> "UNKNOWN"
+    }
+    val charging = when (state) {
+      "CHARGING", "FULL" -> true
+      "DISCHARGING", "NOT_CHARGING" -> false
       else -> null
     }
+    val pluggedValue = intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
     val temperature = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, -1) ?: -1
     val voltage = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, -1) ?: -1
     return NativeBatteryStatus(
       percent = percent,
+      state = state,
       charging = charging,
-      plugged = intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1)?.takeIf { it >= 0 },
+      plugged = describePluggedSource(pluggedValue),
       temperatureCelsius = temperature.takeIf { it >= 0 }?.div(10f),
       voltageMillivolts = voltage.takeIf { it >= 0 },
     )
   }
+
+  private fun describePluggedSource(value: Int): String =
+    when {
+      value < 0 -> "UNKNOWN"
+      value == 0 -> "NOT_PLUGGED"
+      else -> buildList {
+        if ((value and BatteryManager.BATTERY_PLUGGED_AC) != 0) add("AC")
+        if ((value and BatteryManager.BATTERY_PLUGGED_USB) != 0) add("USB")
+        if ((value and BatteryManager.BATTERY_PLUGGED_WIRELESS) != 0) add("WIRELESS")
+      }.ifEmpty { listOf("OTHER") }.joinToString("|")
+    }
 
   fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus {
     val audio = requireNotNull(appContext.getSystemService(AudioManager::class.java)) {

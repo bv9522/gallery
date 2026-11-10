@@ -44,6 +44,7 @@ class ChannelNativeCapabilityAuthorizerTest {
 
     assertTrue(request.await())
     channel.close()
+    Unit
   }
 
   @Test
@@ -59,6 +60,7 @@ class ChannelNativeCapabilityAuthorizerTest {
 
     assertFalse(request.await())
     channel.close()
+    Unit
   }
 
   @Test

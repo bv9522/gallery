@@ -220,6 +220,38 @@ class AgentCoordinatorTest {
     }
   }
 
+  @Test
+  fun coordinatorBoundsToolResultsBeforeAddingThemToConversationHistory() = runBlocking {
+    val largeResultTool = object : AgentTool {
+      override val name = "large_result"
+      override val description = "Returns a large result."
+      override suspend fun execute(arguments: JsonObject) =
+        AgentToolResult("BEGIN" + "x".repeat(500) + "END")
+    }
+    var turns = 0
+    val model = AgentModel { history ->
+      turns++
+      if (turns == 1) {
+        AgentModelResponse.ToolCall("large_result", JsonObject(), "large-1")
+      } else {
+        val toolResult = history.last()
+        assertEquals(AgentMessage.Role.TOOL, toolResult.role)
+        assertTrue(toolResult.content.contains("TRUNCATED original_chars=508"))
+        assertTrue(toolResult.content.length <= 100)
+        AgentModelResponse.FinalAnswer("The result was bounded.")
+      }
+    }
+
+    val coordinator = AgentCoordinator(
+      model = model,
+      tools = AgentToolRegistry(listOf(largeResultTool)),
+      resultBudget = AgentToolResultBudget(maxCharsPerTool = 100, maxCharsPerTurn = 200),
+    )
+    val result = coordinator.run("Read the large result.")
+
+    assertEquals(AgentRunStatus.COMPLETED, result.status)
+  }
+
   private fun testTool(toolName: String) = object : AgentTool {
     override val name = toolName
     override val description = "Test tool."

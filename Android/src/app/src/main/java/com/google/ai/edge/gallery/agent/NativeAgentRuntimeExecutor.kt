@@ -73,10 +73,16 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "operations do not require approval; every mutation requires the user's one-time approval. " +
       "Report unavailable capabilities and permission requirements honestly. When a tool returns an argument-validation error with a suggested correction, retry once using the exact corrected operation and arguments; do not repeat the invalid call. Do not use shell " +
       "commands as an automatic fallback for android_control failures. When reporting device " +
-      "identity, repeat the exact model identifier returned by device_info; do not infer a product " +
-      "tier such as Ultra from the identifier. When reporting volume, preserve the exact current " +
-      "and maximum values returned by volume_status and name the stream. For list_apps, summarize " +
-      "only the entries returned and mention if the result says more apps are available.\n\n" +
+      "identity, copy modelIdentifier exactly character-for-character from device_info; do not " +
+      "remove punctuation, alter digits, or infer a product tier. When reporting battery status, " +
+      "copy batteryPercent and batteryState exactly; batteryState is decoded text, and raw Android " +
+      "integer constants must never be presented as charging states. When reporting volume, preserve " +
+      "the exact current and maximum values returned by volume_status and name the stream. For " +
+      "list_apps, obey returned, total, truncated, and remaining: if truncated=true, explicitly say " +
+      "the list is truncated and state how many apps remain; never say it is complete. For " +
+      "android_control operation=status, report the native provider availability diagnostic and its " +
+      "capability states; do not substitute unrelated skill/tool inventories, and do not describe " +
+      "provider availability as a live battery or volume reading.\n\n" +
       "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
       "native execute_shell tool directly. Do not call run_mcp_tool to execute shell commands; " +
       "run_mcp_tool is only for tools hosted by external MCP servers. The execute_shell tool " +
