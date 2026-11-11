@@ -32,6 +32,7 @@ import com.google.ai.edge.gallery.agent.coordinator.TermuxRishShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
+import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.runtime.runtimeHelper
@@ -83,6 +84,11 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "android_control operation=status, report the native provider availability diagnostic and its " +
       "capability states; do not substitute unrelated skill/tool inventories, and do not describe " +
       "provider availability as a live battery or volume reading.\n\n" +
+      "TERMUX API RULES: Use termux_api only for its explicit allowlisted Termux:API operations. Start with " +
+      "status to verify both the companion app and command package. Use android_control for native " +
+      "operations unless the user explicitly requests Termux:API or is comparing providers. Never " +
+      "invent Termux:API commands or use this tool as arbitrary shell access. Its mutations require " +
+      "the same one-time approval boundary.\n\n" +
       "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
       "native execute_shell tool directly. Do not call run_mcp_tool to execute shell commands; " +
       "run_mcp_tool is only for tools hosted by external MCP servers. The execute_shell tool " +
@@ -319,6 +325,11 @@ class NativeAgentRuntimeExecutor(
             AndroidNativeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
+            ),
+            TermuxApiCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+              client = TermuxRunCommandClient(checkNotNull(context)),
             ),
           )
         )
