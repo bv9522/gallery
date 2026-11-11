@@ -13,9 +13,9 @@ import android.content.pm.PackageManager
 import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
 import com.google.ai.edge.gallery.termux.TermuxRunCommandClient
+import com.google.ai.edge.gallery.termux.TermuxShellExecutor
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.ToolAction
-import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import kotlinx.coroutines.CancellationException
@@ -29,7 +29,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class TermuxApiCapabilityTool(
   context: Context,
   private val actionChannel: SendChannel<ToolAction>,
-  private val client: TermuxRunCommandClient = TermuxRunCommandClient(context.applicationContext),
+  private val client: TermuxShellExecutor = TermuxRunCommandClient(context.applicationContext),
 ) : AgentTool {
   private val appContext = context.applicationContext
 
