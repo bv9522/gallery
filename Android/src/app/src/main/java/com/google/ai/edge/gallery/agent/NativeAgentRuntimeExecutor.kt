@@ -326,6 +326,11 @@ class NativeAgentRuntimeExecutor(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
             ),
+            TermuxApiCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+              client = TermuxRunCommandClient(checkNotNull(context)),
+            ),
           )
         )
         val created = com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
