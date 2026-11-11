@@ -88,7 +88,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "status to verify both the companion app and command package. Use android_control for native " +
       "operations unless the user explicitly requests Termux:API or is comparing providers. Never " +
       "invent Termux:API commands or use this tool as arbitrary shell access. Its mutations require " +
-      "the same one-time approval boundary.\\n\\n" +
+      "the same one-time approval boundary.\n\n" +
       "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
       "native execute_shell tool directly. Do not call run_mcp_tool to execute shell commands; " +
       "run_mcp_tool is only for tools hosted by external MCP servers. The execute_shell tool " +
