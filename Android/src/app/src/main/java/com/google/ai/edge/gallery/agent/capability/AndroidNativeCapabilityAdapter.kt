@@ -328,7 +328,11 @@ class AndroidNativeCapabilityAdapter(
     }.getOrNull()
     return NativeDisplayBrightness(
       level = level,
-      mode = if (mode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) "AUTOMATIC" else "MANUAL",
+      mode = when (mode) {
+        Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC -> "AUTOMATIC"
+        Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL -> "MANUAL"
+        else -> "UNKNOWN"
+      },
       canModifySystemSettings = Settings.System.canWrite(appContext),
     )
   }
@@ -352,16 +356,28 @@ class AndroidNativeCapabilityAdapter(
     }
     return try {
       val resolver = appContext.contentResolver
+      val previousLevel = runCatching {
+        Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS)
+      }.getOrNull()
+      val previousMode = runCatching {
+        Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE)
+      }.getOrNull()
+      val levelChanged = Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, level)
       val modeChanged = Settings.System.putInt(
         resolver,
         Settings.System.SCREEN_BRIGHTNESS_MODE,
         Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
       )
-      val levelChanged = Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, level)
       if (modeChanged && levelChanged) {
         NativeCapabilityActionResult(true, "Display brightness set to $level of 255 (manual mode).")
       } else {
-        NativeCapabilityActionResult(false, "Android did not accept the brightness setting.")
+        if (previousLevel != null) {
+          Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, previousLevel)
+        }
+        if (previousMode != null) {
+          Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE, previousMode)
+        }
+        NativeCapabilityActionResult(false, "Android rejected the brightness change; previous settings were restored where possible.")
       }
     } catch (error: SecurityException) {
       NativeCapabilityActionResult(false, "Android denied brightness control: ${error.message}")
