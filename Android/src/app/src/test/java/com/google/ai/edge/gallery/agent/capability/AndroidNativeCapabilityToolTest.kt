@@ -76,6 +76,9 @@ class AndroidNativeCapabilityToolTest {
       addProperty("duration_ms", 30_000)
     })
     val wakeLockStatus = tool.execute(arguments("wake_lock_status"))
+    val releaseWakeLock = tool.execute(arguments("set_wake_lock").apply {
+      addProperty("held", false)
+    })
 
     assertTrue(devices.isSuccessful)
     assertTrue(brightness.isSuccessful)
@@ -83,11 +86,13 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(vibration.isSuccessful)
     assertTrue(wakeLock.isSuccessful)
     assertTrue(wakeLockStatus.isSuccessful)
+    assertTrue(releaseWakeLock.isSuccessful)
     assertEquals(
       listOf(
         "set_display_brightness:120",
         "vibrate:250",
         "set_wake_lock:true:30000",
+        "set_wake_lock:false:0",
       ),
       adapter.mutations,
     )
