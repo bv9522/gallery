@@ -96,6 +96,36 @@ class NativeCapabilityResultFormatterTest {
   }
 
   @Test
+  fun audioDeviceListReportsBoundedResultsAndTruncation() {
+    val devices = (1..30).map { index ->
+      NativeAudioDevice(index, "TYPE_$index", "Endpoint $index", source = true, sink = false)
+    }
+
+    val output = NativeCapabilityResultFormatter.audioDevices(devices)
+
+    assertTrue(output.contains("returned=24"))
+    assertTrue(output.contains("total=30"))
+    assertTrue(output.contains("truncated=true"))
+    assertTrue(output.contains("remaining=6"))
+  }
+
+  @Test
+  fun brightnessOutputNamesUnitsAndSpecialAccessState() {
+    val output = NativeCapabilityResultFormatter.displayBrightness(
+      NativeDisplayBrightness(
+        level = 128,
+        mode = "AUTOMATIC",
+        canModifySystemSettings = false,
+      )
+    )
+
+    assertTrue(output.contains("brightnessLevel=128"))
+    assertTrue(output.contains("brightnessMaximum=255"))
+    assertTrue(output.contains("brightnessMode=AUTOMATIC"))
+    assertTrue(output.contains("canModifySystemSettings=false"))
+  }
+
+  @Test
   fun providerStatusIsClearlyDiagnosticAndListsEachNativeCapability() {
     val output = NativeCapabilityResultFormatter.providerAvailability(
       CapabilityProviderObservation(

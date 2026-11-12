@@ -42,6 +42,31 @@ internal object NativeCapabilityResultFormatter {
     "voltageMillivolts=${status.voltageMillivolts?.toString() ?: "unknown"}",
   ).joinToString("\n")
 
+  fun audioDevices(devices: List<NativeAudioDevice>): String {
+    val entries = devices.take(MAX_AUDIO_DEVICES_IN_TOOL_RESULT)
+    val remaining = (devices.size - entries.size).coerceAtLeast(0)
+    return buildString {
+      appendLine("returned=${entries.size}")
+      appendLine("total=${devices.size}")
+      appendLine("truncated=${remaining > 0}")
+      appendLine("remaining=$remaining")
+      if (entries.isEmpty()) {
+        append("No audio input or output devices were reported.")
+      } else {
+        append(entries.joinToString("\n") { device ->
+          "id=${device.id},type=${device.type},name=${oneLine(device.productName)},source=${device.source},sink=${device.sink}"
+        })
+      }
+    }
+  }
+
+  fun displayBrightness(brightness: NativeDisplayBrightness): String = listOf(
+    "brightnessLevel=${brightness.level?.toString() ?: "unknown"}",
+    "brightnessMaximum=${brightness.maximum}",
+    "brightnessMode=${brightness.mode}",
+    "canModifySystemSettings=${brightness.canModifySystemSettings}",
+  ).joinToString("\n")
+
   fun providerAvailability(observation: CapabilityProviderObservation): String = buildString {
     appendLine("provider=${observation.providerId.name}")
     appendLine("providerAvailability=${observation.availability.name}")
@@ -78,6 +103,7 @@ internal object NativeCapabilityResultFormatter {
   private fun oneLine(value: String): String =
     value.replace('\n', ' ').replace('\r', ' ').trim()
 
+  private const val MAX_AUDIO_DEVICES_IN_TOOL_RESULT = 24
   private const val MAX_APPS_IN_TOOL_RESULT = 25
   private const val MAX_APP_LABEL_LENGTH = 48
 }

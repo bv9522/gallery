@@ -40,7 +40,7 @@ impact; it must not silently change ownership without updating this document.
 
 ## Capability ownership matrix
 
-Status values: **Implemented** means present in the current Phase 4A branch; **Planned** means
+Status values: **Implemented** means present in the current implementation branch; **Planned** means
 identified but not yet implemented as an MCP capability. Shell commands that can perform an
 operation do not count as a dedicated native capability implementation.
 
@@ -50,10 +50,10 @@ operation do not count as a dedicated native capability implementation.
 | Battery status | Native Kotlin (BatteryManager / broadcasts) | Implemented; Termux:API duplicate is transitional |
 | Flashlight | Native Kotlin (CameraManager) | Implemented; Termux:API duplicate is transitional |
 | Audio volume read/control | Native Kotlin (AudioManager) | Implemented; Termux:API duplicate is transitional |
-| Audio device / route information | Native Kotlin (AudioManager / AudioDeviceCallback) | Planned |
-| Display brightness | Native Kotlin (Display / Settings.System with explicit special access where needed) | Planned |
-| Vibration | Native Kotlin (Vibrator / VibratorManager) | Planned |
-| Bounded wake lock | Native Kotlin (PowerManager) | Planned; strict timeout and release guarantees |
+| Audio device / route information | Native Kotlin (AudioManager) | Implemented; bounded to 24 endpoints |
+| Display brightness | Native Kotlin (Settings.System with explicit special access) | Implemented; reports stored setting/mode; mutation requires Modify system settings access and explicit approval; switches to manual mode |
+| Vibration | Native Kotlin (VibratorManager) | Implemented; explicit approval; maximum one-second pulse |
+| Bounded wake lock | Native Kotlin (PowerManager) | Implemented; partial CPU lock, explicit approval, maximum five-minute timeout with automatic release |
 | Sensors and bounded sensor streams | Native Kotlin (SensorManager) | Planned |
 | Location and bounded location updates | Native Kotlin (LocationManager) | Planned; foreground permission and duration limits |
 | Wi-Fi connection state | Native Kotlin (ConnectivityManager / WifiManager) | Planned |
@@ -160,8 +160,8 @@ available on every Android device or that every permission is granted.
   declares the capability; no duplicate route priorities or accidental duplicate owners.
 
 ### Wave 2 — Native system and connectivity
-- Audio device information, brightness, vibration, bounded wake lock.
-- Sensors, location, Wi-Fi, Bluetooth, NFC, infrared, USB.
+- [x] Audio device information, brightness, vibration, bounded wake lock (Phase 4C first slice).
+- [ ] Sensors, location, Wi-Fi, Bluetooth, NFC, infrared, USB.
 - Implement observational probes separately from mutations.
 - Use generic Bluetooth and USB abstractions; no device-specific names or profiles.
 

@@ -59,6 +59,65 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun systemCapabilityOperationsReachTheirMatchingAdapterMethods() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val devices = tool.execute(arguments("audio_devices"))
+    val brightness = tool.execute(arguments("display_brightness"))
+    val setBrightness = tool.execute(arguments("set_display_brightness").apply {
+      addProperty("level", 120)
+    })
+    val vibration = tool.execute(arguments("vibrate").apply {
+      addProperty("duration_ms", 250)
+    })
+    val wakeLock = tool.execute(arguments("set_wake_lock").apply {
+      addProperty("held", true)
+      addProperty("duration_ms", 30_000)
+    })
+    val wakeLockStatus = tool.execute(arguments("wake_lock_status"))
+    val releaseWakeLock = tool.execute(arguments("set_wake_lock").apply {
+      addProperty("held", false)
+    })
+
+    assertTrue(devices.isSuccessful)
+    assertTrue(brightness.isSuccessful)
+    assertTrue(setBrightness.isSuccessful)
+    assertTrue(vibration.isSuccessful)
+    assertTrue(wakeLock.isSuccessful)
+    assertTrue(wakeLockStatus.isSuccessful)
+    assertTrue(releaseWakeLock.isSuccessful)
+    assertEquals(
+      listOf(
+        "set_display_brightness:120",
+        "vibrate:250",
+        "set_wake_lock:true:30000",
+        "set_wake_lock:false:0",
+      ),
+      adapter.mutations,
+    )
+  }
+
+  @Test
+  fun invalidSystemMutationArgumentsAreRejectedBeforeAdapterDispatch() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val missingBrightness = tool.execute(arguments("set_display_brightness"))
+    val missingVibration = tool.execute(arguments("vibrate"))
+    val missingWakeLockState = tool.execute(arguments("set_wake_lock"))
+    val missingWakeLockDuration = tool.execute(arguments("set_wake_lock").apply {
+      addProperty("held", true)
+    })
+
+    assertFalse(missingBrightness.isSuccessful)
+    assertFalse(missingVibration.isSuccessful)
+    assertFalse(missingWakeLockState.isSuccessful)
+    assertFalse(missingWakeLockDuration.isSuccessful)
+    assertTrue(adapter.mutations.isEmpty())
+  }
+
+  @Test
   fun unavailableMutationCapabilityNeverReachesAdapter() = runBlocking {
     val adapter = FakeNativeCapabilityOperations().apply {
       availability[AndroidCapability.FLASHLIGHT_CONTROL] = ProviderAvailability.PERMISSION_REQUIRED
@@ -150,6 +209,33 @@ class AndroidNativeCapabilityToolTest {
 
     override fun getVolumeStatus(stream: NativeAudioStream) =
       NativeVolumeStatus(stream, 5, 15)
+
+    override fun getAudioDevices() = listOf(
+      NativeAudioDevice(1, "BUILTIN_SPEAKER", "Speaker", source = false, sink = true)
+    )
+
+    override fun getDisplayBrightness() =
+      NativeDisplayBrightness(level = 120, mode = "MANUAL", canModifySystemSettings = true)
+
+    override suspend fun setDisplayBrightness(level: Int): NativeCapabilityActionResult {
+      mutations += "set_display_brightness:$level"
+      return actionResult
+    }
+
+    override suspend fun vibrate(durationMs: Long): NativeCapabilityActionResult {
+      mutations += "vibrate:$durationMs"
+      return actionResult
+    }
+
+    override fun isWakeLockHeld() = false
+
+    override suspend fun setWakeLock(
+      held: Boolean,
+      durationMs: Long,
+    ): NativeCapabilityActionResult {
+      mutations += "set_wake_lock:$held:$durationMs"
+      return actionResult
+    }
 
     override suspend fun setVolume(
       stream: NativeAudioStream,

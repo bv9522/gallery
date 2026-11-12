@@ -73,11 +73,13 @@ class AndroidNativeCapabilityTool internal constructor(
 
   override val name: String = "android_control"
   override val description: String =
-    "Read device and battery information, inspect volume and launchable apps, or perform an " +
-      "approved native Android action. Use status to inspect availability of each native Android " +
+    "Read device, battery, connected audio endpoint, brightness, and wake-lock information, inspect volume " +
+      "and launchable apps, or perform an approved native Android action. Use status to inspect " +
+      "availability of each native Android " +
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
-      "set_flashlight, launch_app, open_url. Mutations always require one-time user approval. " +
+      "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
+      "set_display_brightness, vibrate, wake_lock_status, set_wake_lock. Mutations always require one-time user approval. " +
       "This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
@@ -88,8 +90,9 @@ class AndroidNativeCapabilityTool internal constructor(
           addProperty("type", "string")
           add("enum", JsonArray().apply {
             listOf(
-              "status", "device_info", "battery_status", "volume_status", "list_apps",
-              "set_volume", "set_flashlight", "launch_app", "open_url",
+              "status", "device_info", "battery_status", "volume_status", "audio_devices",
+              "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url",
             ).forEach { add(it) }
           })
         })
@@ -101,6 +104,18 @@ class AndroidNativeCapabilityTool internal constructor(
         add("volume", JsonObject().apply {
           addProperty("type", "integer")
           addProperty("description", "Target volume; must be within the selected stream's range.")
+        })
+        add("level", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Display brightness level from 0 through 255.")
+        })
+        add("duration_ms", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Vibration duration (1-1000 ms) or wake-lock timeout (1-300000 ms).")
+        })
+        add("held", JsonObject().apply {
+          addProperty("type", "boolean")
+          addProperty("description", "True to acquire a bounded CPU wake lock; false to release it.")
         })
         add("enabled", JsonObject().apply {
           addProperty("type", "boolean")
@@ -136,6 +151,36 @@ class AndroidNativeCapabilityTool internal constructor(
         "volume_status" -> {
           val stream = audioStream(arguments) ?: return failure("Unsupported audio stream.")
           read(AndroidCapability.VOLUME_CONTROL) { Gson().toJson(adapter.getVolumeStatus(stream)) }
+        }
+        "audio_devices" -> read(AndroidCapability.AUDIO_DEVICE_INFO) {
+          NativeCapabilityResultFormatter.audioDevices(adapter.getAudioDevices())
+        }
+        "display_brightness" -> read(AndroidCapability.DISPLAY_BRIGHTNESS) {
+          NativeCapabilityResultFormatter.displayBrightness(adapter.getDisplayBrightness())
+        }
+        "set_display_brightness" -> {
+          val level = arguments.int("level")
+            ?: return failure("set_display_brightness requires integer level from 0 to 255.")
+          mutate(AndroidCapability.DISPLAY_BRIGHTNESS) { adapter.setDisplayBrightness(level) }
+        }
+        "vibrate" -> {
+          val duration = arguments.long("duration_ms")
+            ?: return failure("vibrate requires integer duration_ms from 1 to 1000.")
+          mutate(AndroidCapability.VIBRATION_CONTROL) { adapter.vibrate(duration) }
+        }
+        "wake_lock_status" -> read(AndroidCapability.WAKE_LOCK) {
+          "wakeLockHeld=${adapter.isWakeLockHeld()}"
+        }
+        "set_wake_lock" -> {
+          val held = arguments.boolean("held")
+            ?: return failure("set_wake_lock requires boolean held.")
+          val duration = if (held) {
+            arguments.long("duration_ms")
+              ?: return failure("Acquiring a wake lock requires duration_ms from 1 to 300000.")
+          } else {
+            0L
+          }
+          mutate(AndroidCapability.WAKE_LOCK) { adapter.setWakeLock(held, duration) }
         }
         "list_apps" -> read(AndroidCapability.APP_DISCOVERY) {
           NativeCapabilityResultFormatter.launchableApps(adapter.listLaunchableApps())
@@ -220,6 +265,10 @@ class AndroidNativeCapabilityTool internal constructor(
   private fun JsonObject.int(name: String): Int? =
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
       ?.asString?.toIntOrNull()
+
+  private fun JsonObject.long(name: String): Long? =
+    get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+      ?.asString?.toLongOrNull()
 
   private fun JsonObject.boolean(name: String): Boolean? =
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean

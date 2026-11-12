@@ -23,6 +23,12 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun getDeviceInfo(): NativeDeviceInfo
   fun getBatteryStatus(): NativeBatteryStatus
   fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus
+  fun getAudioDevices(): List<NativeAudioDevice>
+  fun getDisplayBrightness(): NativeDisplayBrightness
+  suspend fun setDisplayBrightness(level: Int): NativeCapabilityActionResult
+  suspend fun vibrate(durationMs: Long): NativeCapabilityActionResult
+  fun isWakeLockHeld(): Boolean
+  suspend fun setWakeLock(held: Boolean, durationMs: Long): NativeCapabilityActionResult
   suspend fun setVolume(stream: NativeAudioStream, volume: Int): NativeCapabilityActionResult
   suspend fun setFlashlight(enabled: Boolean): NativeCapabilityActionResult
   fun listLaunchableApps(): List<NativeLaunchableApp>

@@ -69,7 +69,13 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
   }
   append(
     "DEVICE CONTROL TOOL RULES: Use android_control for native device information, battery, " +
-      "volume, launcher-visible apps, flashlight, and HTTP(S) URL actions. Use list_apps before " +
+      "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
+      "launcher-visible apps, flashlight, and HTTP(S) URL actions. Use audio_devices to inspect " +
+      "connected audio endpoints. display_brightness reports the stored system setting and mode; " +
+      "setting brightness requires Android's Modify system settings special access and switches " +
+      "to manual mode only after the user approves the exact change. Vibration is limited to 1 second. " +
+      "Wake locks are partial CPU locks capped at 5 minutes and auto-release at timeout; use " +
+      "wake_lock_status to inspect and set_wake_lock with held=false to release. Use list_apps before " +
       "launch_app and pass an exact returned package_name. Never guess package names. Read-only " +
       "operations do not require approval; every mutation requires the user's one-time approval. " +
       "Report unavailable capabilities and permission requirements honestly. When a tool returns an argument-validation error with accepted arguments, retry once using the same operation and only those accepted arguments; never infer or substitute another operation. Do not use shell " +
