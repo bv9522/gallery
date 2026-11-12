@@ -26,6 +26,12 @@ internal object AndroidControlArguments {
     "device_info" to setOf("operation"),
     "battery_status" to setOf("operation"),
     "volume_status" to setOf("operation", "stream"),
+    "audio_devices" to setOf("operation"),
+    "display_brightness" to setOf("operation"),
+    "set_display_brightness" to setOf("operation", "level"),
+    "vibrate" to setOf("operation", "duration_ms"),
+    "wake_lock_status" to setOf("operation"),
+    "set_wake_lock" to setOf("operation", "held", "duration_ms"),
     "list_apps" to setOf("operation"),
     "set_volume" to setOf("operation", "stream", "volume"),
     "set_flashlight" to setOf("operation", "enabled"),
@@ -35,6 +41,9 @@ internal object AndroidControlArguments {
 
   private val requiredArguments = mapOf(
     "set_volume" to setOf("volume"),
+    "set_display_brightness" to setOf("level"),
+    "vibrate" to setOf("duration_ms"),
+    "set_wake_lock" to setOf("held"),
     "set_flashlight" to setOf("enabled"),
     "launch_app" to setOf("package_name"),
     "open_url" to setOf("url"),
