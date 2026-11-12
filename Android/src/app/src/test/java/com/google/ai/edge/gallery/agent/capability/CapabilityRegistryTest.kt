@@ -129,6 +129,48 @@ class CapabilityRegistryTest {
   }
 
   @Test
+  fun duplicateCapabilityDeclarationsAreRejected() {
+    val capability = AndroidCapability.BATTERY_STATUS
+    val providers = listOf(
+      CapabilityProviderDescriptor(
+        CapabilityProviderId.ANDROID_NATIVE,
+        "Native",
+        ProviderExecutionIdentity.GALLERY_APP_UID,
+        setOf(capability),
+      ),
+      CapabilityProviderDescriptor(
+        CapabilityProviderId.UNIFIED_SHELL,
+        "Shell",
+        ProviderExecutionIdentity.UNIFIED_SHELL_ROUTER,
+        setOf(capability),
+      ),
+    )
+
+    try {
+      CapabilityRegistry(
+        providers,
+        listOf(CapabilityRoutePreference(capability, CapabilityProviderId.ANDROID_NATIVE)),
+      )
+      throw AssertionError("Expected duplicate capability declarations to be rejected.")
+    } catch (expected: IllegalArgumentException) {
+      assertTrue(expected.message.orEmpty().contains("declared by multiple providers"))
+    }
+  }
+
+  @Test
+  fun missingCapabilityOwnerIsRejected() {
+    try {
+      CapabilityRegistry(
+        CapabilityCatalog.providers,
+        CapabilityCatalog.preferences.drop(1),
+      )
+      throw AssertionError("Expected a missing capability owner to be rejected.")
+    } catch (expected: IllegalArgumentException) {
+      assertTrue(expected.message.orEmpty().contains("missing an owner"))
+    }
+  }
+
+  @Test
   fun duplicateProviderObservationsAreRejected() {
     try {
       registry.resolve(
