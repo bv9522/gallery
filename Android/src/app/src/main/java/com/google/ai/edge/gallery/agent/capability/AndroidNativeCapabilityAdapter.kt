@@ -289,7 +289,6 @@ class AndroidNativeCapabilityAdapter(
         )
       }
       .sortedWith(compareBy<NativeAudioDevice> { it.type }.thenBy { it.id })
-      .take(MAX_AUDIO_DEVICES)
   }
 
   private fun audioDeviceTypeName(type: Int): String = when (type) {
@@ -623,7 +622,6 @@ class AndroidNativeCapabilityAdapter(
   }
 
   private companion object {
-    const val MAX_AUDIO_DEVICES = 24
     const val MAX_VIBRATION_DURATION_MS = 1_000L
     const val MAX_WAKE_LOCK_DURATION_MS = 5 * 60 * 1_000L
   }
