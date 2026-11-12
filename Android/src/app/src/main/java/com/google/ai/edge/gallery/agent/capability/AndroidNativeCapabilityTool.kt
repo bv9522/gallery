@@ -73,7 +73,7 @@ class AndroidNativeCapabilityTool internal constructor(
 
   override val name: String = "android_control"
   override val description: String =
-    "Read device, battery, audio-route, brightness, and wake-lock information, inspect volume " +
+    "Read device, battery, connected audio endpoint, brightness, and wake-lock information, inspect volume " +
       "and launchable apps, or perform an approved native Android action. Use status to inspect " +
       "availability of each native Android " +
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
