@@ -69,7 +69,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
   }
   append(
     "DEVICE CONTROL TOOL RULES: Use android_control for native device information, battery, " +
-      "volume, audio input/output routes, display brightness, vibration, bounded CPU wake locks, " +
+      "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, and HTTP(S) URL actions. Use audio_devices to inspect " +
       "connected audio endpoints. display_brightness reports the stored system setting and mode; " +
       "setting brightness requires Android's Modify system settings special access and switches " +
