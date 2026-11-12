@@ -26,12 +26,16 @@ registered as a second automatic owner.
 - Battery status
 - Flashlight availability and control
 - Audio volume read/control
+- Audio input/output device and route discovery (bounded to 24 endpoints)
+- Display brightness setting read/control (write requires Modify system settings special access)
+- Vibration (approval-gated, maximum one-second pulse)
+- Bounded partial CPU wake lock (approval-gated, maximum five-minute timeout with automatic release)
 - Launcher-visible app discovery and app launch
 - HTTP(S) URL opening
 
 ## Remaining capability groups
 
-The canonical ownership document enumerates the full planned scope, including sensors, location,
+The canonical ownership document enumerates the remaining planned scope, including sensors, location,
 Wi-Fi, Bluetooth, NFC, infrared, USB, telephony, contacts, call logs, SMS composition, clipboard,
 notifications, camera, microphone, speech, TTS, biometrics, keystore, downloads, media, sharing,
 wallpaper, scheduling, file operations, SAF document trees, screen capture, and accessibility.
