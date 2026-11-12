@@ -23,9 +23,14 @@ import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
+import android.media.AudioDeviceInfo
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
+import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.VibratorManager
+import android.provider.Settings
 
 /** Small, privacy-conscious device facts suitable for a local agent. */
 data class NativeDeviceInfo(
@@ -68,6 +73,21 @@ data class NativeVolumeStatus(
   val maximum: Int,
 )
 
+data class NativeAudioDevice(
+  val id: Int,
+  val type: String,
+  val productName: String,
+  val source: Boolean,
+  val sink: Boolean,
+)
+
+data class NativeDisplayBrightness(
+  val level: Int?,
+  val maximum: Int = 255,
+  val mode: String,
+  val canModifySystemSettings: Boolean,
+)
+
 data class NativeLaunchableApp(
   val packageName: String,
   val label: String,
@@ -97,6 +117,8 @@ class AndroidNativeCapabilityAdapter(
   private val authorizer: NativeCapabilityAuthorizer,
 ) : NativeCapabilityOperations {
   private val appContext = context.applicationContext
+  private val wakeLockGuard = Any()
+  private var agentWakeLock: PowerManager.WakeLock? = null
 
   override val descriptor: CapabilityProviderDescriptor =
     CapabilityCatalog.providers.first { it.id == CapabilityProviderId.ANDROID_NATIVE }
@@ -120,6 +142,38 @@ class AndroidNativeCapabilityAdapter(
         ProviderAvailability.AVAILABLE
       } else {
         details[AndroidCapability.VOLUME_CONTROL] = "AudioManager is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+
+    capabilities[AndroidCapability.AUDIO_DEVICE_INFO] =
+      if (appContext.getSystemService(AudioManager::class.java) != null) {
+        ProviderAvailability.AVAILABLE
+      } else {
+        details[AndroidCapability.AUDIO_DEVICE_INFO] = "AudioManager is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+
+    capabilities[AndroidCapability.DISPLAY_BRIGHTNESS] =
+      if (runCatching { Settings.System.getInt(appContext.contentResolver, Settings.System.SCREEN_BRIGHTNESS) }.isSuccess) {
+        ProviderAvailability.AVAILABLE
+      } else {
+        details[AndroidCapability.DISPLAY_BRIGHTNESS] = "System brightness settings are unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+
+    capabilities[AndroidCapability.VIBRATION_CONTROL] =
+      if (appContext.getSystemService(VibratorManager::class.java)?.defaultVibrator?.hasVibrator() == true) {
+        ProviderAvailability.AVAILABLE
+      } else {
+        details[AndroidCapability.VIBRATION_CONTROL] = "No system vibrator is available."
+        ProviderAvailability.UNSUPPORTED
+      }
+
+    capabilities[AndroidCapability.WAKE_LOCK] =
+      if (appContext.getSystemService(PowerManager::class.java) != null) {
+        ProviderAvailability.AVAILABLE
+      } else {
+        details[AndroidCapability.WAKE_LOCK] = "PowerManager is unavailable."
         ProviderAvailability.UNSUPPORTED
       }
 
@@ -220,6 +274,174 @@ class AndroidNativeCapabilityAdapter(
         if ((value and BatteryManager.BATTERY_PLUGGED_WIRELESS) != 0) add("WIRELESS")
       }.ifEmpty { listOf("OTHER") }.joinToString("|")
     }
+
+  override fun getAudioDevices(): List<NativeAudioDevice> {
+    val audio = appContext.getSystemService(AudioManager::class.java)
+      ?: return emptyList()
+    return audio.getDevices(AudioManager.GET_DEVICES_ALL)
+      .map { device ->
+        NativeAudioDevice(
+          id = device.id,
+          type = audioDeviceTypeName(device.type),
+          productName = device.productName?.toString().orEmpty().take(80),
+          source = device.isSource,
+          sink = device.isSink,
+        )
+      }
+      .sortedWith(compareBy<NativeAudioDevice> { it.type }.thenBy { it.id })
+      .take(MAX_AUDIO_DEVICES)
+  }
+
+  private fun audioDeviceTypeName(type: Int): String = when (type) {
+    AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "BUILTIN_EARPIECE"
+    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "BUILTIN_SPEAKER"
+    AudioDeviceInfo.TYPE_WIRED_HEADSET -> "WIRED_HEADSET"
+    AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "WIRED_HEADPHONES"
+    AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "BLUETOOTH_SCO"
+    AudioDeviceInfo.TYPE_BLUETOOTH_A2DP -> "BLUETOOTH_A2DP"
+    AudioDeviceInfo.TYPE_HDMI -> "HDMI"
+    AudioDeviceInfo.TYPE_USB_DEVICE -> "USB_DEVICE"
+    AudioDeviceInfo.TYPE_USB_ACCESSORY -> "USB_ACCESSORY"
+    AudioDeviceInfo.TYPE_DOCK -> "DOCK"
+    AudioDeviceInfo.TYPE_BUILTIN_MIC -> "BUILTIN_MIC"
+    AudioDeviceInfo.TYPE_FM -> "FM"
+    AudioDeviceInfo.TYPE_AUX_LINE -> "AUX_LINE"
+    AudioDeviceInfo.TYPE_IP -> "IP"
+    AudioDeviceInfo.TYPE_BUS -> "BUS"
+    AudioDeviceInfo.TYPE_BLE_HEADSET -> "BLE_HEADSET"
+    AudioDeviceInfo.TYPE_BLE_SPEAKER -> "BLE_SPEAKER"
+    AudioDeviceInfo.TYPE_HDMI_ARC -> "HDMI_ARC"
+    AudioDeviceInfo.TYPE_HDMI_EARC -> "HDMI_EARC"
+    AudioDeviceInfo.TYPE_LINE_ANALOG -> "LINE_ANALOG"
+    AudioDeviceInfo.TYPE_LINE_DIGITAL -> "LINE_DIGITAL"
+    AudioDeviceInfo.TYPE_UNKNOWN -> "UNKNOWN"
+    else -> "OTHER_$type"
+  }
+
+  override fun getDisplayBrightness(): NativeDisplayBrightness {
+    val resolver = appContext.contentResolver
+    val level = runCatching {
+      Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS)
+    }.getOrNull()?.takeIf { it in 0..255 }
+    val mode = runCatching {
+      Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE)
+    }.getOrNull()
+    return NativeDisplayBrightness(
+      level = level,
+      mode = if (mode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) "AUTOMATIC" else "MANUAL",
+      canModifySystemSettings = Settings.System.canWrite(appContext),
+    )
+  }
+
+  override suspend fun setDisplayBrightness(level: Int): NativeCapabilityActionResult {
+    if (level !in 0..255) {
+      return NativeCapabilityActionResult(false, "Brightness must be between 0 and 255.")
+    }
+    if (!Settings.System.canWrite(appContext)) {
+      return NativeCapabilityActionResult(
+        false,
+        "Modify system settings access is required. Enable it in Android Settings > Apps > Special app access > Modify system settings, then retry.",
+      )
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.DISPLAY_BRIGHTNESS,
+        "Set display brightness to $level of 255 and use manual brightness mode",
+      )
+    ) {
+      return NativeCapabilityActionResult(false, "Brightness change was not approved.")
+    }
+    return try {
+      val resolver = appContext.contentResolver
+      val modeChanged = Settings.System.putInt(
+        resolver,
+        Settings.System.SCREEN_BRIGHTNESS_MODE,
+        Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
+      )
+      val levelChanged = Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, level)
+      if (modeChanged && levelChanged) {
+        NativeCapabilityActionResult(true, "Display brightness set to $level of 255 (manual mode).")
+      } else {
+        NativeCapabilityActionResult(false, "Android did not accept the brightness setting.")
+      }
+    } catch (error: SecurityException) {
+      NativeCapabilityActionResult(false, "Android denied brightness control: ${error.message}")
+    }
+  }
+
+  override suspend fun vibrate(durationMs: Long): NativeCapabilityActionResult {
+    if (durationMs !in 1L..MAX_VIBRATION_DURATION_MS) {
+      return NativeCapabilityActionResult(
+        false,
+        "Vibration duration must be between 1 and $MAX_VIBRATION_DURATION_MS milliseconds.",
+      )
+    }
+    val vibrator = appContext.getSystemService(VibratorManager::class.java)?.defaultVibrator
+      ?: return NativeCapabilityActionResult(false, "Vibrator service is unavailable.")
+    if (!vibrator.hasVibrator()) {
+      return NativeCapabilityActionResult(false, "This device has no vibrator.")
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.VIBRATION_CONTROL,
+        "Vibrate for $durationMs milliseconds",
+      )
+    ) {
+      return NativeCapabilityActionResult(false, "Vibration was not approved.")
+    }
+    return try {
+      vibrator.vibrate(VibrationEffect.createOneShot(durationMs, VibrationEffect.DEFAULT_AMPLITUDE))
+      NativeCapabilityActionResult(true, "Vibrated for $durationMs milliseconds.")
+    } catch (error: SecurityException) {
+      NativeCapabilityActionResult(false, "Android denied vibration: ${error.message}")
+    }
+  }
+
+  override fun isWakeLockHeld(): Boolean = synchronized(wakeLockGuard) {
+    agentWakeLock?.isHeld == true
+  }
+
+  override suspend fun setWakeLock(
+    held: Boolean,
+    durationMs: Long,
+  ): NativeCapabilityActionResult {
+    if (held && durationMs !in 1L..MAX_WAKE_LOCK_DURATION_MS) {
+      return NativeCapabilityActionResult(
+        false,
+        "Wake-lock duration must be between 1 and $MAX_WAKE_LOCK_DURATION_MS milliseconds.",
+      )
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.WAKE_LOCK,
+        if (held) "Keep the CPU awake for at most $durationMs milliseconds"
+        else "Release the agent CPU wake lock",
+      )
+    ) {
+      return NativeCapabilityActionResult(false, "Wake-lock change was not approved.")
+    }
+    val power = appContext.getSystemService(PowerManager::class.java)
+      ?: return NativeCapabilityActionResult(false, "PowerManager is unavailable.")
+    return synchronized(wakeLockGuard) {
+      try {
+        if (held) {
+          val lock = agentWakeLock ?: power.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "EdgeGallery:AgentCapability",
+          ).apply { setReferenceCounted(false) }.also { agentWakeLock = it }
+          lock.acquire(durationMs)
+          NativeCapabilityActionResult(
+            true,
+            "CPU wake lock acquired for at most $durationMs milliseconds; Android will release it automatically at timeout.",
+          )
+        } else {
+          agentWakeLock?.takeIf { it.isHeld }?.release()
+          NativeCapabilityActionResult(true, "Agent CPU wake lock released.")
+        }
+      } catch (error: SecurityException) {
+        NativeCapabilityActionResult(false, "Android denied wake-lock access: ${error.message}")
+      } catch (error: RuntimeException) {
+        NativeCapabilityActionResult(false, "Wake-lock operation failed: ${error.message}")
+      }
+    }
+  }
 
   override fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus {
     val audio = requireNotNull(appContext.getSystemService(AudioManager::class.java)) {
@@ -382,6 +604,12 @@ class AndroidNativeCapabilityAdapter(
         .takeIf { it.isNotBlank() } ?: packageName
       NativeLaunchableApp(packageName, label)
     }.distinctBy { it.packageName }
+  }
+
+  private companion object {
+    const val MAX_AUDIO_DEVICES = 24
+    const val MAX_VIBRATION_DURATION_MS = 1_000L
+    const val MAX_WAKE_LOCK_DURATION_MS = 5 * 60 * 1_000L
   }
 
   private fun canResolveWebUrl(): Boolean {
