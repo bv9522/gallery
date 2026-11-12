@@ -138,7 +138,7 @@ class CapabilityRegistry(
     val ownedCapabilities = preferences.map { it.capability }.toSet()
     val missingOwnership = declaredCapabilities - ownedCapabilities
     require(missingOwnership.isEmpty()) {
-      "Provider capabilities missing ownership entries: " + missingOwnership.joinToString(", ")
+      "Capabilities missing an owner (provider declarations missing ownership entries): " + missingOwnership.joinToString(", ")
     }
     val unownedCapabilities = AndroidCapability.values().toSet() - ownedCapabilities
     require(unownedCapabilities.isEmpty()) {
