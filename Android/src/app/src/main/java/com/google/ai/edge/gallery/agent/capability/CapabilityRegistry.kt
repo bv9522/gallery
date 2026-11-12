@@ -7,100 +7,31 @@ package com.google.ai.edge.gallery.agent.capability
 
 /** Model-independent capability identifiers, not model-facing tool names. */
 enum class AndroidCapability {
-  DEVICE_INFO,
-  BATTERY_STATUS,
-  FLASHLIGHT_CONTROL,
-  VOLUME_CONTROL,
-  AUDIO_DEVICE_INFO,
-  DISPLAY_BRIGHTNESS,
-  VIBRATION_CONTROL,
-  WAKE_LOCK,
-  SENSOR_READ,
-  SENSOR_STREAM,
-  LOCATION_READ,
-  LOCATION_UPDATES,
-  WIFI_CONNECTION_INFO,
-  WIFI_SCAN,
-  WIFI_CONTROL,
-  BLUETOOTH_DISCOVERY,
-  BLUETOOTH_GATT,
-  NFC_READ,
-  NFC_WRITE,
-  INFRARED_CONTROL,
-  USB_DEVICE_DISCOVERY,
-  USB_DEVICE_IO,
-  APP_DISCOVERY,
-  APP_LAUNCH,
-  OPEN_URL,
-  CONTACT_READ,
-  CALL_LOG_READ,
-  TELEPHONY_INFO,
-  SMS_READ,
-  SMS_COMPOSE,
-  PHONE_CALL_DIAL,
-  CLIPBOARD_READ,
-  CLIPBOARD_WRITE,
-  NOTIFICATION_POST,
-  NOTIFICATION_READ,
-  NOTIFICATION_CHANNEL_MANAGEMENT,
-  CAMERA_INFO,
-  CAMERA_CAPTURE,
-  MICROPHONE_RECORD,
-  SPEECH_RECOGNITION,
-  TEXT_TO_SPEECH,
-  BIOMETRIC_AUTH,
-  KEYSTORE_OPERATION,
-  DOWNLOAD_MANAGEMENT,
-  MEDIA_SCAN,
-  MEDIA_PLAYBACK,
-  MEDIA_SESSION_CONTROL,
-  SHARE_CONTENT,
-  WALLPAPER_CONTROL,
-  BACKGROUND_SCHEDULE,
-  FILE_LIST,
-  FILE_READ,
-  FILE_CREATE,
-  FILE_WRITE,
-  FILE_COPY,
-  FILE_MOVE,
-  FILE_RENAME,
-  FILE_DELETE,
-  FILE_SEARCH,
-  FILE_METADATA_READ,
-  FILE_METADATA_WRITE,
-  DOCUMENT_TREE_LIST,
-  DOCUMENT_TREE_READ,
-  DOCUMENT_TREE_CREATE,
-  DOCUMENT_TREE_WRITE,
-  DOCUMENT_TREE_COPY,
-  DOCUMENT_TREE_MOVE,
-  DOCUMENT_TREE_RENAME,
-  DOCUMENT_TREE_DELETE,
-  DOCUMENT_TREE_SEARCH,
-  DOCUMENT_TREE_METADATA_READ,
-  DOCUMENT_TREE_METADATA_WRITE,
-  SCREEN_CAPTURE,
-  UI_TREE_READ,
-  UI_GESTURE,
-  UI_TEXT_INPUT,
+  DEVICE_INFO, BATTERY_STATUS, FLASHLIGHT_CONTROL, VOLUME_CONTROL, AUDIO_DEVICE_INFO,
+  DISPLAY_BRIGHTNESS, VIBRATION_CONTROL, WAKE_LOCK, SENSOR_READ, SENSOR_STREAM,
+  LOCATION_READ, LOCATION_UPDATES, WIFI_CONNECTION_INFO, WIFI_SCAN, WIFI_CONTROL,
+  BLUETOOTH_DISCOVERY, BLUETOOTH_GATT, NFC_READ, NFC_WRITE, INFRARED_CONTROL,
+  USB_DEVICE_DISCOVERY, USB_DEVICE_IO, APP_DISCOVERY, APP_LAUNCH, OPEN_URL,
+  CONTACT_READ, CALL_LOG_READ, TELEPHONY_INFO, SMS_READ, SMS_COMPOSE, PHONE_CALL_DIAL,
+  CLIPBOARD_READ, CLIPBOARD_WRITE, NOTIFICATION_POST, NOTIFICATION_READ,
+  NOTIFICATION_CHANNEL_MANAGEMENT, CAMERA_INFO, CAMERA_CAPTURE, MICROPHONE_RECORD,
+  SPEECH_RECOGNITION, TEXT_TO_SPEECH, BIOMETRIC_AUTH, KEYSTORE_OPERATION,
+  DOWNLOAD_MANAGEMENT, MEDIA_SCAN, MEDIA_PLAYBACK, MEDIA_SESSION_CONTROL, SHARE_CONTENT,
+  WALLPAPER_CONTROL, BACKGROUND_SCHEDULE, FILE_LIST, FILE_READ, FILE_CREATE, FILE_WRITE,
+  FILE_COPY, FILE_MOVE, FILE_RENAME, FILE_DELETE, FILE_SEARCH, FILE_METADATA_READ,
+  FILE_METADATA_WRITE, DOCUMENT_TREE_LIST, DOCUMENT_TREE_READ, DOCUMENT_TREE_CREATE,
+  DOCUMENT_TREE_WRITE, DOCUMENT_TREE_COPY, DOCUMENT_TREE_MOVE, DOCUMENT_TREE_RENAME,
+  DOCUMENT_TREE_DELETE, DOCUMENT_TREE_SEARCH, DOCUMENT_TREE_METADATA_READ,
+  DOCUMENT_TREE_METADATA_WRITE, SCREEN_CAPTURE, UI_TREE_READ, UI_GESTURE, UI_TEXT_INPUT,
 }
 
-/**
- * These are capability owners, not execution transports. The unified shell router owns
- * path-based file operations; its TERMUX, SHIZUKU, and RISH backends remain internal transports.
- */
+/** Capability owners, not execution transports. */
 enum class CapabilityProviderId {
-  UNIFIED_SHELL,
-  ANDROID_NATIVE,
-  ANDROID_ACCESSIBILITY,
-  ANDROID_DOCUMENTS,
+  UNIFIED_SHELL, ANDROID_NATIVE, ANDROID_ACCESSIBILITY, ANDROID_DOCUMENTS,
 }
 
 enum class ProviderExecutionIdentity {
-  UNIFIED_SHELL_ROUTER,
-  GALLERY_APP_UID,
-  ACCESSIBILITY_SERVICE,
-  USER_GRANTED_DOCUMENT_URI,
+  UNIFIED_SHELL_ROUTER, GALLERY_APP_UID, ACCESSIBILITY_SERVICE, USER_GRANTED_DOCUMENT_URI,
 }
 
 enum class ProviderAvailability {
@@ -123,7 +54,6 @@ data class CapabilityProviderDescriptor(
 data class CapabilityRoutePreference(
   val capability: AndroidCapability,
   val providerId: CapabilityProviderId,
-  /** Retained for stable serialization; the sole owner always has priority 1. */
   val priority: Int = 1,
 ) {
   init {
@@ -131,11 +61,6 @@ data class CapabilityRoutePreference(
   }
 }
 
-/**
- * Provider-wide availability is retained for simple providers. Native providers can report
- * capability-specific availability because a phone may lack a flash LED while its battery
- * and audio framework services remain available.
- */
 data class CapabilityProviderObservation(
   val providerId: CapabilityProviderId,
   val availability: ProviderAvailability,
@@ -166,9 +91,8 @@ interface CapabilityProviderProbe {
 }
 
 /**
- * Pure Kotlin ownership and availability policy. A capability has exactly one owner.
- * Missing observations are UNKNOWN, never AVAILABLE. Execution backend selection remains
- * the responsibility of the unified shell router and existing explicit backend controls.
+ * Pure Kotlin ownership and availability policy. Every capability has exactly one declared
+ * provider and one owner entry. Shell backend selection remains inside the unified shell router.
  */
 class CapabilityRegistry(
   providers: List<CapabilityProviderDescriptor>,
@@ -184,6 +108,16 @@ class CapabilityRegistry(
     }
     providersById = providers.associateBy { it.id }
 
+    val duplicateDeclarations = providers
+      .flatMap { provider -> provider.capabilities.map { it to provider.id } }
+      .groupBy { it.first }
+      .filterValues { it.size > 1 }
+      .keys
+    require(duplicateDeclarations.isEmpty()) {
+      "A capability cannot be declared by multiple providers: " +
+        duplicateDeclarations.joinToString(", ")
+    }
+
     preferences.forEach { ownership ->
       val provider = providersById[ownership.providerId]
         ?: throw IllegalArgumentException(
@@ -194,10 +128,8 @@ class CapabilityRegistry(
       }
     }
 
-    val duplicateOwners = preferences
-      .groupBy { it.capability }
-      .filterValues { it.size > 1 }
-      .keys
+    val duplicateOwners = preferences.groupBy { it.capability }
+      .filterValues { it.size > 1 }.keys
     require(duplicateOwners.isEmpty()) {
       "Each capability must have exactly one owner: " + duplicateOwners.joinToString(", ")
     }
@@ -207,6 +139,10 @@ class CapabilityRegistry(
     val missingOwnership = declaredCapabilities - ownedCapabilities
     require(missingOwnership.isEmpty()) {
       "Provider capabilities missing ownership entries: " + missingOwnership.joinToString(", ")
+    }
+    val unownedCapabilities = AndroidCapability.values().toSet() - ownedCapabilities
+    require(unownedCapabilities.isEmpty()) {
+      "Capabilities missing an owner: " + unownedCapabilities.joinToString(", ")
     }
 
     preferencesByCapability = preferences.associateBy { it.capability }
@@ -250,15 +186,12 @@ class CapabilityRegistry(
     capability: AndroidCapability,
     observations: Collection<CapabilityProviderObservation>,
   ): CapabilityResolution {
-    val duplicateObservations = observations
-      .groupBy { it.providerId }
-      .filterValues { it.size > 1 }
-      .keys
+    val duplicateObservations = observations.groupBy { it.providerId }
+      .filterValues { it.size > 1 }.keys
     require(duplicateObservations.isEmpty()) {
       "Duplicate provider observations: " + duplicateObservations.joinToString(", ")
     }
-    val owner = preferencesByCapability[capability]
-      ?: return CapabilityResolution(capability, null, emptyList())
+    val owner = preferencesByCapability.getValue(capability)
     val observation = observations.firstOrNull { it.providerId == owner.providerId }
     val candidate = CapabilityCandidate(
       providerId = owner.providerId,
