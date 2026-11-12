@@ -42,6 +42,25 @@ internal object NativeCapabilityResultFormatter {
     "voltageMillivolts=${status.voltageMillivolts?.toString() ?: "unknown"}",
   ).joinToString("\n")
 
+  fun audioDevices(devices: List<NativeAudioDevice>): String = buildString {
+    appendLine("returned=${devices.size}")
+    appendLine("truncated=false")
+    if (devices.isEmpty()) {
+      append("No audio input or output devices were reported.")
+    } else {
+      append(devices.joinToString("\n") { device ->
+        "id=${device.id},type=${device.type},name=${oneLine(device.productName)},source=${device.source},sink=${device.sink}"
+      })
+    }
+  }
+
+  fun displayBrightness(brightness: NativeDisplayBrightness): String = listOf(
+    "brightnessLevel=${brightness.level?.toString() ?: "unknown"}",
+    "brightnessMaximum=${brightness.maximum}",
+    "brightnessMode=${brightness.mode}",
+    "canModifySystemSettings=${brightness.canModifySystemSettings}",
+  ).joinToString("\n")
+
   fun providerAvailability(observation: CapabilityProviderObservation): String = buildString {
     appendLine("provider=${observation.providerId.name}")
     appendLine("providerAvailability=${observation.availability.name}")
