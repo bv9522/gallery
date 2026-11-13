@@ -154,7 +154,7 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("timeout_ms", JsonObject().apply {
           addProperty("type", "integer")
-          addProperty("description", "Bluetooth GATT connection and service discovery timeout, 5000–20000 ms; defaults to 15000.")
+          addProperty("description", "Overall Bluetooth GATT connection, discovery, and characteristic operation timeout, 5000–20000 ms; defaults to 15000.")
         })
         add("service_uuid", JsonObject().apply {
           addProperty("type", "string")
