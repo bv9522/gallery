@@ -40,7 +40,8 @@ internal object TermuxApiReadCommand {
     val names = sensorNames.map { raw ->
       val name = raw.trim()
       require(sensorNamePattern.matches(name)) { "Invalid sensor name." }
-      require(normalizedAvailable.contains(name.lowercase())) {
+      val exactName = Regex("(?i)(?<![A-Za-z0-9])${Regex.escape(name)}(?![A-Za-z0-9])")
+      require(exactName.containsMatchIn(availableSensorOutput)) {
         "Sensor '$name' was not present in the latest Termux sensor listing."
       }
       name
