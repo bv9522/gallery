@@ -22,16 +22,20 @@ Android capability provider, the other is a general shell execution transport.
 | INFRARED_CONTROL | termux-infrared-frequencies, termux-infrared-transmit | Report hardware support; bound carrier frequency and pulse pattern (upstream script documents patterns shorter than two seconds); Phase 5B draft handler checks a fresh frequency query and requires approval to transmit |
 | CAMERA_INFO / CAMERA_CAPTURE | termux-camera-info, termux-camera-photo | Basic camera metadata and still JPEG capture to an approved path; advanced sessions remain native if needed |
 | MICROPHONE_RECORD | termux-microphone-record | File-based recording only; explicit approval, bounded duration, output path, and stop/cleanup |
-| SPEECH_RECOGNITION | termux-speech-to-text | Basic interactive speech recognition and text output; not a persistent background transcription service |
-| TEXT_TO_SPEECH | termux-tts-engines, termux-tts-speak | Ordinary speech synthesis; Phase 5B draft handler bounds speech text to 500 characters and requires approval; native Android TextToSpeech is available as a framework API but is not currently registered as a Gallery capability, so do not add a duplicate route without an explicit ownership rebalance |
 | WALLPAPER_CONTROL | termux-wallpaper | Basic image-file wallpaper setting; explicit approval |
 
-These are selected owners in the catalog. The Phase 5A draft contains fixed handlers for sensor
+These are selected owners in the catalog. Speech recognition and text-to-speech are intentionally excluded from this Termux list and assigned to Gallery's native ASR/TTS stacks. The Phase 5A draft contains fixed handlers for sensor
 listing/finite reads, location once/last, and Wi-Fi connection/last-scan reads, but all four
 capabilities remain **Planned and not production-available** until current-head unit tests, the
 debug build, and target-device acceptance pass. The remaining command families are also planned.
 
 ## Keep these capabilities native
+
+| Capability | Native implementation | Ownership reason |
+|---|---|---|
+| SPEECH_RECOGNITION | Gallery AsrServiceProvider (Android SpeechRecognizer, ML Kit ASR, MediaPipe SpeechProcessor) | The chat microphone already uses Gallery's native ASR lifecycle; recording remains user-initiated through hold-to-dictate |
+| TEXT_TO_SPEECH | Gallery TtsServiceProvider (Android platform TextToSpeech, ML Kit GenAI TTS, MediaPipe TTS) | Gallery already owns engine selection, voice/language settings, and chat playback; do not duplicate this with Termux:API |
+
 
 | Capability group | Why native remains preferable |
 |---|---|
