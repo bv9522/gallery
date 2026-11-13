@@ -147,6 +147,51 @@ class DocumentTreeCapabilityToolTest {
   }
 
   @Test
+  fun generatedTextFileAndCrossTreeTransfersDispatchExactGrantIdentifiers() = runBlocking {
+    val operations = FakeOperations()
+    val tool = DocumentTreeCapabilityTool(operations)
+    val usbTree = "content://com.android.externalstorage.documents/tree/ABCD-1234%3A"
+    val generated = tool.execute(arguments("create_text_file").apply {
+      addProperty("tree_uri", treeUri)
+      addProperty("parent_document_id", "primary:Documents/Reports")
+      addProperty("name", "summary.md")
+      addProperty("mime_type", "text/markdown")
+      addProperty("text", "# Summary")
+    })
+    val copied = tool.execute(arguments("copy_between_trees").apply {
+      addProperty("tree_uri", treeUri)
+      addProperty("document_id", "primary:Documents/report.pdf")
+      addProperty("target_tree_uri", usbTree)
+      addProperty("target_parent_document_id", "ABCD-1234:")
+    })
+    val moved = tool.execute(arguments("move_between_trees").apply {
+      addProperty("tree_uri", usbTree)
+      addProperty("document_id", "ABCD-1234:/archive/report.pdf")
+      addProperty("target_tree_uri", treeUri)
+      addProperty("target_parent_document_id", "primary:Documents/Archive")
+    })
+    assertTrue(generated.isSuccessful)
+    assertTrue(copied.isSuccessful)
+    assertTrue(moved.isSuccessful)
+    assertTrue(operations.calls.contains("create_text_file:" + treeUri + ":primary:Documents/Reports:summary.md:text/markdown:# Summary"))
+    assertTrue(operations.calls.contains("copy_between_trees:" + treeUri + ":primary:Documents/report.pdf:" + usbTree + ":ABCD-1234:"))
+    assertTrue(operations.calls.contains("move_between_trees:" + usbTree + ":ABCD-1234:/archive/report.pdf:" + treeUri + ":primary:Documents/Archive"))
+  }
+
+  @Test
+  fun crossTreeOperationsRejectMissingTargetGrantArgumentsBeforeDispatch() = runBlocking {
+    val operations = FakeOperations()
+    val tool = DocumentTreeCapabilityTool(operations)
+    val copy = tool.execute(arguments("copy_between_trees").apply {
+      addProperty("tree_uri", treeUri)
+      addProperty("document_id", "primary:Documents/a.txt")
+      addProperty("target_parent_document_id", "primary:Documents/Backup")
+    })
+    assertFalse(copy.isSuccessful)
+    assertTrue(operations.calls.isEmpty())
+  }
+
+  @Test
   fun generalMetadataWriteRemainsUnsupported() = runBlocking {
     val tool = DocumentTreeCapabilityTool(FakeOperations())
     assertFalse(tool.execute(arguments("metadata_write")).isSuccessful)
@@ -235,6 +280,13 @@ class DocumentTreeCapabilityToolTest {
       return "content://created/" + name
     }
 
+    override suspend fun createTextFile(
+      treeUri: String, parentDocumentId: String?, name: String, mimeType: String, text: String,
+    ): String {
+      calls += "create_text_file:" + treeUri + ":" + (parentDocumentId ?: "root") + ":" + name + ":" + mimeType + ":" + text
+      return "content://created/" + name
+    }
+
     override suspend fun createDirectory(treeUri: String, parentDocumentId: String?, name: String): String {
       calls += "create_directory:" + treeUri + ":" + (parentDocumentId ?: "root") + ":" + name
       return "content://created/" + name
@@ -268,6 +320,20 @@ class DocumentTreeCapabilityToolTest {
     ): String {
       calls += "move:" + treeUri + ":" + documentId + ":" + sourceParentDocumentId + ":" + targetParentDocumentId
       return "content://moved"
+    }
+
+    override suspend fun copyBetweenTrees(
+      sourceTreeUri: String, documentId: String, targetTreeUri: String, targetParentDocumentId: String,
+    ): String {
+      calls += "copy_between_trees:" + sourceTreeUri + ":" + documentId + ":" + targetTreeUri + ":" + targetParentDocumentId
+      return "Copied across trees."
+    }
+
+    override suspend fun moveBetweenTrees(
+      sourceTreeUri: String, documentId: String, targetTreeUri: String, targetParentDocumentId: String,
+    ): String {
+      calls += "move_between_trees:" + sourceTreeUri + ":" + documentId + ":" + targetTreeUri + ":" + targetParentDocumentId
+      return "Moved across trees."
     }
 
     override suspend fun search(treeUri: String, query: String, parentDocumentId: String?): DocumentSearchResult {

@@ -89,7 +89,10 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
 
 - Gallery owns a dedicated `document_tree` tool backed by DocumentsContract and user-persisted
   tree grants. It supports grant listing, folder picker, bounded listing, metadata, text read/write,
-  text file and directory creation, rename, delete, same-tree copy/move, and bounded name-only search.
+  one-step generated text-file creation, directory creation, rename, delete, same-tree copy/move,
+  cross-tree file copy/move between separately granted folders, and bounded name-only search.
+  Cross-tree transfer is file-only and capped at 100 MiB; a move deletes the source only after the
+  destination copy completes.
 - Tree access is scoped to exact persisted Gallery URI grants. Model-supplied raw paths and arbitrary
   URIs are rejected. Text I/O is capped at 256 KiB and listings at 100 entries. Search is limited to
   500 visited entries, depth 4, and 50 results; it never searches file contents. General metadata

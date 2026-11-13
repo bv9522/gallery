@@ -339,10 +339,12 @@ version compatibility must be verified on-device before an operation is marked i
   explicitly chooses a folder or attached USB drive through the system picker; Gallery persists
   only the returned tree URI grant. Tool operations require that exact persisted tree URI and use
   document IDs returned by the provider, never model-supplied filesystem paths.
-- Implemented across Phases 7A–7B: grant listing, picker-based access, bounded child listing (100
-  entries), metadata reads, UTF-8 text reads/writes capped at 256 KiB, text-file/directory creation,
-  rename, delete, same-tree copy/move, and bounded name-only search (500 visited entries, depth 4,
-  50 results). Mutations and private reads require scoped approval.
+- Implemented across Phases 7A–7C: grant listing, picker-based access, bounded child listing (100
+  entries), metadata reads, UTF-8 text reads/writes capped at 256 KiB, one-step generated text-file
+  creation, directory creation, rename, delete, same-tree copy/move, cross-tree file copy/move
+  between separately granted trees (100 MiB maximum), and bounded name-only search (500 visited
+  entries, depth 4, 50 results). Cross-tree move deletes the source only after a complete destination
+  copy; directory transfer remains unsupported. Mutations and private reads require scoped approval.
 - General metadata writes remain unsupported. USB mass-storage file access uses SAF; UsbManager
   enumeration does not grant raw filesystem access.
 
@@ -356,3 +358,11 @@ version compatibility must be verified on-device before an operation is marked i
   depth 4, and 50 results, and reports when the result set may be truncated.
 - General metadata writes remain unsupported; rename remains a separate, explicitly approved
   operation. No arbitrary paths or cross-tree URI operations are accepted.
+
+### Wave 4C — SAF cross-tree file transfer and generated text files (draft code; acceptance pending)
+
+- Adds `create_text_file` to create and populate an allowlisted UTF-8 text document in one approved operation, capped at 256 KiB.
+- Adds `copy_between_trees` and `move_between_trees` for files between two separately persisted Gallery tree grants, such as internal storage and an attached USB drive.
+- Transfers stream in 32 KiB chunks, enforce a 100 MiB maximum even when provider metadata omits size, and remove incomplete destination files when cleanup succeeds. Cleanup failures and partial moves are reported explicitly.
+- Cross-tree move deletes the source only after the destination stream completes. Directory transfer, arbitrary MIME types, raw paths, and arbitrary URIs remain unsupported.
+

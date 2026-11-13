@@ -34,7 +34,8 @@ class DocumentTreeCapabilityTool internal constructor(
       "children, read_text for bounded text files, create_file/create_directory to create items, write_text to write " +
       "text, rename/delete for explicit file management, and metadata for document details. The user must select " +
       "the folder or USB drive; no raw filesystem paths, arbitrary URIs, or shell commands are accepted. " +
-      "Read and write actions require scoped approval. Copy/move are same-tree operations; search matches names " +
+      "Read and write actions require scoped approval. Cross-tree file copy/move is supported between two separately granted trees; directory transfer is not. " +
+      "create_text_file creates and populates a bounded UTF-8 document in one approved operation. Search matches names " +
       "only and is bounded to 500 visited entries, depth 4, and 50 results. General metadata writes are not supported."
 
   override val parametersSchema: JsonObject
@@ -46,11 +47,13 @@ class DocumentTreeCapabilityTool internal constructor(
           add("enum", JsonArray().apply {
             listOf(
               "status", "grants", "request_access", "list", "metadata", "read_text",
-              "create_file", "create_directory", "write_text", "rename", "delete", "copy", "move", "search",
+              "create_file", "create_text_file", "create_directory", "write_text", "rename", "delete", "copy", "move",
+              "copy_between_trees", "move_between_trees", "search",
             ).forEach { add(it) }
           })
         })
         add("tree_uri", JsonObject().apply { addProperty("type", "string") })
+        add("target_tree_uri", JsonObject().apply { addProperty("type", "string") })
         add("parent_document_id", JsonObject().apply { addProperty("type", "string") })
         add("source_parent_document_id", JsonObject().apply { addProperty("type", "string") })
         add("target_parent_document_id", JsonObject().apply { addProperty("type", "string") })
@@ -115,6 +118,15 @@ class DocumentTreeCapabilityTool internal constructor(
             arguments.string("mime_type") ?: "text/plain",
           ),
         )
+        "create_text_file" -> AgentToolResult(
+          operations.createTextFile(
+            arguments.requiredString("tree_uri"),
+            arguments.string("parent_document_id"),
+            arguments.requiredString("name"),
+            arguments.string("mime_type") ?: "text/plain",
+            arguments.requiredString("text"),
+          ),
+        )
         "create_directory" -> AgentToolResult(
           operations.createDirectory(
             arguments.requiredString("tree_uri"),
@@ -161,6 +173,22 @@ class DocumentTreeCapabilityTool internal constructor(
             arguments.requiredString("target_parent_document_id"),
           ),
         )
+        "copy_between_trees" -> AgentToolResult(
+          operations.copyBetweenTrees(
+            arguments.requiredString("tree_uri"),
+            arguments.requiredString("document_id"),
+            arguments.requiredString("target_tree_uri"),
+            arguments.requiredString("target_parent_document_id"),
+          ),
+        )
+        "move_between_trees" -> AgentToolResult(
+          operations.moveBetweenTrees(
+            arguments.requiredString("tree_uri"),
+            arguments.requiredString("document_id"),
+            arguments.requiredString("target_tree_uri"),
+            arguments.requiredString("target_parent_document_id"),
+          ),
+        )
         "search" -> AgentToolResult(
           Gson().toJson(
             operations.search(
@@ -199,11 +227,14 @@ class DocumentTreeCapabilityTool internal constructor(
       "metadata" to setOf("operation", "tree_uri", "document_id"),
       "read_text" to setOf("operation", "tree_uri", "document_id"),
       "create_file" to setOf("operation", "tree_uri", "parent_document_id", "name", "mime_type"),
+      "create_text_file" to setOf("operation", "tree_uri", "parent_document_id", "name", "mime_type", "text"),
       "create_directory" to setOf("operation", "tree_uri", "parent_document_id", "name"),
       "write_text" to setOf("operation", "tree_uri", "document_id", "text"),
       "rename" to setOf("operation", "tree_uri", "document_id", "new_name"),
       "delete" to setOf("operation", "tree_uri", "document_id"),
       "copy" to setOf("operation", "tree_uri", "document_id", "target_parent_document_id"),
+      "copy_between_trees" to setOf("operation", "tree_uri", "document_id", "target_tree_uri", "target_parent_document_id"),
+      "move_between_trees" to setOf("operation", "tree_uri", "document_id", "target_tree_uri", "target_parent_document_id"),
       "move" to setOf("operation", "tree_uri", "document_id", "source_parent_document_id", "target_parent_document_id"),
       "search" to setOf("operation", "tree_uri", "query", "parent_document_id"),
     )
@@ -212,11 +243,14 @@ class DocumentTreeCapabilityTool internal constructor(
       "metadata" to setOf("tree_uri", "document_id"),
       "read_text" to setOf("tree_uri", "document_id"),
       "create_file" to setOf("tree_uri", "name"),
+      "create_text_file" to setOf("tree_uri", "name", "text"),
       "create_directory" to setOf("tree_uri", "name"),
       "write_text" to setOf("tree_uri", "document_id", "text"),
       "rename" to setOf("tree_uri", "document_id", "new_name"),
       "delete" to setOf("tree_uri", "document_id"),
       "copy" to setOf("tree_uri", "document_id", "target_parent_document_id"),
+      "copy_between_trees" to setOf("tree_uri", "document_id", "target_tree_uri", "target_parent_document_id"),
+      "move_between_trees" to setOf("tree_uri", "document_id", "target_tree_uri", "target_parent_document_id"),
       "move" to setOf("tree_uri", "document_id", "source_parent_document_id", "target_parent_document_id"),
       "search" to setOf("tree_uri", "query"),
     )

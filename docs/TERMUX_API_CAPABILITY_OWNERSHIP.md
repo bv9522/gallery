@@ -23,7 +23,7 @@ Android capability provider, the other is a general shell execution transport.
 | CAMERA_INFO / CAMERA_CAPTURE | termux-camera-info, termux-camera-photo | Basic camera metadata and still JPEG capture to an approved path; advanced sessions remain native if needed |
 | MICROPHONE_RECORD | termux-microphone-record | File-based recording only; explicit approval, bounded duration, output path, and stop/cleanup |
 | SPEECH_RECOGNITION | termux-speech-to-text | Basic interactive speech recognition and text output; not a persistent background transcription service |
-| TEXT_TO_SPEECH | termux-tts-engines, termux-tts-speak | Ordinary speech synthesis; Phase 5B draft handler bounds speech text to 500 characters and requires approval; native only if Gallery needs richer playback/session control |
+| TEXT_TO_SPEECH | termux-tts-engines, termux-tts-speak | Ordinary speech synthesis; Phase 5B draft handler bounds speech text to 500 characters and requires approval; native Android TextToSpeech is available as a framework API but is not currently registered as a Gallery capability, so do not add a duplicate route without an explicit ownership rebalance |
 | WALLPAPER_CONTROL | termux-wallpaper | Basic image-file wallpaper setting; explicit approval |
 
 These are selected owners in the catalog. The Phase 5A draft contains fixed handlers for sensor

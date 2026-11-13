@@ -14,6 +14,8 @@ import android.provider.DocumentsContract
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
@@ -48,12 +50,15 @@ interface DocumentTreeOperations : CapabilityProviderProbe {
   suspend fun metadata(treeUri: String, documentId: String): DocumentEntry
   suspend fun readText(treeUri: String, documentId: String): DocumentText
   suspend fun createFile(treeUri: String, parentDocumentId: String?, name: String, mimeType: String): String
+  suspend fun createTextFile(treeUri: String, parentDocumentId: String?, name: String, mimeType: String, text: String): String
   suspend fun createDirectory(treeUri: String, parentDocumentId: String?, name: String): String
   suspend fun writeText(treeUri: String, documentId: String, text: String): Long
   suspend fun rename(treeUri: String, documentId: String, newName: String): String
   suspend fun delete(treeUri: String, documentId: String): Boolean
   suspend fun copy(treeUri: String, documentId: String, targetParentDocumentId: String): String
   suspend fun move(treeUri: String, documentId: String, sourceParentDocumentId: String, targetParentDocumentId: String): String
+  suspend fun copyBetweenTrees(sourceTreeUri: String, documentId: String, targetTreeUri: String, targetParentDocumentId: String): String
+  suspend fun moveBetweenTrees(sourceTreeUri: String, documentId: String, targetTreeUri: String, targetParentDocumentId: String): String
   suspend fun search(treeUri: String, query: String, parentDocumentId: String?): DocumentSearchResult
 }
 
@@ -229,6 +234,47 @@ class AndroidDocumentTreeAdapter(
     }
   }
 
+  override suspend fun createTextFile(
+    treeUri: String,
+    parentDocumentId: String?,
+    name: String,
+    mimeType: String,
+    text: String,
+  ): String {
+    val tree = requireTreeGrant(treeUri, write = true)
+    validateName(name)
+    require(mimeType in ALLOWED_CREATE_MIME_TYPES) { "mime_type is not in the supported text-file MIME allowlist." }
+    val bytes = text.toByteArray(StandardCharsets.UTF_8)
+    require(bytes.size <= MAX_TEXT_BYTES) { "Text exceeds $MAX_TEXT_BYTES bytes." }
+    authorize(
+      AndroidCapability.DOCUMENT_TREE_CREATE,
+      "Create and populate '" + name + "' (" + mimeType + ", " + bytes.size + " UTF-8 bytes). Preview: " + text.take(80),
+    )
+    return withContext(Dispatchers.IO) {
+      val parentId = parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree)
+      val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
+      val created = DocumentsContract.createDocument(resolver, parent, mimeType, name)
+        ?: throw IllegalStateException("The document provider refused to create '" + name + "'.")
+      try {
+        val stream = resolver.openOutputStream(created, "wt")
+          ?: throw IllegalStateException("Could not open the new document for writing.")
+        stream.use { output -> output.write(bytes); output.flush() }
+        created.toString()
+      } catch (error: Throwable) {
+        val removed = runCatching { DocumentsContract.deleteDocument(resolver, created) }.getOrNull() == true
+        if (removed) throw error
+        if (error is CancellationException) {
+          error.addSuppressed(IllegalStateException("Cleanup was not confirmed for " + created + "."))
+          throw error
+        }
+        throw IllegalStateException(
+          "The document was created but could not be fully written; cleanup was not confirmed for " + created + ".",
+          error,
+        )
+      }
+    }
+  }
+
   override suspend fun createDirectory(treeUri: String, parentDocumentId: String?, name: String): String {
     val tree = requireTreeGrant(treeUri, write = true)
     validateName(name)
@@ -327,6 +373,116 @@ class AndroidDocumentTreeAdapter(
         ?: throw IllegalStateException("The document provider refused to move '" + entry.displayName + "'.")
       moved.toString()
     }
+  }
+
+  override suspend fun copyBetweenTrees(
+    sourceTreeUri: String,
+    documentId: String,
+    targetTreeUri: String,
+    targetParentDocumentId: String,
+  ): String = transferBetweenTrees(
+    sourceTreeUri, documentId, targetTreeUri, targetParentDocumentId, move = false,
+  )
+
+  override suspend fun moveBetweenTrees(
+    sourceTreeUri: String,
+    documentId: String,
+    targetTreeUri: String,
+    targetParentDocumentId: String,
+  ): String = transferBetweenTrees(
+    sourceTreeUri, documentId, targetTreeUri, targetParentDocumentId, move = true,
+  )
+
+  private suspend fun transferBetweenTrees(
+    sourceTreeUri: String,
+    documentId: String,
+    targetTreeUri: String,
+    targetParentDocumentId: String,
+    move: Boolean,
+  ): String {
+    val sourceTree = requireTreeGrant(sourceTreeUri, write = move)
+    val targetTree = requireTreeGrant(targetTreeUri, write = true)
+    val entry = withContext(Dispatchers.IO) { queryMetadata(sourceTree, documentId) }
+    require(entry.mimeType != DocumentsContract.Document.MIME_TYPE_DIR) {
+      "Cross-tree transfer currently supports files only; directory transfer is not supported."
+    }
+    require(entry.sizeBytes == null || entry.sizeBytes <= MAX_TRANSFER_BYTES) {
+      "The document exceeds the cross-tree transfer limit of $MAX_TRANSFER_BYTES bytes."
+    }
+    val targetParent = withContext(Dispatchers.IO) { queryMetadata(targetTree, targetParentDocumentId) }
+    require(targetParent.mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
+      "The destination document must be a directory."
+    }
+    val capability = if (move) AndroidCapability.DOCUMENT_TREE_MOVE else AndroidCapability.DOCUMENT_TREE_COPY
+    val action = if (move) "Move" else "Copy"
+    authorize(
+      capability,
+      action + " '" + entry.displayName + "' from the selected source tree to '" + targetParent.displayName + "'. " +
+        if (move) "The source will be deleted only after the destination copy completes." else "The source will remain unchanged.",
+    )
+    val source = DocumentsContract.buildDocumentUriUsingTree(sourceTree, documentId)
+    val destination = withContext(Dispatchers.IO) {
+      var created: Uri? = null
+      try {
+        val parent = DocumentsContract.buildDocumentUriUsingTree(targetTree, targetParentDocumentId)
+        val destinationUri = DocumentsContract.createDocument(resolver, parent, entry.mimeType, entry.displayName)
+          ?: throw IllegalStateException("The destination provider refused to create '" + entry.displayName + "'.")
+        created = destinationUri
+        val input = resolver.openInputStream(source)
+          ?: throw IllegalStateException("Could not open the source document for reading.")
+        var total = 0L
+        input.use { sourceStream ->
+          val output = resolver.openOutputStream(destinationUri, "wt")
+            ?: throw IllegalStateException("Could not open the destination document for writing.")
+          output.use { targetStream ->
+            val buffer = ByteArray(32 * 1024)
+            while (true) {
+              currentCoroutineContext().ensureActive()
+              val count = sourceStream.read(buffer)
+              if (count < 0) break
+              total += count
+              require(total <= MAX_TRANSFER_BYTES) {
+                "The document exceeded the cross-tree transfer limit of $MAX_TRANSFER_BYTES bytes."
+              }
+              targetStream.write(buffer, 0, count)
+            }
+            targetStream.flush()
+          }
+        }
+        destinationUri
+      } catch (error: Throwable) {
+        val removed = created?.let {
+          runCatching { DocumentsContract.deleteDocument(resolver, it) }.getOrNull()
+        } == true
+        if (removed) throw error
+        if (error is CancellationException) {
+          error.addSuppressed(IllegalStateException("Cleanup of the incomplete destination could not be confirmed; a partial file may remain."))
+          throw error
+        }
+        throw IllegalStateException(
+          "The transfer failed and cleanup of the incomplete destination could not be confirmed; a partial file may remain.",
+          error,
+        )
+      }
+    }
+    if (move) {
+      val removed = try {
+        withContext(Dispatchers.IO) { DocumentsContract.deleteDocument(resolver, source) }
+      } catch (error: Throwable) {
+        if (error is CancellationException) throw error
+        throw IllegalStateException(
+          "The destination copy was created at " + destination + ", but source deletion failed; both copies may remain.",
+          error,
+        )
+      }
+      if (!removed) {
+        throw IllegalStateException(
+          "The destination copy was created at " + destination + ", but the source could not be deleted and remains in place.",
+        )
+      }
+    }
+    return if (move) "Moved '" + entry.displayName + "' to " + destination + "; source deleted."
+    else "Copied '" + entry.displayName + "' to " + destination + "; source unchanged."
   }
 
   override suspend fun search(
@@ -453,6 +609,7 @@ class AndroidDocumentTreeAdapter(
     const val MAX_LIST_ENTRIES = 100
     const val MAX_NAME_CHARS = 128
     const val MAX_TEXT_BYTES = 256 * 1024
+    const val MAX_TRANSFER_BYTES = 100L * 1024L * 1024L
     const val MAX_SEARCH_QUERY_CHARS = 128
     const val MAX_SEARCH_NODES = 500
     const val MAX_SEARCH_RESULTS = 50
