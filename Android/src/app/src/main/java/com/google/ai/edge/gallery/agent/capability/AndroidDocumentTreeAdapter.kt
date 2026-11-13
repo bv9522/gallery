@@ -263,6 +263,10 @@ class AndroidDocumentTreeAdapter(
       } catch (error: Throwable) {
         val removed = runCatching { DocumentsContract.deleteDocument(resolver, created) }.getOrNull() == true
         if (removed) throw error
+        if (error is CancellationException) {
+          error.addSuppressed(IllegalStateException("Cleanup was not confirmed for " + created + "."))
+          throw error
+        }
         throw IllegalStateException(
           "The document was created but could not be fully written; cleanup was not confirmed for " + created + ".",
           error,
@@ -421,13 +425,14 @@ class AndroidDocumentTreeAdapter(
       var created: Uri? = null
       try {
         val parent = DocumentsContract.buildDocumentUriUsingTree(targetTree, targetParentDocumentId)
-        created = DocumentsContract.createDocument(resolver, parent, entry.mimeType, entry.displayName)
+        val destinationUri = DocumentsContract.createDocument(resolver, parent, entry.mimeType, entry.displayName)
           ?: throw IllegalStateException("The destination provider refused to create '" + entry.displayName + "'.")
+        created = destinationUri
         val input = resolver.openInputStream(source)
           ?: throw IllegalStateException("Could not open the source document for reading.")
         var total = 0L
         input.use { sourceStream ->
-          val output = resolver.openOutputStream(created, "wt")
+          val output = resolver.openOutputStream(destinationUri, "wt")
             ?: throw IllegalStateException("Could not open the destination document for writing.")
           output.use { targetStream ->
             val buffer = ByteArray(32 * 1024)
@@ -444,12 +449,16 @@ class AndroidDocumentTreeAdapter(
             targetStream.flush()
           }
         }
-        created!!
+        destinationUri
       } catch (error: Throwable) {
         val removed = created?.let {
           runCatching { DocumentsContract.deleteDocument(resolver, it) }.getOrNull()
         } == true
         if (removed) throw error
+        if (error is CancellationException) {
+          error.addSuppressed(IllegalStateException("Cleanup of the incomplete destination could not be confirmed; a partial file may remain."))
+          throw error
+        }
         throw IllegalStateException(
           "The transfer failed and cleanup of the incomplete destination could not be confirmed; a partial file may remain.",
           error,
@@ -460,6 +469,7 @@ class AndroidDocumentTreeAdapter(
       val removed = try {
         withContext(Dispatchers.IO) { DocumentsContract.deleteDocument(resolver, source) }
       } catch (error: Throwable) {
+        if (error is CancellationException) throw error
         throw IllegalStateException(
           "The destination copy was created at " + destination + ", but source deletion failed; both copies may remain.",
           error,
