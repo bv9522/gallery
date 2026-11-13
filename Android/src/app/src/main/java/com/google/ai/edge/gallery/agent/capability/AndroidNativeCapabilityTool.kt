@@ -80,9 +80,11 @@ class AndroidNativeCapabilityTool internal constructor(
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
-      "set_display_brightness, vibrate, wake_lock_status, set_wake_lock. Mutations always require one-time user approval. " +
-      "Bluetooth discovery and USB host enumeration require scoped approval; BLE scans are limited to 1–10 seconds. " +
-      "Bluetooth GATT sessions and USB I/O are not yet exposed. This tool never executes shell commands."
+      "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
+      "bluetooth_le_scan, usb_devices. Device discovery requires one-time user approval; Bluetooth " +
+      "Nearby devices permissions are requested only after approval. BLE scans are limited to 1–10 " +
+      "seconds and stop on cancellation. Bluetooth GATT sessions and USB I/O are not yet exposed. " +
+      "This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -113,7 +115,7 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("duration_ms", JsonObject().apply {
           addProperty("type", "integer")
-          addProperty("description", "Vibration duration (1-1000 ms) or wake-lock timeout (1-300000 ms).")
+          addProperty("description", "Operation-specific duration: vibration 1–1000 ms, wake lock 1–300000 ms, Bluetooth LE scan 1000–10000 ms (defaults to 5000).")
         })
         add("held", JsonObject().apply {
           addProperty("type", "boolean")
@@ -130,12 +132,6 @@ class AndroidNativeCapabilityTool internal constructor(
         add("url", JsonObject().apply {
           addProperty("type", "string")
           addProperty("description", "Absolute HTTP(S) URL with a host.")
-        })
-        add("duration_ms", JsonObject().apply {
-          addProperty("type", "integer")
-          addProperty("minimum", 1_000)
-          addProperty("maximum", 10_000)
-          addProperty("description", "Bluetooth LE scan window from 1000 to 10000 milliseconds; defaults to 5000.")
         })
       })
       add("required", JsonArray().apply { add("operation") })
