@@ -114,6 +114,9 @@ internal object AndroidControlArguments {
       val encoded = arguments.get("value_base64")
         ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
         ?.asString.orEmpty()
+      if (encoded.length > 684) {
+        return "value_base64 must encode between 1 and 512 bytes using unwrapped Base64."
+      }
       val decoded = runCatching { Base64.getDecoder().decode(encoded) }.getOrNull()
       if (decoded == null || decoded.isEmpty() || decoded.size > 512) {
         return "value_base64 must encode between 1 and 512 bytes using unwrapped Base64."
