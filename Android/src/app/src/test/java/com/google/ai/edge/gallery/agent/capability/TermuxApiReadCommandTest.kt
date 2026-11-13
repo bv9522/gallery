@@ -46,6 +46,9 @@ class TermuxApiReadCommandTest {
       TermuxApiReadCommand.sensorRead(listOf("Unlisted"), sensors, 1, 100)
     }
     assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.sensorRead(listOf("Accel"), sensors, 1, 100)
+    }
+    assertThrows(IllegalArgumentException::class.java) {
       TermuxApiReadCommand.sensorRead(listOf("Accelerometer; id"), sensors, 1, 100)
     }
   }
