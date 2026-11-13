@@ -35,6 +35,11 @@ data class DocumentEntry(
 )
 data class DocumentListing(val entries: List<DocumentEntry>, val truncated: Boolean)
 data class DocumentText(val document: DocumentEntry, val text: String)
+data class DocumentSearchResult(
+  val matches: List<DocumentEntry>,
+  val visitedCount: Int,
+  val truncated: Boolean,
+)
 
 interface DocumentTreeOperations : CapabilityProviderProbe {
   suspend fun listGrants(): List<DocumentTreeGrant>
@@ -47,6 +52,9 @@ interface DocumentTreeOperations : CapabilityProviderProbe {
   suspend fun writeText(treeUri: String, documentId: String, text: String): Long
   suspend fun rename(treeUri: String, documentId: String, newName: String): String
   suspend fun delete(treeUri: String, documentId: String): Boolean
+  suspend fun copy(treeUri: String, documentId: String, targetParentDocumentId: String): String
+  suspend fun move(treeUri: String, documentId: String, sourceParentDocumentId: String, targetParentDocumentId: String): String
+  suspend fun search(treeUri: String, query: String, parentDocumentId: String?): DocumentSearchResult
 }
 
 fun interface DocumentTreePickerRequester {
@@ -98,15 +106,12 @@ class AndroidDocumentTreeAdapter(
       AndroidCapability.DOCUMENT_TREE_WRITE to permissionState(canWrite),
       AndroidCapability.DOCUMENT_TREE_RENAME to permissionState(canWrite),
       AndroidCapability.DOCUMENT_TREE_DELETE to permissionState(canWrite),
-      AndroidCapability.DOCUMENT_TREE_COPY to ProviderAvailability.UNSUPPORTED,
-      AndroidCapability.DOCUMENT_TREE_MOVE to ProviderAvailability.UNSUPPORTED,
-      AndroidCapability.DOCUMENT_TREE_SEARCH to ProviderAvailability.UNSUPPORTED,
+      AndroidCapability.DOCUMENT_TREE_COPY to permissionState(canWrite),
+      AndroidCapability.DOCUMENT_TREE_MOVE to permissionState(canWrite),
+      AndroidCapability.DOCUMENT_TREE_SEARCH to permissionState(canRead),
       AndroidCapability.DOCUMENT_TREE_METADATA_WRITE to ProviderAvailability.UNSUPPORTED,
     )
     val details = mapOf(
-      AndroidCapability.DOCUMENT_TREE_COPY to "SAF copy operations are not implemented in this phase.",
-      AndroidCapability.DOCUMENT_TREE_MOVE to "SAF move operations are not implemented in this phase.",
-      AndroidCapability.DOCUMENT_TREE_SEARCH to "Recursive SAF search is not implemented in this phase.",
       AndroidCapability.DOCUMENT_TREE_METADATA_WRITE to "General SAF metadata writes are not supported; rename is exposed separately.",
     )
     return CapabilityProviderObservation(
@@ -276,6 +281,89 @@ class AndroidDocumentTreeAdapter(
     }
   }
 
+  override suspend fun copy(
+    treeUri: String,
+    documentId: String,
+    targetParentDocumentId: String,
+  ): String {
+    val tree = requireTreeGrant(treeUri, write = true)
+    val entry = withContext(Dispatchers.IO) { queryMetadata(tree, documentId) }
+    authorize(
+      AndroidCapability.DOCUMENT_TREE_COPY,
+      "Copy '" + entry.displayName + "' into the selected destination folder.",
+    )
+    val source = DocumentsContract.buildDocumentUriUsingTree(tree, documentId)
+    val target = DocumentsContract.buildDocumentUriUsingTree(tree, targetParentDocumentId)
+    return withContext(Dispatchers.IO) {
+      val copied = DocumentsContract.copyDocument(resolver, source, target)
+        ?: throw IllegalStateException("The document provider refused to copy '" + entry.displayName + "'.")
+      copied.toString()
+    }
+  }
+
+  override suspend fun move(
+    treeUri: String,
+    documentId: String,
+    sourceParentDocumentId: String,
+    targetParentDocumentId: String,
+  ): String {
+    val tree = requireTreeGrant(treeUri, write = true)
+    val entry = withContext(Dispatchers.IO) { queryMetadata(tree, documentId) }
+    authorize(
+      AndroidCapability.DOCUMENT_TREE_MOVE,
+      "Move '" + entry.displayName + "' to the selected destination folder.",
+    )
+    val source = DocumentsContract.buildDocumentUriUsingTree(tree, documentId)
+    val sourceParent = DocumentsContract.buildDocumentUriUsingTree(tree, sourceParentDocumentId)
+    val targetParent = DocumentsContract.buildDocumentUriUsingTree(tree, targetParentDocumentId)
+    return withContext(Dispatchers.IO) {
+      val moved = DocumentsContract.moveDocument(resolver, source, sourceParent, targetParent)
+        ?: throw IllegalStateException("The document provider refused to move '" + entry.displayName + "'.")
+      moved.toString()
+    }
+  }
+
+  override suspend fun search(
+    treeUri: String,
+    query: String,
+    parentDocumentId: String?,
+  ): DocumentSearchResult {
+    val tree = requireTreeGrant(treeUri, write = false)
+    require(query.isNotBlank() && query.length <= MAX_SEARCH_QUERY_CHARS && query.none { it == '\u0000' || it.isISOControl() }) {
+      "Search query must contain 1–$MAX_SEARCH_QUERY_CHARS printable characters."
+    }
+    authorize(AndroidCapability.DOCUMENT_TREE_SEARCH, "Search document names for '" + query + "' in the selected tree.")
+    return withContext(Dispatchers.IO) {
+      val queue = java.util.ArrayDeque<SearchNode>()
+      queue.add(SearchNode(parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree), 0))
+      val matches = mutableListOf<DocumentEntry>()
+      var visited = 0
+      var truncated = false
+      while (queue.isNotEmpty() && visited < MAX_SEARCH_NODES && matches.size < MAX_SEARCH_RESULTS) {
+        val node = queue.removeFirst()
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(tree, node.documentId)
+        val cursor = resolver.query(childrenUri, DOCUMENT_PROJECTION, null, null, null)
+          ?: throw IllegalStateException("The document provider returned no search cursor.")
+        cursor.use {
+          while (it.moveToNext()) {
+            if (visited >= MAX_SEARCH_NODES || matches.size >= MAX_SEARCH_RESULTS) {
+              truncated = true
+              break
+            }
+            visited += 1
+            val entry = it.toDocumentEntry()
+            if (entry.displayName.contains(query, ignoreCase = true)) matches += entry
+            if (entry.mimeType == DocumentsContract.Document.MIME_TYPE_DIR && node.depth < MAX_SEARCH_DEPTH) {
+              queue.add(SearchNode(entry.documentId, node.depth + 1))
+            }
+          }
+        }
+      }
+      if (queue.isNotEmpty()) truncated = true
+      DocumentSearchResult(matches, visited, truncated)
+    }
+  }
+
   override suspend fun delete(treeUri: String, documentId: String): Boolean {
     val tree = requireTreeGrant(treeUri, write = true)
     val entry = withContext(Dispatchers.IO) { queryMetadata(tree, documentId) }
@@ -336,6 +424,8 @@ class AndroidDocumentTreeAdapter(
     )
   }
 
+  private data class SearchNode(val documentId: String, val depth: Int)
+
   private fun validateName(name: String) {
     require(name.isNotBlank() && name.length <= MAX_NAME_CHARS) {
       "Document name must contain 1–$MAX_NAME_CHARS characters."
@@ -357,6 +447,10 @@ class AndroidDocumentTreeAdapter(
     const val MAX_LIST_ENTRIES = 100
     const val MAX_NAME_CHARS = 128
     const val MAX_TEXT_BYTES = 256 * 1024
+    const val MAX_SEARCH_QUERY_CHARS = 128
+    const val MAX_SEARCH_NODES = 500
+    const val MAX_SEARCH_RESULTS = 50
+    const val MAX_SEARCH_DEPTH = 4
     val DOCUMENT_PROJECTION = arrayOf(
       DocumentsContract.Document.COLUMN_DOCUMENT_ID,
       DocumentsContract.Document.COLUMN_DISPLAY_NAME,
