@@ -152,30 +152,6 @@ data class NativeUsbDevice(
   val interfaces: List<NativeUsbInterface>,
 )
 
-data class NativeBluetoothGattCharacteristic(
-  val uuid: String,
-  val properties: Int,
-  val canRead: Boolean,
-  val canWrite: Boolean,
-  val canWriteWithoutResponse: Boolean,
-  val canNotify: Boolean,
-  val canIndicate: Boolean,
-  val descriptorCount: Int,
-)
-
-data class NativeBluetoothGattService(
-  val uuid: String,
-  val type: String,
-  val characteristics: List<NativeBluetoothGattCharacteristic>,
-)
-
-data class NativeBluetoothGattInspection(
-  val deviceAddress: String,
-  val services: List<NativeBluetoothGattService>,
-  val totalCharacteristics: Int,
-  val truncated: Boolean,
-)
-
 fun interface NativeRuntimePermissionRequester {
   suspend fun request(permission: String): Boolean
 }
@@ -519,7 +495,7 @@ class AndroidNativeCapabilityAdapter(
     timeoutMs: Long,
   ): NativeBluetoothGattInspection {
     require(deviceAddress.matches(Regex("(?i)^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"))) {
-      "device_address must be a Bluetooth MAC address returned by Bluetooth discovery."
+      "device_address must be a valid Bluetooth MAC address."
     }
     require(timeoutMs in MIN_GATT_TIMEOUT_MS..MAX_GATT_TIMEOUT_MS) {
       "GATT inspection timeout must be between $MIN_GATT_TIMEOUT_MS and $MAX_GATT_TIMEOUT_MS milliseconds."
