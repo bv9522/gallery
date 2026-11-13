@@ -84,12 +84,13 @@ class AndroidNativeCapabilityTool internal constructor(
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
-      "bluetooth_le_scan, usb_devices, record_audio, capture_photo, set_wallpaper. Device discovery, " +
-      "audio recording (1–30 seconds, local MediaStore output), photo capture, " +
-      "and wallpaper changes require one-time user approval; Bluetooth " +
-      "Nearby devices permissions are requested only after approval. BLE scans are limited to 1–10 " +
-      "seconds and stop on cancellation. Bluetooth GATT sessions and USB I/O are not yet exposed. " +
-      "This tool never executes shell commands."
+      "bluetooth_le_scan, bluetooth_gatt_services, usb_devices, record_audio, capture_photo, set_wallpaper. " +
+      "Device discovery, GATT connections, audio recording (1–30 seconds, local MediaStore output), " +
+      "photo capture, and wallpaper changes require one-time user approval. Bluetooth permissions are " +
+      "requested only after approval. BLE scans are limited to 1–10 seconds; GATT service inspection " +
+      "connects to one address for at most 20 seconds, returns bounded service/characteristic metadata, " +
+      "and disconnects on completion, timeout, or cancellation. GATT characteristic read/write and USB " +
+      "I/O are not yet exposed. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -101,7 +102,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
         })
@@ -145,6 +146,14 @@ class AndroidNativeCapabilityTool internal constructor(
         add("url", JsonObject().apply {
           addProperty("type", "string")
           addProperty("description", "Absolute HTTP(S) URL with a host.")
+        })
+        add("device_address", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Bluetooth MAC address returned by bluetooth_bonded_devices or bluetooth_le_scan.")
+        })
+        add("timeout_ms", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Bluetooth GATT connection and service discovery timeout, 5000–20000 ms; defaults to 15000.")
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -225,6 +234,19 @@ class AndroidNativeCapabilityTool internal constructor(
           mutate(AndroidCapability.OPEN_URL) { adapter.openUrl(url) }
         }
         "bluetooth_bonded_devices" -> AgentToolResult(Gson().toJson(adapter.getBluetoothBondedDevices()))
+        "bluetooth_gatt_services" -> {
+          val address = arguments.string("device_address")
+            ?: return failure("bluetooth_gatt_services requires device_address from Bluetooth discovery.")
+          val timeout = if (arguments.has("timeout_ms")) {
+            arguments.long("timeout_ms") ?: return failure("timeout_ms must be an integer.")
+          } else DEFAULT_GATT_TIMEOUT_MS
+          if (timeout !in MIN_GATT_TIMEOUT_MS..MAX_GATT_TIMEOUT_MS) {
+            return failure("Bluetooth GATT timeout must be between $MIN_GATT_TIMEOUT_MS and $MAX_GATT_TIMEOUT_MS milliseconds.")
+          }
+          val unavailable = availabilityFailure(AndroidCapability.BLUETOOTH_GATT)
+          if (unavailable != null) return unavailable
+          AgentToolResult(Gson().toJson(adapter.inspectBluetoothGatt(address, timeout)))
+        }
         "bluetooth_le_scan" -> {
           val duration = if (arguments.has("duration_ms")) {
             arguments.long("duration_ms") ?: return failure("duration_ms must be an integer.")
@@ -327,6 +349,9 @@ class AndroidNativeCapabilityTool internal constructor(
   private companion object {
     const val DEFAULT_BLUETOOTH_SCAN_MS = 5_000L
     const val DEFAULT_AUDIO_RECORD_MS = 5_000L
+    const val DEFAULT_GATT_TIMEOUT_MS = 15_000L
+    const val MIN_GATT_TIMEOUT_MS = 5_000L
+    const val MAX_GATT_TIMEOUT_MS = 20_000L
     const val MIN_AUDIO_RECORD_MS = 1_000L
     const val MAX_AUDIO_RECORD_MS = 30_000L
     const val MIN_BLUETOOTH_SCAN_MS = 1_000L
