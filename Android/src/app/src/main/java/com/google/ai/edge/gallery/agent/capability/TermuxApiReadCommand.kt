@@ -36,7 +36,6 @@ internal object TermuxApiReadCommand {
     require(delayMs in MIN_SENSOR_DELAY_MS..MAX_SENSOR_DELAY_MS) {
       "Sensor delay must be between $MIN_SENSOR_DELAY_MS and $MAX_SENSOR_DELAY_MS ms."
     }
-    val normalizedAvailable = availableSensorOutput.lowercase()
     val names = sensorNames.map { raw ->
       val name = raw.trim()
       require(sensorNamePattern.matches(name)) { "Invalid sensor name." }
