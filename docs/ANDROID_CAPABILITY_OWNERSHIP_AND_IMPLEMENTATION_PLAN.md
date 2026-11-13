@@ -169,8 +169,12 @@ version compatibility must be verified on-device before an operation is marked i
 - [x] First Termux:API read-only slice: sensor listing/finite reads, location once/last, Wi-Fi
   connection information, and last-scan information (Phase 5A code; local validation/device
   acceptance pending).
-- [ ] Remaining Termux:API operations: NFC, infrared, basic camera capture, file-based microphone
-  recording, speech-to-text, TTS, and wallpaper.
+- [ ] Remaining Termux:API operations: NFC, basic camera capture, file-based microphone
+  recording, speech-to-text, and wallpaper.
+- [x] Phase 5B draft: bounded infrared frequency discovery/transmission and basic TTS engine
+  discovery/speech, with fixed command builders, scoped approvals for transmission/speech, and
+  unit coverage. Keep these capabilities Planned until local validation and consolidated device
+  acceptance are complete.
 - [ ] Implement native Bluetooth discovery/BLE/GATT and USB host sessions; keep Wi-Fi changes
   user-mediated through Android Settings.
 - [ ] Add per-command companion/package/permission probes without prompting.
@@ -234,3 +238,17 @@ version compatibility must be verified on-device before an operation is marked i
   cancellation, cleanup, and no-fallback. Keep every capability Planned until local tests/build
   and target-device acceptance are complete.
 - Detailed verified wrapper contracts and upstream links: `docs/TERMUX_API_CAPABILITY_OWNERSHIP.md`.
+
+
+### Wave 2B — Infrared and text-to-speech (implemented in draft code; acceptance pending)
+
+- Verified upstream wrappers: infrared frequency discovery accepts no arguments; transmission
+  requires a carrier frequency and comma-separated on/off intervals, and upstream limits the
+  pattern to less than two seconds. Gallery validates the frequency against a fresh hardware
+  frequency query, bounds the numeric pattern, and requires scoped approval before transmission.
+- TTS engine discovery accepts no arguments. Speech uses a fixed command, safely quoted text,
+  a 500-character cap, a 30-second execution timeout, and scoped approval because it produces
+  audible output.
+- Neither operation assumes hardware/engine availability from command presence. Keep both
+  capabilities Planned until current-head local tests/build and consolidated target-device
+  acceptance are complete.
