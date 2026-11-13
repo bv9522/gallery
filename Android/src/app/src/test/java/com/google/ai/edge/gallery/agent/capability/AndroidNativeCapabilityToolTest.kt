@@ -151,11 +151,15 @@ class AndroidNativeCapabilityToolTest {
       addProperty("device_address", "AA:BB:CC:DD:EE:FF")
       addProperty("timeout_ms", 20_001)
     })
+    val invalidAddress = tool.execute(arguments("bluetooth_gatt_services").apply {
+      addProperty("device_address", "not-a-mac")
+    })
 
     assertTrue(result.isSuccessful)
     assertTrue(result.content.contains("AA:BB:CC:DD:EE:FF"))
     assertFalse(missingAddress.isSuccessful)
     assertFalse(invalidTimeout.isSuccessful)
+    assertFalse(invalidAddress.isSuccessful)
     assertEquals(listOf("bluetooth_gatt_services:AA:BB:CC:DD:EE:FF:10000"), adapter.discoveryCalls)
   }
 
