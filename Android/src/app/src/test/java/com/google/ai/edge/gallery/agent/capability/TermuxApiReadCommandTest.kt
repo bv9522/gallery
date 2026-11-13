@@ -137,6 +137,16 @@ class TermuxApiReadCommandTest {
   }
 
   @Test
+  fun nfcCommandsAreFixedAndWriteTextIsBoundedAndQuoted() {
+    assertEquals("termux-nfc -r full", TermuxApiReadCommand.nfcRead())
+    assertEquals("termux-nfc -w -t 'Hello NFC'\\''s tag'", TermuxApiReadCommand.nfcWrite("Hello NFC's tag"))
+    assertThrows(IllegalArgumentException::class.java) { TermuxApiReadCommand.nfcWrite(" ") }
+    assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.nfcWrite("x".repeat(TermuxApiReadCommand.MAX_NFC_TEXT_CHARS + 1))
+    }
+  }
+
+  @Test
   fun readFailureStatesDistinguishPermissionMissingCommandTimeoutAndCleanup() {
     assertEquals(
       "PERMISSION_REQUIRED",
