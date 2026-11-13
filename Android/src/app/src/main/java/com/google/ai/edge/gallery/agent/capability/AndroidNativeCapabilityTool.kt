@@ -85,7 +85,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, usb_devices, record_audio, capture_photo, set_wallpaper. Device discovery, " +
-      "audio recording, photo capture, " +
+      "audio recording (1–30 seconds, local MediaStore output), photo capture, " +
       "and wallpaper changes require one-time user approval; Bluetooth " +
       "Nearby devices permissions are requested only after approval. BLE scans are limited to 1–10 " +
       "seconds and stop on cancellation. Bluetooth GATT sessions and USB I/O are not yet exposed. " +
