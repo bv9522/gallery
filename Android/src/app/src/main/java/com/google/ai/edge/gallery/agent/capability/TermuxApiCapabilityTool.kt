@@ -146,11 +146,11 @@ class TermuxApiCapabilityTool(
       appendLine("commandProbeSucceeded=${probe.succeeded}")
       appendLine("permissionState=UNKNOWN (discovery does not request permissions)")
       if (probe.stdout.isNotBlank()) append(probe.stdout.trim())
-      if (probe.outputTruncated) appendLine("\\nprobeOutputTruncated=true")
-      if (probe.stderr.isNotBlank()) appendLine("\\nprobeStderr=${probe.stderr.take(500)}")
-      probe.error?.let { appendLine("\\nprobeError=$it") }
+      if (probe.outputTruncated) appendLine("\nprobeOutputTruncated=true")
+      if (probe.stderr.isNotBlank()) appendLine("\nprobeStderr=${probe.stderr.take(500)}")
+      probe.error?.let { appendLine("\nprobeError=$it") }
     }.trim()
-    return AgentToolResult(output, probe.succeeded && companionInstalled)
+    return AgentToolResult(output, probe.succeeded && companionInstalled && !probe.outputTruncated)
   }
 
   private suspend fun sensorRead(arguments: JsonObject): AgentToolResult {
@@ -254,8 +254,8 @@ class TermuxApiCapabilityTool(
       buildString {
         appendLine("$label completed.")
         if (result.stdout.isNotBlank()) append(result.stdout.trim())
-        if (result.stderr.isNotBlank()) appendLine("\\nSTDERR: ${result.stderr.trim()}")
-        if (result.outputTruncated) appendLine("\\nOUTPUT_TRUNCATED=true")
+        if (result.stderr.isNotBlank()) appendLine("\nSTDERR: ${result.stderr.trim()}")
+        if (result.outputTruncated) appendLine("\nOUTPUT_TRUNCATED=true")
       }.trim(),
       true,
     )
