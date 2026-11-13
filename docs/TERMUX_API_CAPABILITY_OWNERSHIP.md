@@ -20,11 +20,10 @@ Android capability provider, the other is a general shell execution transport.
 | WIFI_SCAN | termux-wifi-scaninfo | Read last scan only; scanning is subject to Android throttling and permissions |
 | NFC_READ / NFC_WRITE | termux-nfc | Basic NDEF read/write; require explicit user intent and validate tag interaction |
 | INFRARED_CONTROL | termux-infrared-frequencies, termux-infrared-transmit | Report hardware support; bound carrier frequency and pulse pattern (upstream script documents patterns shorter than two seconds); Phase 5B draft handler checks a fresh frequency query and requires approval to transmit |
-| CAMERA_INFO / CAMERA_CAPTURE | termux-camera-info, termux-camera-photo | Basic camera metadata and still JPEG capture to an approved path; advanced sessions remain native if needed |
-| MICROPHONE_RECORD | termux-microphone-record | File-based recording only; explicit approval, bounded duration, output path, and stop/cleanup |
-| WALLPAPER_CONTROL | termux-wallpaper | Basic image-file wallpaper setting; explicit approval |
+| CAMERA_INFO | termux-camera-info | Read-only camera metadata; Gallery camera capture is native |
 
-These are selected owners in the catalog. Speech recognition and text-to-speech are intentionally excluded from this Termux list and assigned to Gallery's native ASR/TTS stacks. The Phase 5A draft contains fixed handlers for sensor
+
+These are selected owners in the catalog. Speech recognition, text-to-speech, camera capture, microphone recording, and wallpaper are intentionally excluded from this Termux list and assigned to Gallery's native services. The Phase 5A draft contains fixed handlers for sensor
 listing/finite reads, location once/last, and Wi-Fi connection/last-scan reads, but all four
 capabilities remain **Planned and not production-available** until current-head unit tests, the
 debug build, and target-device acceptance pass. The remaining command families are also planned.
@@ -35,6 +34,9 @@ debug build, and target-device acceptance pass. The remaining command families a
 |---|---|---|
 | SPEECH_RECOGNITION | Gallery AsrServiceProvider (Android SpeechRecognizer, ML Kit ASR, MediaPipe SpeechProcessor) | The chat microphone already uses Gallery's native ASR lifecycle; recording remains user-initiated through hold-to-dictate |
 | TEXT_TO_SPEECH | Gallery TtsServiceProvider (Android platform TextToSpeech, ML Kit GenAI TTS, MediaPipe TTS) | Gallery already owns engine selection, voice/language settings, and chat playback; do not duplicate this with Termux:API |
+| CAMERA_CAPTURE | Gallery MediaStore + system camera intent | Gallery owns the output URI and capture lifecycle |
+| MICROPHONE_RECORD | Gallery MediaRecorder + MediaStore | Gallery owns the output URI, duration bound, and recorder cleanup |
+| WALLPAPER_CONTROL | Gallery WallpaperManager | Gallery validates readable image content and applies wallpaper under its own app identity |
 
 
 | Capability group | Why native remains preferable |
@@ -139,15 +141,13 @@ Upstream wrapper references:
   upstream documents that patterns shorter than two seconds are transmitted. Gallery accepts
   only numeric intervals, checks the requested frequency against a fresh frequency query, caps
   the pattern at 256 intervals, and requires one-time approval.
-- `termux-tts-engines` accepts no arguments and lists available engines.
-- `termux-tts-speak` accepts optional engine/language/rate/pitch/stream controls and text (or
-  stdin). The first Gallery slice exposes only bounded text with default engine settings, uses
-  shell-safe quoting, caps text at 500 characters, and requires one-time approval for audible
-  output. The operation is supervised with a 30-second timeout.
+- Termux still ships `termux-tts-engines` and `termux-tts-speak`, but Phase 9A removes these
+  operations from Gallery's model-facing Termux tool because Gallery already has native
+  TtsServiceProvider engines and chat playback. This is retained as upstream command reference only.
 
-Phase 5B operations are draft implementations. Command presence does not prove hardware support,
-engine availability, permission state, or successful operation. Keep their catalog availability
-unverified until local tests/build and the consolidated device acceptance pass.
+Phase 5B's TTS route is historical and is not selected in the current capability catalog. Infrared
+remains the selected Termux owner; command presence does not prove hardware support or successful
+operation.
 
 
 ## Verified upstream contracts — Phase 5C draft
@@ -168,12 +168,9 @@ unverified until local tests/build and the consolidated device acceptance pass.
 
 - `termux-camera-info` accepts no arguments and returns camera metadata; it does not capture
   images. Gallery exposes this as a read-only fixed command.
-- `termux-speech-to-text` accepts no arguments (optional `-p` exposes partial matches). The
-  wrapper emits the final recognition result by default. Gallery exposes only the fixed final
-  result command, requires scoped approval, and bounds execution to 90 seconds. Recognition may
-  use the configured Android speech service and is not guaranteed to be on-device.
-- The speech wrapper delegates to an interactive recognition flow. Device acceptance must verify
-  that cancellation/timeouts terminate the microphone session and dismiss any external UI.
+- Termux still ships `termux-speech-to-text`, but Phase 9A removes this operation from Gallery's
+  model-facing Termux tool because the chat microphone already uses Gallery's native AsrServiceProvider.
+  This command remains documented only as an upstream reference; it is not the selected owner.
 
 
 ## Ownership rebalance — Phase 6B draft
@@ -192,8 +189,8 @@ unverified until local tests/build and the consolidated device acceptance pass.
   Native MediaRecorder writes a bounded AAC recording to a Gallery-owned MediaStore URI and
   explicitly stops/releases the recorder on completion or cancellation. This avoids Termux-owned
   background recording services and cross-app file-path assumptions.
-- `termux-speech-to-text` remains the selected Termux:API owner for one-shot interactive speech
-  recognition; it is a separate capability and may use the configured Android recognition service.
+- Speech recognition is reassigned to Gallery's native AsrServiceProvider in Phase 9A. The
+  hold-to-dictate control remains user-initiated; no background transcription or Termux route remains.
 
 
 ## SAF ownership clarification — Phase 7A draft
