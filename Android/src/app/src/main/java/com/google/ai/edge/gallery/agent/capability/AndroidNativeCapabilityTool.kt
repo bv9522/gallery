@@ -103,7 +103,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
         })
@@ -167,6 +167,23 @@ class AndroidNativeCapabilityTool internal constructor(
         add("value_base64", JsonObject().apply {
           addProperty("type", "string")
           addProperty("description", "For bluetooth_gatt_write only: 1–512 bytes encoded as unwrapped Base64.")
+        })
+        add("query", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Name or text query for contacts_search; 1–80 characters.")
+          addProperty("minLength", 1)
+          addProperty("maxLength", 80)
+        })
+        add("limit", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Maximum matching contacts to return; 1–20, defaults to 10.")
+          addProperty("minimum", MIN_CONTACT_LIMIT)
+          addProperty("maximum", MAX_CONTACT_LIMIT)
+        })
+        add("text", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Text to place on the clipboard; maximum 2048 characters.")
+          addProperty("maxLength", MAX_CLIPBOARD_WRITE_CHARS)
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -296,6 +313,27 @@ class AndroidNativeCapabilityTool internal constructor(
           )
           AgentToolResult(result.message, result.success)
         }
+        "contacts_search" -> {
+          val query = arguments.string("query")
+            ?: return failure("contacts_search requires a non-empty query.")
+          val limit = if (arguments.has("limit")) {
+            arguments.int("limit") ?: return failure("limit must be an integer.")
+          } else DEFAULT_CONTACT_LIMIT
+          if (limit !in MIN_CONTACT_LIMIT..MAX_CONTACT_LIMIT) {
+            return failure("Contact search limit must be between $MIN_CONTACT_LIMIT and $MAX_CONTACT_LIMIT.")
+          }
+          AgentToolResult(Gson().toJson(adapter.searchContacts(query, limit)))
+        }
+        "clipboard_read" -> AgentToolResult(Gson().toJson(adapter.readClipboard()))
+        "clipboard_write" -> {
+          val text = arguments.string("text")
+            ?: return failure("clipboard_write requires text.")
+          if (text.length > MAX_CLIPBOARD_WRITE_CHARS) {
+            return failure("Clipboard text must not exceed $MAX_CLIPBOARD_WRITE_CHARS characters.")
+          }
+          val result = adapter.writeClipboard(text)
+          AgentToolResult(result.message, result.success)
+        }
         "bluetooth_le_scan" -> {
           val duration = if (arguments.has("duration_ms")) {
             arguments.long("duration_ms") ?: return failure("duration_ms must be an integer.")
@@ -399,6 +437,10 @@ class AndroidNativeCapabilityTool internal constructor(
     const val DEFAULT_BLUETOOTH_SCAN_MS = 5_000L
     const val DEFAULT_AUDIO_RECORD_MS = 5_000L
     const val DEFAULT_GATT_TIMEOUT_MS = 15_000L
+    const val DEFAULT_CONTACT_LIMIT = 10
+    const val MIN_CONTACT_LIMIT = 1
+    const val MAX_CONTACT_LIMIT = 20
+    const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
     const val MIN_GATT_TIMEOUT_MS = 5_000L
     const val MAX_GATT_TIMEOUT_MS = 20_000L
     const val MIN_AUDIO_RECORD_MS = 1_000L

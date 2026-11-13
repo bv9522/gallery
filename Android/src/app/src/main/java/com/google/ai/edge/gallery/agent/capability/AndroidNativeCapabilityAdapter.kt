@@ -28,6 +28,8 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -49,9 +51,14 @@ import android.os.PowerManager
 import android.os.ParcelFileDescriptor
 import android.os.VibrationEffect
 import android.os.VibratorManager
+import android.provider.ContactsContract
 import android.provider.MediaStore
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import android.provider.Settings
 import android.util.Base64
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
@@ -410,6 +417,65 @@ class AndroidNativeCapabilityAdapter(
       else ProviderAvailability.UNSUPPORTED
     if (capabilities[AndroidCapability.OPEN_URL] == ProviderAvailability.UNSUPPORTED) {
       details[AndroidCapability.OPEN_URL] = "No application can handle an HTTPS link."
+    }
+
+    val clipboardManager = appContext.getSystemService(ClipboardManager::class.java)
+    capabilities[AndroidCapability.CLIPBOARD_READ] = when {
+      clipboardManager == null -> {
+        details[AndroidCapability.CLIPBOARD_READ] = "ClipboardManager is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !isAppForeground() -> {
+        details[AndroidCapability.CLIPBOARD_READ] =
+          "Clipboard reads require Gallery to be in the foreground on modern Android."
+        ProviderAvailability.SERVICE_STOPPED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
+    capabilities[AndroidCapability.CLIPBOARD_WRITE] = when {
+      clipboardManager == null -> {
+        details[AndroidCapability.CLIPBOARD_WRITE] = "ClipboardManager is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !isAppForeground() -> {
+        details[AndroidCapability.CLIPBOARD_WRITE] = "Clipboard writes require Gallery to be in the foreground."
+        ProviderAvailability.SERVICE_STOPPED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
+    capabilities[AndroidCapability.CONTACT_READ] =
+      if (hasRuntimePermission(Manifest.permission.READ_CONTACTS)) ProviderAvailability.AVAILABLE else {
+        details[AndroidCapability.CONTACT_READ] =
+          "Contacts permission is required; provider discovery did not request it."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+
+    val textToSpeechAvailable = runCatching {
+      appContext.packageManager.queryIntentServices(
+        Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),
+        PackageManager.MATCH_DEFAULT_ONLY,
+      ).isNotEmpty()
+    }.getOrDefault(false)
+    capabilities[AndroidCapability.TEXT_TO_SPEECH] =
+      if (textToSpeechAvailable) ProviderAvailability.AVAILABLE else {
+        details[AndroidCapability.TEXT_TO_SPEECH] = "No Android text-to-speech engine service is available."
+        ProviderAvailability.UNSUPPORTED
+      }
+
+    val speechRecognitionAvailable = runCatching {
+      SpeechRecognizer.isRecognitionAvailable(appContext)
+    }.getOrDefault(false)
+    capabilities[AndroidCapability.SPEECH_RECOGNITION] = when {
+      !speechRecognitionAvailable -> {
+        details[AndroidCapability.SPEECH_RECOGNITION] = "No Android speech-recognition service is available."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !hasRuntimePermission(Manifest.permission.RECORD_AUDIO) -> {
+        details[AndroidCapability.SPEECH_RECOGNITION] =
+          "Microphone permission is required; provider discovery did not request it."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      else -> ProviderAvailability.AVAILABLE
     }
 
     return CapabilityProviderObservation(
@@ -829,6 +895,179 @@ class AndroidNativeCapabilityAdapter(
       device.toNativeUsbDevice()
     }.sortedWith(compareBy<NativeUsbDevice> { it.vendorId }.thenBy { it.productId }.thenBy { it.deviceId })
   }
+
+  override suspend fun searchContacts(query: String, limit: Int): List<NativeContactSummary> {
+    val normalizedQuery = query.trim()
+    require(normalizedQuery.isNotEmpty() && normalizedQuery.length <= MAX_CONTACT_QUERY_CHARS) {
+      "Contact search query must contain 1–$MAX_CONTACT_QUERY_CHARS characters."
+    }
+    require(limit in 1..MAX_CONTACT_RESULTS) {
+      "Contact search limit must be between 1 and $MAX_CONTACT_RESULTS."
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.CONTACT_READ,
+        "Search Gallery's contacts for '$normalizedQuery' and return at most $limit matching names, phone numbers, and email addresses.",
+      )
+    ) {
+      throw SecurityException("Contacts access was not approved.")
+    }
+    ensureRuntimePermission(Manifest.permission.READ_CONTACTS)
+    val filterUri = Uri.withAppendedPath(
+      ContactsContract.Contacts.CONTENT_FILTER_URI,
+      Uri.encode(normalizedQuery),
+    ).buildUpon()
+      .appendQueryParameter(ContactsContract.LIMIT_PARAM_KEY, limit.toString())
+      .build()
+    val resolver = appContext.contentResolver
+    return withContext(Dispatchers.IO) {
+      val results = mutableListOf<NativeContactSummary>()
+      resolver.query(
+        filterUri,
+        arrayOf(
+          ContactsContract.Contacts._ID,
+          ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+          ContactsContract.Contacts.HAS_PHONE_NUMBER,
+        ),
+        null,
+        null,
+        ContactsContract.Contacts.DISPLAY_NAME_PRIMARY + " ASC",
+      )?.use { cursor ->
+        val idColumn = cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+        val nameColumn = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
+        val phoneColumn = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.HAS_PHONE_NUMBER)
+        while (cursor.moveToNext() && results.size < limit) {
+          val contactId = cursor.getString(idColumn) ?: continue
+          val displayName = cursor.getString(nameColumn).orEmpty().trim().take(MAX_CONTACT_NAME_CHARS)
+          if (displayName.isBlank()) continue
+          val phoneNumbers = if (cursor.getInt(phoneColumn) != 0) {
+            queryContactPhones(contactId)
+          } else {
+            emptyList()
+          }
+          results += NativeContactSummary(
+            displayName = displayName,
+            phoneNumbers = phoneNumbers,
+            emailAddresses = queryContactEmails(contactId),
+          )
+        }
+      }
+      results
+    }
+  }
+
+  private fun queryContactPhones(contactId: String): List<String> {
+    val values = mutableListOf<String>()
+    appContext.contentResolver.query(
+      ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+      arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+      ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
+      arrayOf(contactId),
+      ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY + " DESC, " +
+        ContactsContract.CommonDataKinds.Phone.IS_PRIMARY + " DESC",
+    )?.use { cursor ->
+      val numberColumn = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+      while (cursor.moveToNext() && values.size < MAX_CONTACT_VALUES_PER_TYPE) {
+        cursor.getString(numberColumn)?.trim()?.take(MAX_CONTACT_VALUE_CHARS)
+          ?.takeIf { it.isNotBlank() }?.let(values::add)
+      }
+    }
+    return values
+  }
+
+  private fun queryContactEmails(contactId: String): List<String> {
+    val values = mutableListOf<String>()
+    appContext.contentResolver.query(
+      ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+      arrayOf(ContactsContract.CommonDataKinds.Email.ADDRESS),
+      ContactsContract.CommonDataKinds.Email.CONTACT_ID + " = ?",
+      arrayOf(contactId),
+      ContactsContract.CommonDataKinds.Email.IS_SUPER_PRIMARY + " DESC, " +
+        ContactsContract.CommonDataKinds.Email.IS_PRIMARY + " DESC",
+    )?.use { cursor ->
+      val addressColumn = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS)
+      while (cursor.moveToNext() && values.size < MAX_CONTACT_VALUES_PER_TYPE) {
+        cursor.getString(addressColumn)?.trim()?.take(MAX_CONTACT_VALUE_CHARS)
+          ?.takeIf { it.isNotBlank() }?.let(values::add)
+      }
+    }
+    return values
+  }
+
+  override suspend fun readClipboard(): NativeClipboardContent {
+    if (!isAppForeground()) {
+      throw IllegalStateException("Clipboard reads require Gallery to be in the foreground.")
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.CLIPBOARD_READ,
+        "Read up to $MAX_CLIPBOARD_ITEMS plain-text clipboard items, capped at $MAX_CLIPBOARD_CHARS characters.",
+      )
+    ) {
+      throw SecurityException("Clipboard read was not approved.")
+    }
+    if (!isAppForeground()) {
+      throw IllegalStateException("Gallery left the foreground before the clipboard could be read.")
+    }
+    val manager = appContext.getSystemService(ClipboardManager::class.java)
+      ?: throw IllegalStateException("ClipboardManager is unavailable.")
+    val clip = manager.primaryClip
+      ?: return NativeClipboardContent(text = "", hasText = false, itemCount = 0, truncated = false)
+    val output = StringBuilder()
+    var foundText = false
+    var truncated = clip.itemCount > MAX_CLIPBOARD_ITEMS
+    for (index in 0 until minOf(clip.itemCount, MAX_CLIPBOARD_ITEMS)) {
+      val itemText = clip.getItemAt(index).text ?: continue
+      foundText = true
+      if (output.isNotEmpty()) output.append('\n')
+      val remaining = MAX_CLIPBOARD_CHARS - output.length
+      if (remaining <= 0) {
+        truncated = true
+        break
+      }
+      val take = minOf(itemText.length, remaining)
+      output.append(itemText.subSequence(0, take))
+      if (take < itemText.length) {
+        truncated = true
+        break
+      }
+    }
+    return NativeClipboardContent(
+      text = output.toString(),
+      hasText = foundText,
+      itemCount = clip.itemCount,
+      truncated = truncated,
+    )
+  }
+
+  override suspend fun writeClipboard(text: String): NativeCapabilityActionResult {
+    require(text.length <= MAX_CLIPBOARD_WRITE_CHARS) {
+      "Clipboard text must not exceed $MAX_CLIPBOARD_WRITE_CHARS characters."
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.CLIPBOARD_WRITE,
+        if (text.isEmpty()) "Clear Gallery's current clipboard contents." else
+          "Replace the clipboard with this exact text (${text.length} characters): $text",
+      )
+    ) {
+      throw SecurityException("Clipboard write was not approved.")
+    }
+    if (!isAppForeground()) {
+      throw IllegalStateException("Clipboard writes require Gallery to remain in the foreground.")
+    }
+    val manager = appContext.getSystemService(ClipboardManager::class.java)
+      ?: throw IllegalStateException("ClipboardManager is unavailable.")
+    if (text.isEmpty()) {
+      manager.clearPrimaryClip()
+    } else {
+      manager.setPrimaryClip(ClipData.newPlainText("Gemma", text))
+    }
+    return NativeCapabilityActionResult(
+      true,
+      if (text.isEmpty()) "Clipboard cleared." else "Copied ${text.length} characters to the clipboard.",
+    )
+  }
+
+  private fun isAppForeground(): Boolean =
+    ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
   private suspend fun ensureRuntimePermission(permission: String) {
     if (hasRuntimePermission(permission)) return
@@ -1446,6 +1685,14 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_GATT_DESCRIPTORS_PER_CHARACTERISTIC = 16
     const val MAX_GATT_VALUE_BYTES = 512
     const val MAX_GATT_BASE64_CHARS = 684
+    const val MAX_CONTACT_QUERY_CHARS = 80
+    const val MAX_CONTACT_RESULTS = 20
+    const val MAX_CONTACT_NAME_CHARS = 100
+    const val MAX_CONTACT_VALUES_PER_TYPE = 3
+    const val MAX_CONTACT_VALUE_CHARS = 120
+    const val MAX_CLIPBOARD_ITEMS = 5
+    const val MAX_CLIPBOARD_CHARS = 8_192
+    const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
     const val MAX_USB_DEVICES = 32
     const val MAX_USB_INTERFACES = 16
   }

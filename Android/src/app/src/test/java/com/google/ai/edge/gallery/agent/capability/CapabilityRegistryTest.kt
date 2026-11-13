@@ -51,6 +51,11 @@ class CapabilityRegistryTest {
       AndroidCapability.BLUETOOTH_GATT,
       AndroidCapability.USB_DEVICE_DISCOVERY,
       AndroidCapability.USB_DEVICE_IO,
+      AndroidCapability.CONTACT_READ,
+      AndroidCapability.CLIPBOARD_READ,
+      AndroidCapability.CLIPBOARD_WRITE,
+      AndroidCapability.SPEECH_RECOGNITION,
+      AndroidCapability.TEXT_TO_SPEECH,
     ).forEach { capability ->
       val ownership = CapabilityCatalog.preferences.single { it.capability == capability }
       assertEquals(CapabilityProviderId.ANDROID_NATIVE, ownership.providerId)
@@ -71,8 +76,6 @@ class CapabilityRegistryTest {
       AndroidCapability.NFC_WRITE,
       AndroidCapability.INFRARED_CONTROL,
       AndroidCapability.CAMERA_INFO,
-      AndroidCapability.SPEECH_RECOGNITION,
-      AndroidCapability.TEXT_TO_SPEECH,
     ).forEach { capability ->
       val ownership = CapabilityCatalog.preferences.single { it.capability == capability }
       assertEquals(CapabilityProviderId.TERMUX_API, ownership.providerId)

@@ -208,36 +208,6 @@ class TermuxApiCapabilityToolTest {
   }
 
   @Test
-  fun ttsSpeakRequiresApprovalAndUsesBoundedQuotedText() = runBlocking {
-    val actions = Channel<ToolAction>(Channel.UNLIMITED)
-    val executor = FakeExecutor { TermuxShellResult("", "", 0) }
-    val tool = tool(executor, actions)
-    val responder = launch {
-      val action = actions.receive() as AskNativeCapabilityPermissionAction
-      assertEquals(AndroidCapability.TEXT_TO_SPEECH.name, action.capability)
-      action.result.complete(true)
-    }
-    val result = tool.execute(arguments("tts_speak").apply { addProperty("text", "Hello Coco's world") })
-    responder.join()
-    assertTrue(result.isSuccessful)
-    assertEquals("termux-tts-speak 'Hello Coco'\\''s world'", executor.calls.single().command)
-  }
-
-  @Test
-  fun ttsDenialPreventsSpeechCommand() = runBlocking {
-    val actions = Channel<ToolAction>(Channel.UNLIMITED)
-    val executor = FakeExecutor()
-    val tool = tool(executor, actions)
-    val responder = launch {
-      (actions.receive() as AskNativeCapabilityPermissionAction).result.complete(false)
-    }
-    val result = tool.execute(arguments("tts_speak").apply { addProperty("text", "hello") })
-    responder.join()
-    assertFalse(result.isSuccessful)
-    assertTrue(executor.calls.isEmpty())
-  }
-
-  @Test
   fun malformedNewOperationArgumentsAreRejectedBeforeDispatch() = runBlocking {
     val actions = Channel<ToolAction>(Channel.UNLIMITED)
     val executor = FakeExecutor()
@@ -264,38 +234,6 @@ class TermuxApiCapabilityToolTest {
     assertTrue(result.isSuccessful)
     assertEquals("termux-camera-info", executor.calls.single().command)
     assertFalse(actions.tryReceive().isSuccess)
-  }
-
-  @Test
-  fun speechRecognitionRequiresApprovalAndUsesBoundedOneShotCommand() = runBlocking {
-    val actions = Channel<ToolAction>(Channel.UNLIMITED)
-    val executor = FakeExecutor { TermuxShellResult("recognized words", "", 0) }
-    val tool = tool(executor, actions)
-    val responder = launch {
-      val action = actions.receive() as AskNativeCapabilityPermissionAction
-      assertEquals(AndroidCapability.SPEECH_RECOGNITION.name, action.capability)
-      assertTrue(action.summary.contains("Audio may be processed"))
-      action.result.complete(true)
-    }
-    val result = tool.execute(arguments("speech_to_text"))
-    responder.join()
-    assertTrue(result.isSuccessful)
-    assertEquals("termux-speech-to-text", executor.calls.single().command)
-    assertEquals(90_000L, executor.calls.single().timeoutMs)
-  }
-
-  @Test
-  fun speechRecognitionDenialPreventsMicrophoneSession() = runBlocking {
-    val actions = Channel<ToolAction>(Channel.UNLIMITED)
-    val executor = FakeExecutor()
-    val tool = tool(executor, actions)
-    val responder = launch {
-      (actions.receive() as AskNativeCapabilityPermissionAction).result.complete(false)
-    }
-    val result = tool.execute(arguments("speech_to_text"))
-    responder.join()
-    assertFalse(result.isSuccessful)
-    assertTrue(executor.calls.isEmpty())
   }
 
   @Test

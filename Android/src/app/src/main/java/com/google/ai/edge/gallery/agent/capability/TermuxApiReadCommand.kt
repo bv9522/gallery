@@ -100,20 +100,7 @@ internal object TermuxApiReadCommand {
     return "termux-infrared-transmit -f ${frequency} '$encodedPattern'"
   }
 
-  fun ttsEngines(): String = "termux-tts-engines"
-
-  fun ttsSpeak(text: String): String {
-    require(text.isNotBlank()) { "Text to speak must not be blank." }
-    require(text.length <= MAX_TTS_TEXT_CHARS) {
-      "Text to speak must not exceed ${MAX_TTS_TEXT_CHARS} characters."
-    }
-    require(text.none { it == '\u0000' }) { "Text to speak contains an invalid character." }
-    return "termux-tts-speak ${shellQuote(text)}"
-  }
-
   fun cameraInfo(): String = "termux-camera-info"
-
-  fun speechToText(): String = "termux-speech-to-text"
 
   fun nfcRead(): String = "termux-nfc -r full"
 
@@ -158,6 +145,5 @@ internal object TermuxApiReadCommand {
   const val MAX_INFRARED_PATTERN_ITEMS = 256
   const val MAX_INFRARED_INTERVAL_US = 1_999_999
   const val MAX_INFRARED_PATTERN_TOTAL_US = 2_000_000L
-  const val MAX_TTS_TEXT_CHARS = 500
   const val MAX_NFC_TEXT_CHARS = 512
 }

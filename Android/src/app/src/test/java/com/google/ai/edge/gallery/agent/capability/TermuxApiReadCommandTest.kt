@@ -125,21 +125,8 @@ class TermuxApiReadCommandTest {
   }
 
   @Test
-  fun ttsCommandQuotesTextAndEnforcesBounds() {
-    assertEquals("termux-tts-engines", TermuxApiReadCommand.ttsEngines())
-    assertEquals("termux-tts-speak 'Hello Coco'\\''s world'", TermuxApiReadCommand.ttsSpeak("Hello Coco's world"))
-    assertThrows(IllegalArgumentException::class.java) {
-      TermuxApiReadCommand.ttsSpeak("  ")
-    }
-    assertThrows(IllegalArgumentException::class.java) {
-      TermuxApiReadCommand.ttsSpeak("x".repeat(TermuxApiReadCommand.MAX_TTS_TEXT_CHARS + 1))
-    }
-  }
-
-  @Test
-  fun cameraInfoAndSpeechRecognitionUseFixedCommands() {
+  fun cameraInfoUsesFixedCommand() {
     assertEquals("termux-camera-info", TermuxApiReadCommand.cameraInfo())
-    assertEquals("termux-speech-to-text", TermuxApiReadCommand.speechToText())
   }
 
   @Test

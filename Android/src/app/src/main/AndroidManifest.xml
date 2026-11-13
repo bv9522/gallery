@@ -32,6 +32,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.INTERNET" />
@@ -209,6 +210,9 @@
 
     <!-- Text-to-speech engines and the XR glasses service used by speech and XR Language Teacher. -->
     <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <package android:name="com.termux" />
         <package android:name="com.termux.api" />
         <!-- Discover the installed Shizuku manager package, including renamed/stealth builds. -->

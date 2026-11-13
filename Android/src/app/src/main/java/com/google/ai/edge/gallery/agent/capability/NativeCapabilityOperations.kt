@@ -44,6 +44,19 @@ data class NativeBluetoothGattValue(
   val byteCount: Int,
 )
 
+data class NativeContactSummary(
+  val displayName: String,
+  val phoneNumbers: List<String>,
+  val emailAddresses: List<String>,
+)
+
+data class NativeClipboardContent(
+  val text: String,
+  val hasText: Boolean,
+  val itemCount: Int,
+  val truncated: Boolean,
+)
+
 /**
  * Typed operations consumed by [AndroidNativeCapabilityTool].
  *
@@ -82,6 +95,9 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
     valueBase64: String,
     timeoutMs: Long,
   ): NativeCapabilityActionResult
+  suspend fun searchContacts(query: String, limit: Int): List<NativeContactSummary>
+  suspend fun readClipboard(): NativeClipboardContent
+  suspend fun writeClipboard(text: String): NativeCapabilityActionResult
   suspend fun getUsbDevices(): List<NativeUsbDevice>
   suspend fun recordAudio(durationMs: Long): String
   suspend fun capturePhoto(): String

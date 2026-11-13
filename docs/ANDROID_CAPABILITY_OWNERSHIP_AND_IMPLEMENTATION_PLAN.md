@@ -69,21 +69,21 @@ operation do not count as a dedicated native capability implementation.
 | App discovery | Native Kotlin (PackageManager launcher queries) | Implemented |
 | App launch | Native Kotlin (launch intents) | Implemented |
 | URL open | Native Kotlin (ACTION_VIEW) | Implemented |
-| Contacts read | Native Kotlin (ContactsContract) | Planned; explicit runtime permission |
+| Contacts read | Native Kotlin (ContactsContract) | Phase 9A draft: scoped name/text search, READ_CONTACTS requested only after approval, maximum 20 results with at most 3 phone numbers and 3 email addresses each |
 | Call-log read | Native Kotlin (CallLog provider) | Planned; restricted permission and privacy review |
 | Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Planned; return only permitted, non-secret metadata |
 | SMS inbox/list | Native Kotlin (Telephony provider where permitted) | Planned; permission/role restrictions may make this unavailable |
 | SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Planned; user-mediated send, no silent bulk sending |
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Planned; user confirms call in dialer |
-| Clipboard read/write | Native Kotlin (ClipboardManager) | Planned; foreground/Android clipboard privacy restrictions |
+| Clipboard read/write | Native Kotlin (ClipboardManager) | Phase 9A draft: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval |
 | Notifications created by this app | Native Kotlin (NotificationManager) | Planned |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
 | Notification channel management | Native Kotlin (NotificationManager) | Planned |
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
-| Basic speech recognition | Termux:API (termux-speech-to-text) | Planned; native only if on-device/lifecycle control is required |
-| Text-to-speech / engine information | Termux:API (termux-tts-engines / termux-tts-speak) | Planned; native only for Gallery-owned playback/session control |
+| Basic speech recognition | Native Kotlin (Gallery AsrServiceProvider: Android SpeechRecognizer, ML Kit, MediaPipe) | Phase 9A: existing hold-to-dictate UI already uses native ASR engines; model-initiated recording is intentionally not exposed |
+| Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; model-triggered speech action remains a separate integration task |
 | Biometric authentication | Native Kotlin (BiometricPrompt) | Planned; authentication result only, never expose biometric data |
 | Secure key operations | Native Kotlin (Android Keystore) | Planned; keys remain non-exportable |
 | Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
@@ -131,11 +131,11 @@ started with only three commands.
 | sensor | Termux:API for bounded reads/streams with explicit cleanup |
 | share | Native Kotlin Android share intents |
 | sms-inbox, sms-list, sms-send | Native Kotlin telephony/content APIs; sending remains user-mediated |
-| speech-to-text | Termux:API for basic recognition; native for on-device/lifecycle-specific control |
+| speech-to-text | Native Gallery AsrServiceProvider; user-initiated hold-to-dictate, no Termux tool route |
 | storage-get, saf-* | Native Kotlin Storage Access Framework |
 | telephony-call, telephony-cellinfo, telephony-deviceinfo | Native Kotlin dialer intents / TelephonyManager |
 | toast | Existing Agent Chat UI feedback; not a device capability tool |
-| tts-engines, tts-speak | Termux:API for ordinary speech; native for app-owned playback sessions |
+| tts-engines, tts-speak | Native Gallery TtsServiceProvider; Termux commands are not exposed as Gallery model operations |
 | usb | Native Kotlin UsbManager |
 | vibrate | Native Kotlin Vibrator / VibratorManager |
 | wallpaper | Termux:API for basic file-based wallpaper setting |
@@ -174,18 +174,17 @@ version compatibility must be verified on-device before an operation is marked i
   acceptance pending).
 - [ ] Remaining Termux:API operations: none of camera capture, file-based microphone recording,
   or wallpaper; these have been reassigned to native Kotlin in Phases 6B–6C.
-- [x] Phase 5D draft: read-only camera metadata and one-shot speech recognition, with fixed
-  commands, scoped microphone approval, and a 90-second timeout. Speech recognition is not a
-  background stream; audio may be processed by the configured recognition service. Keep both
-  capabilities Planned pending local validation and consolidated device acceptance.
+- [x] Phase 5D historical draft: read-only camera metadata and one-shot Termux speech recognition.
+  Phase 9A removed the Termux speech route from the model-facing tool and assigned
+  SPEECH_RECOGNITION to Gallery's native AsrServiceProvider. The microphone remains user-initiated
+  through the existing hold-to-dictate UI; no background or model-triggered recording is exposed.
 - [x] Phase 5C draft: one-shot full NDEF reads and text-only NDEF writes through Termux:API,
   with explicit scoped approvals, 512-character payload bounds, and a 60-second supervised
   interaction timeout. Keep NFC capabilities Planned until local validation and consolidated
   device acceptance, including cancellation/UI cleanup, are complete.
-- [x] Phase 5B draft: bounded infrared frequency discovery/transmission and basic TTS engine
-  discovery/speech, with fixed command builders, scoped approvals for transmission/speech, and
-  unit coverage. Keep these capabilities Planned until local validation and consolidated device
-  acceptance are complete.
+- [x] Phase 5B historical draft: bounded infrared plus Termux TTS command handlers. Phase 9A
+  removed the duplicate Termux TTS route from the model-facing tool and assigned TEXT_TO_SPEECH
+  to Gallery's existing TtsServiceProvider (platform, ML Kit GenAI, and MediaPipe engines).
 - [x] Phase 6A draft: native Bluetooth bonded-device listing and bounded BLE discovery, plus
   native USB host device/interface enumeration. Bluetooth permissions are requested only after
   scoped approval; bonded-device listing and BLE scanning have separate capability IDs and
@@ -216,6 +215,22 @@ version compatibility must be verified on-device before an operation is marked i
 - Real accessory behavior and write safety remain device-acceptance concerns; only devices/profiles whose UUID semantics are known should be operated on.
 
 ### Wave 3 — Gallery-owned and privacy-sensitive integrations
+### Native speech ownership audit — existing Gallery services
+
+- The Gallery chat input already routes hold-to-dictate through `AsrServiceProvider`, which can resolve Android platform SpeechRecognizer, ML Kit ASR, or MediaPipe SpeechProcessor engines. The user initiates recording through the microphone control; no background transcription or model-triggered microphone start is added.
+- Gallery already provides `TtsServiceProvider` with Android platform `TextToSpeech`, ML Kit GenAI TTS, and MediaPipe TTS engines, plus persisted engine/voice/language selection and chat playback controls.
+- `SPEECH_RECOGNITION` and `TEXT_TO_SPEECH` are reassigned to the native provider. Their provider status is observational; no duplicate Termux:API model-facing operations remain. A future agent-triggered TTS action should call the existing playback/service stack rather than create a second TTS engine instance.
+- Termux shell commands may still exist in a user's Termux installation, but they are not selected capability owners or registered Gallery model operations.
+
+### Wave 3A — Native contacts and clipboard (Phase 9A draft; acceptance pending)
+
+- Adds `contacts_search` using ContactsContract's filtered search URI. The query is limited to 80 characters and results to 20 contacts; each result includes a display name, at most three phone numbers, and at most three email addresses.
+- READ_CONTACTS is requested only after one-time approval that identifies the search query and result limit. Provider discovery reports permission state without prompting.
+- Adds `clipboard_read` for plain-text items only, limited to five items and 8192 characters. Reads require Gallery to be foregrounded before and after approval to respect Android clipboard privacy rules.
+- Adds `clipboard_write` for text up to 2048 characters. The exact text (or clear-clipboard action) is shown in the approval request, and writes also require Gallery to remain foregrounded.
+- No clipboard URI, intent, image, or binary content is read or written. No background clipboard scraping or broad contact export is exposed.
+
+
 - Contacts, call logs, telephony metadata, SMS composer/inbox where platform policy permits.
 - Clipboard, notifications/listener, biometric prompt, Gallery-owned Keystore.
 - Advanced camera/live audio sessions only if Termux commands prove insufficient.
@@ -299,13 +314,12 @@ version compatibility must be verified on-device before an operation is marked i
   permission behavior, and that cancellation/timeouts dismiss the external NFC UI cleanly.
 
 
-### Wave 2D — Camera metadata and one-shot speech recognition (draft code; acceptance pending)
+### Wave 2D — Camera metadata and one-shot speech recognition (historical Termux draft; speech superseded by Phase 9A)
 
 - `termux-camera-info` is a fixed no-argument metadata query; it does not capture images.
-- `termux-speech-to-text` is a fixed one-shot interactive recognition request. It requires
-  scoped approval and a 90-second timeout. The user must be told that audio may be processed by
-  the configured recognition service; this is not an on-device-only guarantee or a background
-  transcription session.
+- The Phase 5D draft briefly exposed `termux-speech-to-text` as a fixed one-shot request. Phase 9A
+  removed this operation from the current Termux tool and reassigned speech recognition to the
+  existing native Gallery AsrServiceProvider and user-operated hold-to-dictate UI.
 - Cancellation/timeout must be checked on-device to ensure the recognition UI and microphone
   session end. File-based microphone recording and photo capture remain deferred pending a
   dedicated app-owned output/URI and lifecycle design.
@@ -347,7 +361,7 @@ version compatibility must be verified on-device before an operation is marked i
   reports permission state without prompting. Recording cancellation stops/releases MediaRecorder
   under NonCancellable cleanup and deletes an unpublished MediaStore row.
 - The result is a local content URI; the audio is not automatically uploaded or transcribed. Basic
-  speech recognition remains a separate one-shot Termux:API capability.
+  speech recognition is handled by Gallery's native user-initiated ASR flow.
 
 
 ### Wave 4A — SAF document-tree core (draft code; acceptance pending)

@@ -37,10 +37,10 @@ native remains their selected owner. No capability has both owners.
 ## Remaining capability groups
 
 Termux:API is selected for basic sensors, location requests/updates, Wi-Fi information and last-scan
-results, NFC NDEF read/write, infrared, still-photo capture, file-based microphone recording,
-speech-to-text, ordinary TTS, and basic wallpaper setting. Native Kotlin retains Bluetooth/BLE,
-USB host sessions, app-owned/security-sensitive integrations, advanced camera/audio sessions,
-and user-mediated controls. The canonical plan lists the complete mapping and constraints.
+results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Kotlin owns Bluetooth/BLE,
+USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/security-sensitive
+integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
+provider owns removable-storage files; the canonical plan lists the complete mapping and constraints.
 
 ## Security and implementation rules
 
@@ -70,6 +70,29 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
   the GATT client on success/failure/timeout/cancellation. No subscriptions or retained sessions
   are exposed. USB device I/O remains planned.
 
+
+## Native speech services (existing Gallery ownership)
+
+- Speech input in chat is hold-to-dictate and resolves through the native `AsrServiceProvider`: Android
+  platform SpeechRecognizer, ML Kit ASR, or MediaPipe SpeechProcessor. The microphone is user-started;
+  there is no background recording or model-triggered microphone start.
+- Speech output already uses `TtsServiceProvider`: Android platform TextToSpeech, ML Kit GenAI TTS,
+  and MediaPipe TTS. Gallery owns engine/voice/language selection and chat playback.
+- The capability catalog assigns both speech capabilities to the native provider. Termux:API TTS
+  and speech-to-text operations are removed from the Gallery model-facing Termux tool to prevent
+  duplicate ownership. Agent-triggered TTS reuse of the existing playback controller remains a
+  distinct integration task.
+
+## Native contacts and clipboard onboarding — Phase 9A draft
+
+- Contacts use the Gallery app's ContactsContract provider. Search is query-based and bounded to 20
+  results, with at most three phone numbers and three email addresses per contact. READ_CONTACTS
+  is requested only after scoped approval; provider discovery never prompts.
+- Clipboard reads use ClipboardManager and are allowed only while Gallery is foregrounded. The
+  implementation reads plain-text items only, returns at most five items and 8192 characters,
+  and requires explicit approval. Clipboard writes are limited to 2048 characters, require
+  foreground state and explicit approval displaying the exact text. No URI, image, intent, or
+  background clipboard access is exposed.
 
 ## Native media ownership rebalance — Phase 6B draft
 
