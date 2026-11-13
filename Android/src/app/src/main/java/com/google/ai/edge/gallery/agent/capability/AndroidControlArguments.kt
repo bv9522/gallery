@@ -37,6 +37,9 @@ internal object AndroidControlArguments {
     "set_flashlight" to setOf("operation", "enabled"),
     "launch_app" to setOf("operation", "package_name"),
     "open_url" to setOf("operation", "url"),
+    "bluetooth_bonded_devices" to setOf("operation"),
+    "bluetooth_le_scan" to setOf("operation", "duration_ms"),
+    "usb_devices" to setOf("operation"),
   )
 
   private val requiredArguments = mapOf(
