@@ -165,6 +165,7 @@ class TermuxApiCapabilityTool(
     val sensors = arguments.stringList("sensors") ?: return failure("sensor_read requires a sensors array.")
     val count = arguments.int("count") ?: DEFAULT_SENSOR_COUNT
     val delayMs = arguments.int("delay_ms") ?: DEFAULT_SENSOR_DELAY_MS
+    TermuxApiReadCommand.validateSensorRequest(sensors, count, delayMs)
     val listing = client.execute(
       TermuxApiReadCommand.sensorList(),
       "~/",
@@ -186,10 +187,11 @@ class TermuxApiCapabilityTool(
   private suspend fun location(arguments: JsonObject): AgentToolResult {
     val provider = arguments.string("provider") ?: DEFAULT_LOCATION_PROVIDER
     val request = arguments.string("request") ?: DEFAULT_LOCATION_REQUEST
+    val command = TermuxApiReadCommand.location(provider, request)
     if (!authorize(AndroidCapability.LOCATION_READ, "Read a one-time or last-known location using Termux:API.")) {
       return failure("Location request denied or approval unavailable.")
     }
-    return runRead(TermuxApiReadCommand.location(provider, request), LOCATION_TIMEOUT_MS)
+    return runRead(command, LOCATION_TIMEOUT_MS)
   }
 
   private suspend fun runRead(
