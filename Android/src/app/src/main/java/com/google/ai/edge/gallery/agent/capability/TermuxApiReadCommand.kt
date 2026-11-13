@@ -79,8 +79,8 @@ internal object TermuxApiReadCommand {
     return when {
       result.succeeded && result.outputTruncated -> "OUTPUT_TRUNCATED"
       result.succeeded && result.stdout.isBlank() -> "EMPTY_RESULT"
-      listOf("permission denied", "permission required", "not authorized", "securityexception",
-        "access denied", "permission is not granted").any { it in detail } -> "PERMISSION_REQUIRED"
+      listOf("permission denied", "permission denial", "permission required", "not authorized", "securityexception",
+        "access denied", "permission is not granted", "not granted", "requires permission").any { it in detail } -> "PERMISSION_REQUIRED"
       listOf("command not found", "not installed", "no such file or directory").any { it in detail } ->
         "COMMAND_NOT_INSTALLED"
       result.timedOut -> "TIMEOUT"
