@@ -170,3 +170,13 @@ unverified until local tests/build and the consolidated device acceptance pass.
   use the configured Android speech service and is not guaranteed to be on-device.
 - The speech wrapper delegates to an interactive recognition flow. Device acceptance must verify
   that cancellation/timeouts terminate the microphone session and dismiss any external UI.
+
+
+## Ownership rebalance — Phase 6B draft
+
+- `termux-camera-info` remains the Termux:API owner for read-only camera metadata.
+- `termux-camera-photo` is no longer selected for Gallery's camera capture capability. Native
+  capture writes to a Gallery-owned MediaStore URI and uses the system camera activity; this avoids
+  Termux-private output paths and cross-app file access assumptions.
+- `termux-wallpaper` is no longer selected for wallpaper changes. Native WallpaperManager accepts
+  only Gallery-readable image content URIs, avoiding Termux path/URI ownership ambiguity.
