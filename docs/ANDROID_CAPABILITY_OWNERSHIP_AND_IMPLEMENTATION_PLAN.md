@@ -339,10 +339,12 @@ version compatibility must be verified on-device before an operation is marked i
   explicitly chooses a folder or attached USB drive through the system picker; Gallery persists
   only the returned tree URI grant. Tool operations require that exact persisted tree URI and use
   document IDs returned by the provider, never model-supplied filesystem paths.
-- Implemented across Phases 7A–7B: grant listing, picker-based access, bounded child listing (100
-  entries), metadata reads, UTF-8 text reads/writes capped at 256 KiB, text-file/directory creation,
-  rename, delete, same-tree copy/move, and bounded name-only search (500 visited entries, depth 4,
-  50 results). Mutations and private reads require scoped approval.
+- Implemented across Phases 7A–7C: grant listing, picker-based access, bounded child listing (100
+  entries), metadata reads, UTF-8 text reads/writes capped at 256 KiB, one-step generated text-file
+  creation, directory creation, rename, delete, same-tree copy/move, cross-tree file copy/move
+  between separately granted trees (100 MiB maximum), and bounded name-only search (500 visited
+  entries, depth 4, 50 results). Cross-tree move deletes the source only after a complete destination
+  copy; directory transfer remains unsupported. Mutations and private reads require scoped approval.
 - General metadata writes remain unsupported. USB mass-storage file access uses SAF; UsbManager
   enumeration does not grant raw filesystem access.
 
