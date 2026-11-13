@@ -519,34 +519,31 @@ class AndroidNativeCapabilityAdapter(
     var activeGatt: BluetoothGatt? = null
     try {
       val connected = withTimeout(timeoutMs) {
-        suspendCancellableCoroutine<Pair<BluetoothGatt, List<NativeBluetoothGattService>>> { continuation ->
+        suspendCancellableCoroutine<Pair<BluetoothGatt, NativeBluetoothGattInspection>> { continuation ->
           var callbackGatt: BluetoothGatt? = null
+          fun fail(gatt: BluetoothGatt, error: Throwable) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+            runCatching { gatt.disconnect() }
+            runCatching { gatt.close() }
+          }
           val callback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
               if (!continuation.isActive) return
               if (status != BluetoothGatt.GATT_SUCCESS) {
-                continuation.resumeWithException(
-                  IllegalStateException("Bluetooth GATT connection failed with status $status.")
-                )
+                fail(gatt, IllegalStateException("Bluetooth GATT connection failed with status $status."))
               } else if (newState == BluetoothProfile.STATE_CONNECTED) {
                 if (!gatt.discoverServices()) {
-                  continuation.resumeWithException(
-                    IllegalStateException("Android could not start Bluetooth GATT service discovery.")
-                  )
+                  fail(gatt, IllegalStateException("Android could not start Bluetooth GATT service discovery."))
                 }
               } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                continuation.resumeWithException(
-                  IllegalStateException("Bluetooth device disconnected before GATT discovery completed.")
-                )
+                fail(gatt, IllegalStateException("Bluetooth device disconnected before GATT discovery completed."))
               }
             }
 
             override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
               if (!continuation.isActive) return
               if (status != BluetoothGatt.GATT_SUCCESS) {
-                continuation.resumeWithException(
-                  IllegalStateException("Bluetooth GATT service discovery failed with status $status.")
-                )
+                fail(gatt, IllegalStateException("Bluetooth GATT service discovery failed with status $status."))
                 return
               }
               val allServices = gatt.services.orEmpty()
