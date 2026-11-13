@@ -257,6 +257,57 @@ class TermuxApiCapabilityToolTest {
   }
 
   @Test
+  fun nfcReadRequiresApprovalAndUsesFullNdefMode() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val executor = FakeExecutor { TermuxShellResult("""{"records":[]}""", "", 0) }
+    val tool = tool(executor, actions)
+    val responder = launch {
+      val action = actions.receive() as AskNativeCapabilityPermissionAction
+      assertEquals(AndroidCapability.NFC_READ.name, action.capability)
+      action.result.complete(true)
+    }
+    val result = tool.execute(arguments("nfc_read"))
+    responder.join()
+    assertTrue(result.isSuccessful)
+    assertEquals("termux-nfc -r full", executor.calls.single().command)
+    assertEquals(60_000L, executor.calls.single().timeoutMs)
+  }
+
+  @Test
+  fun nfcWriteRequiresApprovalAndPassesOnlyBoundedText() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val executor = FakeExecutor { TermuxShellResult("", "", 0) }
+    val tool = tool(executor, actions)
+    val responder = launch {
+      val action = actions.receive() as AskNativeCapabilityPermissionAction
+      assertEquals(AndroidCapability.NFC_WRITE.name, action.capability)
+      assertTrue(action.summary.contains("Hello NFC"))
+      action.result.complete(true)
+    }
+    val result = tool.execute(arguments("nfc_write").apply { addProperty("ndef_text", "Hello NFC") })
+    responder.join()
+    assertTrue(result.isSuccessful)
+    assertEquals("termux-nfc -w -t 'Hello NFC'", executor.calls.single().command)
+    assertEquals(60_000L, executor.calls.single().timeoutMs)
+  }
+
+  @Test
+  fun nfcDenialAndMalformedWritePreventCommandDispatch() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val executor = FakeExecutor()
+    val tool = tool(executor, actions)
+    val responder = launch {
+      (actions.receive() as AskNativeCapabilityPermissionAction).result.complete(false)
+    }
+    val denied = tool.execute(arguments("nfc_read"))
+    responder.join()
+    val malformed = tool.execute(arguments("nfc_write").apply { addProperty("ndef_text", "x".repeat(513)) })
+    assertFalse(denied.isSuccessful)
+    assertFalse(malformed.isSuccessful)
+    assertTrue(executor.calls.isEmpty())
+  }
+
+  @Test
   fun closedApprovalChannelFailsClosed() = runBlocking {
     val actions = Channel<ToolAction>(Channel.UNLIMITED).apply { close() }
     val executor = FakeExecutor()
