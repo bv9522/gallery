@@ -75,3 +75,11 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
 - Wallpaper changes are native through WallpaperManager and accept only Gallery-readable image
   content URIs with an explicit SYSTEM/LOCK/BOTH target. This keeps content URI permissions under
   Gallery's identity and avoids passing paths or URLs into Termux:API.
+
+
+## Native microphone ownership — Phase 6C draft
+
+- Bounded microphone-to-file recording is native through MediaRecorder and MediaStore. Gallery
+  requests RECORD_AUDIO only after one-time scoped approval, records 1–30 seconds, publishes an
+  app-owned audio content URI, and stops/releases the recorder on cancellation. The output remains
+  local; it is not automatically uploaded or transcribed.
