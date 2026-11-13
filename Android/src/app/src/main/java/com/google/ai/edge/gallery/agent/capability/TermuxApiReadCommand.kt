@@ -8,6 +8,8 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.termux.TermuxShellResult
+
 /**
  * Fixed command builders for the first read-only Termux:API slice.
  *
@@ -64,6 +66,23 @@ internal object TermuxApiReadCommand {
   fun wifiConnectionInfo(): String = "termux-wifi-connectioninfo"
 
   fun wifiLastScanInfo(): String = "termux-wifi-scaninfo"
+
+  fun failureState(result: TermuxShellResult): String {
+    val detail = (result.error ?: result.stderr).lowercase()
+    return when {
+      listOf("permission denied", "permission required", "not authorized", "securityexception",
+        "access denied", "permission is not granted").any { it in detail } -> "PERMISSION_REQUIRED"
+      listOf("command not found", "not installed", "no such file or directory").any { it in detail } ->
+        "COMMAND_NOT_INSTALLED"
+      result.timedOut -> "TIMEOUT"
+      result.processMayStillBeRunning -> "PROCESS_CLEANUP_UNCONFIRMED"
+      result.outputTruncated -> "OUTPUT_TRUNCATED"
+      else -> "OPERATION_FAILED"
+    }
+  }
+
+  fun isCompleteRead(result: TermuxShellResult): Boolean =
+    result.succeeded && !result.outputTruncated && result.stdout.isNotBlank()
 
   private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
