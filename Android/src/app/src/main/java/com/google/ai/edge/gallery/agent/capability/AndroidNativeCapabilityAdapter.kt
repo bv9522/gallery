@@ -613,6 +613,11 @@ class AndroidNativeCapabilityAdapter(
           }
           if (callbackGatt == null && continuation.isActive) {
             continuation.resumeWithException(IllegalStateException("Android could not start a Bluetooth GATT connection."))
+          } else if (callbackGatt != null && !continuation.isActive) {
+            // Cancellation or an unusually fast callback may complete before connectGatt returns.
+            // Service discovery is already complete in the latter case, so closing is safe too.
+            runCatching { callbackGatt?.disconnect() }
+            runCatching { callbackGatt?.close() }
           }
           continuation.invokeOnCancellation {
             runCatching { callbackGatt?.disconnect() }
