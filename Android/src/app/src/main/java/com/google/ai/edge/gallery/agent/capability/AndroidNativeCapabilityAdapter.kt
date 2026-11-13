@@ -210,13 +210,6 @@ fun interface NativeCapabilityAuthorizer {
   suspend fun authorize(capability: AndroidCapability, summary: String): Boolean
 }
 
-/**
- * Typed Android framework operations. Discovery is observational; mutating methods require an
- * injected authorizer and validate their inputs before touching Android system services.
- *
- * Runtime permissions are requested only through the injected UI permission requester, and only
- * after the operation's scoped approval. Provider inspection never requests permissions.
- */
 private sealed class BluetoothGattEvent {
   data class ConnectionState(val status: Int, val newState: Int) : BluetoothGattEvent()
   data class ServicesDiscovered(val status: Int) : BluetoothGattEvent()
@@ -230,6 +223,13 @@ private data class BluetoothGattSession(
   val events: Channel<BluetoothGattEvent>,
 )
 
+/**
+ * Typed Android framework operations. Discovery is observational; mutating methods require an
+ * injected authorizer and validate their inputs before touching Android system services.
+ *
+ * Runtime permissions are requested only through the injected UI permission requester, and only
+ * after the operation's scoped approval. Provider inspection never requests permissions.
+ */
 class AndroidNativeCapabilityAdapter(
   context: Context,
   private val authorizer: NativeCapabilityAuthorizer,
@@ -558,8 +558,18 @@ class AndroidNativeCapabilityAdapter(
     require((characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
       "The selected GATT characteristic does not advertise read support."
     }
-    if (!session.gatt.readCharacteristic(characteristic)) {
-      throw IllegalStateException("Android could not start the GATT characteristic read.")
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      val status = session.gatt.readCharacteristic(characteristic)
+      if (status != BluetoothStatusCodes.SUCCESS) {
+        throw IllegalStateException("Android could not start the GATT characteristic read (status $status).")
+      }
+    } else {
+      val started = runCatching {
+        BluetoothGatt::class.java
+          .getMethod("readCharacteristic", BluetoothGattCharacteristic::class.java)
+          .invoke(session.gatt, characteristic) as? Boolean == true
+      }.getOrDefault(false)
+      if (!started) throw IllegalStateException("Android could not start the GATT characteristic read.")
     }
     while (true) {
       when (val event = session.events.receive()) {
