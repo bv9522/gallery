@@ -209,3 +209,24 @@ version compatibility must be verified on-device before an operation is marked i
 - No hard-coded support for particular Bluetooth accessories, USB devices, or phone models.
 - No silent SMS sending, calling, camera/microphone capture, clipboard scraping, or notification
   access.
+
+
+### Wave 2A — Termux:API first slice (contract audit)
+
+- Prioritize read-only, bounded sensors, location `once`/`last`, Wi-Fi connection information,
+  and last-scan information before NFC, infrared, camera, microphone, speech, TTS, or wallpaper.
+- The upstream wrappers were inspected: `termux-sensor` supports `-l`, `-s`, `-d`, finite
+  `-n`, and explicit `-c`; without `-n` it streams continuously and its signal trap attempts
+  sensor cleanup. Do not default to all sensors.
+- `termux-location` accepts only `gps/network/passive` providers and `once/last/updates`
+  request modes. Implement `once`/`last` first; keep `updates` unavailable until bounded
+  cancellation/cleanup is verified.
+- `termux-wifi-connectioninfo` and `termux-wifi-scaninfo` take no arguments; the latter reads
+  the last scan and does not initiate a scan.
+- Each probe must be observational and distinguish companion/binary presence from actual
+  permission and operation availability. Unknown permission state remains unknown; discovery
+  must not prompt.
+- Fixed command builders only. Test malformed arguments, denial, output bounds, timeout,
+  cancellation, cleanup, and no-fallback. Keep every capability Planned until local tests/build
+  and target-device acceptance are complete.
+- Detailed verified wrapper contracts and upstream links: `docs/TERMUX_API_CAPABILITY_OWNERSHIP.md`.
