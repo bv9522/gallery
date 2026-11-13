@@ -37,9 +37,9 @@ native remains their selected owner. No capability has both owners.
 ## Remaining capability groups
 
 Termux:API is selected for basic sensors, location requests/updates, Wi-Fi information and last-scan
-results, NFC NDEF read/write, infrared, still-photo capture, file-based microphone recording,
-speech-to-text, ordinary TTS, and basic wallpaper setting. Native Kotlin retains Bluetooth/BLE,
-USB host sessions, app-owned/security-sensitive integrations, advanced camera/audio sessions,
+results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Kotlin owns Bluetooth/BLE,
+USB host sessions, app-owned/security-sensitive integrations, Gallery's speech input/output, contacts,
+clipboard, and other typed framework capabilities. The SAF provider owns removable-storage files;grations, advanced camera/audio sessions,
 and user-mediated controls. The canonical plan lists the complete mapping and constraints.
 
 ## Security and implementation rules
