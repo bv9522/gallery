@@ -234,8 +234,14 @@ class AndroidNativeCapabilityTool internal constructor(
           AgentToolResult(Gson().toJson(adapter.scanBluetoothLe(duration)))
         }
         "usb_devices" -> AgentToolResult(Gson().toJson(adapter.getUsbDevices()))
-        "capture_photo" -> AgentToolResult(adapter.capturePhoto())
+        "capture_photo" -> {
+          val unavailable = availabilityFailure(AndroidCapability.CAMERA_CAPTURE)
+          if (unavailable != null) return unavailable
+          AgentToolResult(adapter.capturePhoto())
+        }
         "set_wallpaper" -> {
+          val unavailable = availabilityFailure(AndroidCapability.WALLPAPER_CONTROL)
+          if (unavailable != null) return unavailable
           val uri = arguments.string("content_uri")
             ?: return failure("set_wallpaper requires content_uri from a Gallery-readable image.")
           val target = arguments.string("target") ?: "SYSTEM"
