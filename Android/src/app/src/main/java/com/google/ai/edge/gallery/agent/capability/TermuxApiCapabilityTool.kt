@@ -71,6 +71,7 @@ class TermuxApiCapabilityTool internal constructor(
               "status", "battery_status", "volume_status", "set_volume", "set_flashlight",
               "sensor_list", "sensor_read", "location", "wifi_connection_info", "wifi_last_scan",
               "infrared_frequencies", "infrared_transmit", "tts_engines", "tts_speak",
+              "nfc_read", "nfc_write",
             ).forEach { add(it) }
           })
         })
@@ -116,6 +117,10 @@ class TermuxApiCapabilityTool internal constructor(
           addProperty("type", "string")
           addProperty("maxLength", TermuxApiReadCommand.MAX_TTS_TEXT_CHARS)
         })
+        add("ndef_text", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("maxLength", TermuxApiReadCommand.MAX_NFC_TEXT_CHARS)
+        })
       })
       add("required", JsonArray().apply { add("operation") })
       addProperty("additionalProperties", false)
@@ -130,6 +135,8 @@ class TermuxApiCapabilityTool internal constructor(
       "location" -> setOf("operation", "provider", "request")
       "infrared_transmit" -> setOf("operation", "frequency", "pattern")
       "tts_speak" -> setOf("operation", "text")
+      "nfc_read" -> setOf("operation")
+      "nfc_write" -> setOf("operation", "ndef_text")
       "set_volume" -> setOf("operation", "stream", "volume")
       "set_flashlight" -> setOf("operation", "enabled")
       else -> return failure("Unsupported Termux:API operation '$operation'.")
@@ -152,6 +159,8 @@ class TermuxApiCapabilityTool internal constructor(
         "infrared_transmit" -> infraredTransmit(arguments)
         "tts_engines" -> runRead(TermuxApiReadCommand.ttsEngines())
         "tts_speak" -> ttsSpeak(arguments)
+        "nfc_read" -> nfcRead()
+        "nfc_write" -> nfcWrite(arguments)
         "wifi_connection_info" -> {
           if (!authorize(AndroidCapability.WIFI_CONNECTION_INFO, "Read current Wi-Fi connection details using Termux:API.")) {
             failure("Wi-Fi connection information request denied or approval unavailable.")
@@ -178,7 +187,8 @@ class TermuxApiCapabilityTool internal constructor(
     val probe = client.execute(
       command = "for c in termux-battery-status termux-volume termux-torch termux-sensor " +
         "termux-location termux-wifi-connectioninfo termux-wifi-scaninfo " +
-        "termux-infrared-frequencies termux-infrared-transmit termux-tts-engines termux-tts-speak; do " +
+        "termux-infrared-frequencies termux-infrared-transmit termux-tts-engines termux-tts-speak " +
+        "termux-nfc; do " +
         "if command -v \"\$c\" >/dev/null 2>&1; then printf '%s=AVAILABLE\\n' \"\$c\"; " +
         "else printf '%s=NOT_INSTALLED\\n' \"\$c\"; fi; done",
       workingDirectory = "~/",
@@ -288,6 +298,24 @@ class TermuxApiCapabilityTool internal constructor(
     )
   }
 
+  private suspend fun nfcRead(): AgentToolResult {
+    if (!authorize(AndroidCapability.NFC_READ,
+        "Read full NDEF text from an NFC tag. Present the intended tag when the NFC prompt opens.")) {
+      return failure("NFC read denied or approval unavailable.")
+    }
+    return runRead(TermuxApiReadCommand.nfcRead(), NFC_TIMEOUT_MS)
+  }
+
+  private suspend fun nfcWrite(arguments: JsonObject): AgentToolResult {
+    val text = arguments.string("ndef_text") ?: return failure("nfc_write requires string ndef_text.")
+    val command = TermuxApiReadCommand.nfcWrite(text)
+    if (!authorize(AndroidCapability.NFC_WRITE,
+        "Write this text to an NFC NDEF tag (may replace existing tag content): ${text}")) {
+      return failure("NFC write denied or approval unavailable.")
+    }
+    return runAction(command, "NFC NDEF write", NFC_TIMEOUT_MS)
+  }
+
   private suspend fun runRead(
     command: String,
     timeoutMs: Long = READ_TIMEOUT_MS,
@@ -378,6 +406,7 @@ class TermuxApiCapabilityTool internal constructor(
     const val READ_TIMEOUT_MS = 15_000L
     const val LOCATION_TIMEOUT_MS = 45_000L
     const val ACTION_TIMEOUT_MS = 30_000L
+    const val NFC_TIMEOUT_MS = 60_000L
     const val SENSOR_READ_BASE_TIMEOUT_MS = 10_000L
     const val MAX_SENSOR_READ_TIMEOUT_MS = 60_000L
     const val APPROVAL_TIMEOUT_MS = 120_000L
