@@ -156,6 +156,107 @@ class TermuxApiCapabilityToolTest {
   }
 
   @Test
+  fun infraredTransmitChecksCurrentFrequencyAndRequiresApproval() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val executor = FakeExecutor { call ->
+      if (call.command == "termux-infrared-frequencies") {
+        TermuxShellResult("""{"frequencies":[38000]}""", "", 0)
+      } else TermuxShellResult("", "", 0)
+    }
+    val tool = tool(executor, actions)
+    val responder = launch {
+      val action = actions.receive() as AskNativeCapabilityPermissionAction
+      assertEquals(AndroidCapability.INFRARED_CONTROL.name, action.capability)
+      action.result.complete(true)
+    }
+    val result = tool.execute(arguments("infrared_transmit").apply {
+      addProperty("frequency", 38_000)
+      add("pattern", com.google.gson.JsonArray().apply { listOf(500, 500).forEach { add(it) } })
+    })
+    responder.join()
+    assertTrue(result.isSuccessful)
+    assertEquals(
+      listOf("termux-infrared-frequencies", "termux-infrared-transmit -f 38000 '500,500'"),
+      executor.calls.map { it.command },
+    )
+  }
+
+  @Test
+  fun infraredDenialAndUnsupportedFrequencyPreventTransmission() = runBlocking {
+    val deniedActions = Channel<ToolAction>(Channel.UNLIMITED)
+    val deniedExecutor = FakeExecutor { TermuxShellResult("[38000]", "", 0) }
+    val deniedTool = tool(deniedExecutor, deniedActions)
+    val responder = launch {
+      (deniedActions.receive() as AskNativeCapabilityPermissionAction).result.complete(false)
+    }
+    val denied = deniedTool.execute(arguments("infrared_transmit").apply {
+      addProperty("frequency", 38_000)
+      add("pattern", com.google.gson.JsonArray().apply { add(500); add(500) })
+    })
+    responder.join()
+    assertFalse(denied.isSuccessful)
+    assertEquals(listOf("termux-infrared-frequencies"), deniedExecutor.calls.map { it.command })
+
+    val unsupportedExecutor = FakeExecutor { TermuxShellResult("[30000]", "", 0) }
+    val unsupported = tool(unsupportedExecutor, Channel<ToolAction>(Channel.UNLIMITED))
+      .execute(arguments("infrared_transmit").apply {
+        addProperty("frequency", 38_000)
+        add("pattern", com.google.gson.JsonArray().apply { add(500); add(500) })
+      })
+    assertFalse(unsupported.isSuccessful)
+    assertEquals(listOf("termux-infrared-frequencies"), unsupportedExecutor.calls.map { it.command })
+  }
+
+  @Test
+  fun ttsSpeakRequiresApprovalAndUsesBoundedQuotedText() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val executor = FakeExecutor { TermuxShellResult("", "", 0) }
+    val tool = tool(executor, actions)
+    val responder = launch {
+      val action = actions.receive() as AskNativeCapabilityPermissionAction
+      assertEquals(AndroidCapability.TEXT_TO_SPEECH.name, action.capability)
+      action.result.complete(true)
+    }
+    val result = tool.execute(arguments("tts_speak").apply { addProperty("text", "Hello Coco's world") })
+    responder.join()
+    assertTrue(result.isSuccessful)
+    assertEquals("termux-tts-speak 'Hello Coco'\\''s world'", executor.calls.single().command)
+  }
+
+  @Test
+  fun ttsDenialPreventsSpeechCommand() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val executor = FakeExecutor()
+    val tool = tool(executor, actions)
+    val responder = launch {
+      (actions.receive() as AskNativeCapabilityPermissionAction).result.complete(false)
+    }
+    val result = tool.execute(arguments("tts_speak").apply { addProperty("text", "hello") })
+    responder.join()
+    assertFalse(result.isSuccessful)
+    assertTrue(executor.calls.isEmpty())
+  }
+
+  @Test
+  fun malformedNewOperationArgumentsAreRejectedBeforeDispatch() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val executor = FakeExecutor()
+    val tool = tool(executor, actions)
+    val badPattern = tool.execute(arguments("infrared_transmit").apply {
+      addProperty("frequency", 38_000)
+      add("pattern", com.google.gson.JsonArray().apply { add("500"); add(500) })
+    })
+    val extraText = tool.execute(arguments("tts_speak").apply {
+      addProperty("text", "hello")
+      addProperty("frequency", 38_000)
+    })
+    assertFalse(badPattern.isSuccessful)
+    assertFalse(extraText.isSuccessful)
+    assertTrue(executor.calls.isEmpty())
+    assertFalse(actions.tryReceive().isSuccess)
+  }
+
+  @Test
   fun closedApprovalChannelFailsClosed() = runBlocking {
     val actions = Channel<ToolAction>(Channel.UNLIMITED).apply { close() }
     val executor = FakeExecutor()
