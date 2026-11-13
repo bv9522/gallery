@@ -190,3 +190,12 @@ unverified until local tests/build and the consolidated device acceptance pass.
   background recording services and cross-app file-path assumptions.
 - `termux-speech-to-text` remains the selected Termux:API owner for one-shot interactive speech
   recognition; it is a separate capability and may use the configured Android recognition service.
+
+
+## SAF ownership clarification — Phase 7A draft
+
+- Removable USB storage file access belongs to the Android Storage Access Framework provider,
+  not Termux:API or raw UsbManager device I/O. Gallery opens the system folder picker, persists the
+  user's exact tree URI grant, and uses DocumentsContract document IDs for bounded file operations.
+- SAF grants are scoped to the Gallery app identity and are not shared with Termux. Shell commands
+  must not assume they can access a tree URI or a path from the Gallery document provider.

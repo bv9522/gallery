@@ -331,3 +331,16 @@ version compatibility must be verified on-device before an operation is marked i
   under NonCancellable cleanup and deletes an unpublished MediaStore row.
 - The result is a local content URI; the audio is not automatically uploaded or transcribed. Basic
   speech recognition remains a separate one-shot Termux:API capability.
+
+
+### Wave 4A — SAF document-tree core (draft code; acceptance pending)
+
+- Adds a dedicated `document_tree` tool backed by Android's Storage Access Framework. The user
+  explicitly chooses a folder or attached USB drive through the system picker; Gallery persists
+  only the returned tree URI grant. Tool operations require that exact persisted tree URI and use
+  document IDs returned by the provider, never model-supplied filesystem paths.
+- Implemented in this slice: grant listing, picker-based access, bounded child listing (100 entries),
+  metadata reads, UTF-8 text reads/writes capped at 256 KiB, text-file/directory creation, rename,
+  and delete. Mutations and private reads require scoped approval.
+- Copy, move, recursive search, and general metadata writes remain explicitly unsupported. USB
+  mass-storage file access uses SAF; UsbManager enumeration does not grant raw filesystem access.

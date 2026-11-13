@@ -29,6 +29,7 @@ enum class ToolActionName() {
   ASK_SHELL_COMMAND_PERMISSION,
   ASK_NATIVE_CAPABILITY_PERMISSION,
   CAPTURE_PHOTO,
+  OPEN_DOCUMENT_TREE,
 }
 
 /**
@@ -183,3 +184,9 @@ class CapturePhotoToolAction(
   val contentUri: String,
   val result: CompletableDeferred<Boolean> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.CAPTURE_PHOTO)
+
+
+/** Opens Android's system folder picker and returns the selected tree URI, if any. */
+class OpenDocumentTreeToolAction(
+  val result: CompletableDeferred<String?> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.OPEN_DOCUMENT_TREE)

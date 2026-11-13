@@ -32,6 +32,7 @@ import com.google.ai.edge.gallery.agent.coordinator.TermuxRishShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
+import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
@@ -71,14 +72,27 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
     "DEVICE CONTROL TOOL RULES: Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
-      "device enumeration. Use audio_devices to inspect " +
+      "device enumeration. Use record_audio for a local AAC recording of 1–30 seconds saved to Music/EdgeGallery; " +
+      "it requires one-time approval and RECORD_AUDIO permission and returns a local content URI. " +
+      "Use capture_photo for a user-mediated camera capture saved to Pictures/EdgeGallery; it requires " +
+      "one-time approval. Use set_wallpaper only with a Gallery-readable image content URI and SYSTEM, " +
+      "LOCK, or BOTH target; it requires one-time approval. Use bluetooth_bonded_devices with " +
+      "BLUETOOTH_CONNECT and bluetooth_le_scan with BLUETOOTH_SCAN plus CONNECT; both require approval. " +
+      "Use document_tree for user-granted SAF folders and attached USB storage: " +
+      "request_access opens the Android picker, grants returns persisted tree URIs and root document IDs, " +
+      "and list/read_text/create_file/create_directory/write_text/rename/delete/metadata operate only " +
+      "inside those exact persisted grants. Do not pass raw filesystem paths or invent tree/document IDs. " +
+      "Text reads/writes are limited to 256 KiB; listing is limited to 100 entries. " +
+      "Copy, move, recursive search, and general metadata writes are not implemented. " +
+      "Use audio_devices to inspect " +
       "connected audio endpoints. display_brightness reports the stored system setting and mode; " +
       "setting brightness requires Android's Modify system settings special access and switches " +
       "to manual mode only after the user approves the exact change. Vibration is limited to 1 second. " +
       "Wake locks are partial CPU locks capped at 5 minutes and auto-release at timeout; use " +
       "wake_lock_status to inspect and set_wake_lock with held=false to release. Use list_apps before " +
       "launch_app and pass an exact returned package_name. Never guess package names. Read-only " +
-      "operations do not require approval; every mutation requires the user's one-time approval. " +
+      "ordinary status and non-sensitive reads do not require approval; privacy-sensitive device " +
+      "discovery, microphone/photo capture, document reads, and all mutations require one-time approval. " +
       "Report unavailable capabilities and permission requirements honestly. When a tool returns an argument-validation error with accepted arguments, retry once using the same operation and only those accepted arguments; never infer or substitute another operation. Do not use shell " +
       "commands as an automatic fallback for android_control failures. When reporting device " +
       "identity, copy modelIdentifier exactly character-for-character from device_info; do not " +
@@ -360,6 +374,10 @@ class NativeAgentRuntimeExecutor(
           listOf(
             UnifiedShellTool(router, approval),
             AndroidNativeCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+            ),
+            DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
             ),

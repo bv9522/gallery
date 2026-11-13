@@ -83,3 +83,15 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
   requests RECORD_AUDIO only after one-time scoped approval, records 1–30 seconds, publishes an
   app-owned audio content URI, and stops/releases the recorder on cancellation. The output remains
   local; it is not automatically uploaded or transcribed.
+
+
+## SAF document-tree implementation — Phase 7A draft
+
+- Gallery owns a dedicated `document_tree` tool backed by DocumentsContract and user-persisted
+  tree grants. It supports grant listing, folder picker, bounded listing, metadata, text read/write,
+  text file and directory creation, rename, and delete.
+- Tree access is scoped to exact persisted Gallery URI grants. Model-supplied raw paths and arbitrary
+  URIs are rejected. Text I/O is capped at 256 KiB and listings at 100 entries. Copy, move, recursive
+  search, and general metadata writes remain unsupported.
+- Attached USB mass storage is accessed through SAF, not through UsbManager bulk transfers. UsbManager
+  is only used for peripheral enumeration and future non-storage USB protocols.

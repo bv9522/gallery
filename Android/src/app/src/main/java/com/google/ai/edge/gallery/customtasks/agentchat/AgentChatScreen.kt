@@ -91,6 +91,7 @@ import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
+import com.google.ai.edge.gallery.tools.OpenDocumentTreeToolAction
 import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
 import com.google.ai.edge.gallery.tools.CallJsToolAction
 import com.google.ai.edge.gallery.tools.PermissionResult
@@ -160,6 +161,7 @@ fun AgentChatScreen(
     mutableStateOf<AskNativeCapabilityPermissionAction?>(null)
   }
   var currentPhotoCaptureAction by remember { mutableStateOf<CapturePhotoToolAction?>(null) }
+  var currentDocumentTreeAction by remember { mutableStateOf<OpenDocumentTreeToolAction?>(null) }
   var askInfoInputValue by remember { mutableStateOf("") }
   var webViewRef: WebView? by remember { mutableStateOf(null) }
   val chatWebViewClient = remember { ChatWebViewClient(context = context) }
@@ -179,6 +181,10 @@ fun AgentChatScreen(
   val takePictureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
     currentPhotoCaptureAction?.result?.complete(success)
     currentPhotoCaptureAction = null
+  }
+  val openDocumentTreeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+    currentDocumentTreeAction?.result?.complete(uri?.toString())
+    currentDocumentTreeAction = null
   }
 
   LaunchedEffect(task) { viewModel.loadSystemPrompt(task) }
@@ -463,6 +469,14 @@ fun AgentChatScreen(
                 .onFailure {
                   action.result.complete(false)
                   currentPhotoCaptureAction = null
+                }
+            }
+            is OpenDocumentTreeToolAction -> {
+              currentDocumentTreeAction = action
+              runCatching { openDocumentTreeLauncher.launch(null) }
+                .onFailure {
+                  action.result.complete(null)
+                  currentDocumentTreeAction = null
                 }
             }
           }
