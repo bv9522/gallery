@@ -53,6 +53,8 @@ import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.provider.ContactsContract
 import android.provider.MediaStore
+import android.speech.SpeechRecognizer
+import android.speech.tts.TextToSpeech
 import android.provider.Settings
 import android.util.Base64
 import androidx.lifecycle.Lifecycle
@@ -441,6 +443,34 @@ class AndroidNativeCapabilityAdapter(
           "Contacts permission is required; provider discovery did not request it."
         ProviderAvailability.PERMISSION_REQUIRED
       }
+
+    val textToSpeechAvailable = runCatching {
+      appContext.packageManager.queryIntentServices(
+        Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),
+        PackageManager.MATCH_DEFAULT_ONLY,
+      ).isNotEmpty()
+    }.getOrDefault(false)
+    capabilities[AndroidCapability.TEXT_TO_SPEECH] =
+      if (textToSpeechAvailable) ProviderAvailability.AVAILABLE else {
+        details[AndroidCapability.TEXT_TO_SPEECH] = "No Android text-to-speech engine service is available."
+        ProviderAvailability.UNSUPPORTED
+      }
+
+    val speechRecognitionAvailable = runCatching {
+      SpeechRecognizer.isRecognitionAvailable(appContext)
+    }.getOrDefault(false)
+    capabilities[AndroidCapability.SPEECH_RECOGNITION] = when {
+      !speechRecognitionAvailable -> {
+        details[AndroidCapability.SPEECH_RECOGNITION] = "No Android speech-recognition service is available."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !hasRuntimePermission(Manifest.permission.RECORD_AUDIO) -> {
+        details[AndroidCapability.SPEECH_RECOGNITION] =
+          "Microphone permission is required; provider discovery did not request it."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
 
     return CapabilityProviderObservation(
       providerId = descriptor.id,
