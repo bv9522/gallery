@@ -71,6 +71,18 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
   are exposed. USB device I/O remains planned.
 
 
+## Native speech services (existing Gallery ownership)
+
+- Speech input in chat is hold-to-dictate and resolves through the native `AsrServiceProvider`: Android
+  platform SpeechRecognizer, ML Kit ASR, or MediaPipe SpeechProcessor. The microphone is user-started;
+  there is no background recording or model-triggered microphone start.
+- Speech output already uses `TtsServiceProvider`: Android platform TextToSpeech, ML Kit GenAI TTS,
+  and MediaPipe TTS. Gallery owns engine/voice/language selection and chat playback.
+- The capability catalog assigns both speech capabilities to the native provider. Termux:API TTS
+  and speech-to-text operations are removed from the Gallery model-facing Termux tool to prevent
+  duplicate ownership. Agent-triggered TTS reuse of the existing playback controller remains a
+  distinct integration task.
+
 ## Native contacts and clipboard onboarding — Phase 9A draft
 
 - Contacts use the Gallery app's ContactsContract provider. Search is query-based and bounded to 20
