@@ -61,7 +61,7 @@ operation do not count as a dedicated native capability implementation.
 | Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
 | Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Phase 6A draft; scoped approval and CONNECT runtime permission request |
 | Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN + CONNECT) | Phase 6A draft; separate capability ID, 1–10 second low-power scan, bounded results, cancellation-safe stop |
-| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Planned; generic profiles, no device-specific hacks |
+| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Phase 8A draft: short-lived connection and bounded service/characteristic discovery; read/write operations remain deferred pending session design |
 
 | NFC read/write | Termux:API (termux-nfc) | Planned; basic NDEF read/write; foreground/tag interaction requires device verification |
 | Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | Planned; bounded carrier frequency and pulse pattern |
@@ -197,6 +197,14 @@ version compatibility must be verified on-device before an operation is marked i
 - Bound stream duration, output, and process lifetime; sensor and microphone operations need
   explicit cancellation and cleanup semantics.
 - Use generic Bluetooth and USB abstractions; no device-specific names or profiles.
+
+### Wave 2B — Native Bluetooth GATT inspection (Phase 8A draft; acceptance pending)
+
+- Adds `bluetooth_gatt_services` to the existing `android_control` tool. It accepts only a Bluetooth MAC address returned by the paired-device or BLE-discovery operations and a bounded 5–20 second timeout (15 seconds by default).
+- Requests the existing BLUETOOTH_CONNECT runtime permission only after explicit one-time approval. The approval summary includes the exact address and connection duration.
+- Opens one non-auto-connect LE GATT connection, discovers services, and returns bounded service UUIDs plus characteristic UUIDs, property flags (read/write/write-without-response/notify/indicate), and descriptor counts.
+- Caps output at 32 services and 128 characteristics. No characteristic values are read, no writes or subscriptions are performed, and no pairing/bonding is initiated.
+- Disconnects and closes the GATT client after success, failure, timeout, or coroutine cancellation. Real accessory interoperability and cleanup behavior remain part of the consolidated device acceptance pass.
 
 ### Wave 3 — Gallery-owned and privacy-sensitive integrations
 - Contacts, call logs, telephony metadata, SMS composer/inbox where platform policy permits.

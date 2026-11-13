@@ -136,6 +136,34 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun bluetoothGattInspectionDispatchesOnlyWithAddressAndBoundedTimeout() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val result = tool.execute(arguments("bluetooth_gatt_services").apply {
+      addProperty("device_address", "AA:BB:CC:DD:EE:FF")
+      addProperty("timeout_ms", 10_000)
+    })
+    val missingAddress = tool.execute(arguments("bluetooth_gatt_services").apply {
+      addProperty("timeout_ms", 10_000)
+    })
+    val invalidTimeout = tool.execute(arguments("bluetooth_gatt_services").apply {
+      addProperty("device_address", "AA:BB:CC:DD:EE:FF")
+      addProperty("timeout_ms", 20_001)
+    })
+    val invalidAddress = tool.execute(arguments("bluetooth_gatt_services").apply {
+      addProperty("device_address", "not-a-mac")
+    })
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("AA:BB:CC:DD:EE:FF"))
+    assertFalse(missingAddress.isSuccessful)
+    assertFalse(invalidTimeout.isSuccessful)
+    assertFalse(invalidAddress.isSuccessful)
+    assertEquals(listOf("bluetooth_gatt_services:AA:BB:CC:DD:EE:FF:10000"), adapter.discoveryCalls)
+  }
+
+  @Test
   fun systemCapabilityOperationsReachTheirMatchingAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
@@ -347,6 +375,19 @@ class AndroidNativeCapabilityToolTest {
       discoveryCalls += "bluetooth_le_scan:$durationMs"
       return emptyList()
     }
+    override suspend fun inspectBluetoothGatt(
+      deviceAddress: String,
+      timeoutMs: Long,
+    ): NativeBluetoothGattInspection {
+      discoveryCalls += "bluetooth_gatt_services:$deviceAddress:$timeoutMs"
+      return NativeBluetoothGattInspection(
+        deviceAddress = deviceAddress,
+        services = listOf(NativeBluetoothGattService("180F", "PRIMARY", emptyList())),
+        totalCharacteristics = 0,
+        truncated = false,
+      )
+    }
+
     override suspend fun getUsbDevices(): List<NativeUsbDevice> {
       discoveryCalls += "usb_devices"
       return emptyList()

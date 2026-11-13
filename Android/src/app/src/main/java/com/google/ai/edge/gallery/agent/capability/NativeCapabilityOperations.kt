@@ -12,6 +12,30 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+data class NativeBluetoothGattCharacteristic(
+  val uuid: String,
+  val properties: Int,
+  val canRead: Boolean,
+  val canWrite: Boolean,
+  val canWriteWithoutResponse: Boolean,
+  val canNotify: Boolean,
+  val canIndicate: Boolean,
+  val descriptorCount: Int,
+)
+
+data class NativeBluetoothGattService(
+  val uuid: String,
+  val type: String,
+  val characteristics: List<NativeBluetoothGattCharacteristic>,
+)
+
+data class NativeBluetoothGattInspection(
+  val deviceAddress: String,
+  val services: List<NativeBluetoothGattService>,
+  val totalCharacteristics: Int,
+  val truncated: Boolean,
+)
+
 /**
  * Typed operations consumed by [AndroidNativeCapabilityTool].
  *
@@ -36,6 +60,7 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   suspend fun openUrl(url: String): NativeCapabilityActionResult
   suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice>
   suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice>
+  suspend fun inspectBluetoothGatt(deviceAddress: String, timeoutMs: Long): NativeBluetoothGattInspection
   suspend fun getUsbDevices(): List<NativeUsbDevice>
   suspend fun recordAudio(durationMs: Long): String
   suspend fun capturePhoto(): String

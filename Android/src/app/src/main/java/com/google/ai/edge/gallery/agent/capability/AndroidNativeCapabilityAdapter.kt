@@ -16,7 +16,12 @@ package com.google.ai.edge.gallery.agent.capability
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
@@ -49,6 +54,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.util.concurrent.atomic.AtomicInteger
 /** Small, privacy-conscious device facts suitable for a local agent. */
 data class NativeDeviceInfo(
@@ -329,9 +338,22 @@ class AndroidNativeCapabilityAdapter(
         ProviderAvailability.UNSUPPORTED
       }
 
-    capabilities[AndroidCapability.BLUETOOTH_GATT] = ProviderAvailability.UNSUPPORTED
-    details[AndroidCapability.BLUETOOTH_GATT] =
-      "Bluetooth GATT sessions are not implemented in this onboarding phase."
+    capabilities[AndroidCapability.BLUETOOTH_GATT] = when {
+      bluetoothAdapter == null -> {
+        details[AndroidCapability.BLUETOOTH_GATT] = "Bluetooth adapter is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !hasRuntimePermission(Manifest.permission.BLUETOOTH_CONNECT) -> {
+        details[AndroidCapability.BLUETOOTH_GATT] =
+          "Nearby devices connect permission is required; discovery did not request it."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      !bluetoothAdapter.isEnabled -> {
+        details[AndroidCapability.BLUETOOTH_GATT] = "Bluetooth is turned off."
+        ProviderAvailability.SERVICE_STOPPED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
 
     val usbManager = appContext.getSystemService(UsbManager::class.java)
     val usbHostSupported = appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)
@@ -465,6 +487,134 @@ class AndroidNativeCapabilityAdapter(
       throw IllegalStateException("Bluetooth LE scan failed with Android error code $it.")
     }
     return synchronized(found) { found.values.sortedWith(compareByDescending<NativeBluetoothDevice> { it.rssi ?: Int.MIN_VALUE }.thenBy { it.address }) }
+  }
+
+  @SuppressLint("MissingPermission")
+  override suspend fun inspectBluetoothGatt(
+    deviceAddress: String,
+    timeoutMs: Long,
+  ): NativeBluetoothGattInspection {
+    require(deviceAddress.matches(Regex("(?i)^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"))) {
+      "device_address must be a valid Bluetooth MAC address."
+    }
+    require(timeoutMs in MIN_GATT_TIMEOUT_MS..MAX_GATT_TIMEOUT_MS) {
+      "GATT inspection timeout must be between $MIN_GATT_TIMEOUT_MS and $MAX_GATT_TIMEOUT_MS milliseconds."
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.BLUETOOTH_GATT,
+        "Connect briefly to Bluetooth device $deviceAddress, inspect its advertised GATT services and characteristic properties, then disconnect (maximum $timeoutMs ms).",
+      )
+    ) {
+      throw SecurityException("Bluetooth GATT inspection was not approved.")
+    }
+    ensureRuntimePermission(Manifest.permission.BLUETOOTH_CONNECT)
+    val bluetooth = appContext.getSystemService(BluetoothManager::class.java)?.adapter
+      ?: throw IllegalStateException("Bluetooth adapter is unavailable.")
+    if (!bluetooth.isEnabled) throw IllegalStateException("Bluetooth is turned off.")
+    val device = try {
+      bluetooth.getRemoteDevice(deviceAddress.uppercase())
+    } catch (error: IllegalArgumentException) {
+      throw IllegalArgumentException("device_address is not a valid Bluetooth address.", error)
+    }
+
+    var activeGatt: BluetoothGatt? = null
+    try {
+      val connected = try {
+        withTimeout(timeoutMs) {
+          suspendCancellableCoroutine<Pair<BluetoothGatt, NativeBluetoothGattInspection>> { continuation ->
+          var callbackGatt: BluetoothGatt? = null
+          fun fail(gatt: BluetoothGatt, error: Throwable) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+            runCatching { gatt.disconnect() }
+            runCatching { gatt.close() }
+          }
+          val callback = object : BluetoothGattCallback() {
+            override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
+              if (!continuation.isActive) return
+              if (status != BluetoothGatt.GATT_SUCCESS) {
+                fail(gatt, IllegalStateException("Bluetooth GATT connection failed with status $status."))
+              } else if (newState == BluetoothProfile.STATE_CONNECTED) {
+                if (!gatt.discoverServices()) {
+                  fail(gatt, IllegalStateException("Android could not start Bluetooth GATT service discovery."))
+                }
+              } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                fail(gatt, IllegalStateException("Bluetooth device disconnected before GATT discovery completed."))
+              }
+            }
+
+            override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+              if (!continuation.isActive) return
+              if (status != BluetoothGatt.GATT_SUCCESS) {
+                fail(gatt, IllegalStateException("Bluetooth GATT service discovery failed with status $status."))
+                return
+              }
+              val allServices = gatt.services.orEmpty()
+              var remaining = MAX_GATT_CHARACTERISTICS
+              val services = allServices.take(MAX_GATT_SERVICES).map { service ->
+                val characteristics = service.characteristics.orEmpty()
+                val selected = characteristics.take(remaining.coerceAtLeast(0))
+                remaining -= selected.size
+                NativeBluetoothGattService(
+                  uuid = service.uuid.toString(),
+                  type = if (service.type == BluetoothGattService.SERVICE_TYPE_PRIMARY) "PRIMARY" else "SECONDARY",
+                  characteristics = selected.map { characteristic ->
+                    NativeBluetoothGattCharacteristic(
+                      uuid = characteristic.uuid.toString(),
+                      properties = characteristic.properties,
+                      canRead = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0,
+                      canWrite = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0,
+                      canWriteWithoutResponse = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0,
+                      canNotify = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0,
+                      canIndicate = (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0,
+                      descriptorCount = characteristic.descriptors.size.coerceAtMost(MAX_GATT_DESCRIPTORS_PER_CHARACTERISTIC),
+                    )
+                  },
+                )
+              }
+              val totalCharacteristics = allServices.sumOf { it.characteristics.size }
+              continuation.resume(
+                gatt to NativeBluetoothGattInspection(
+                  deviceAddress = deviceAddress.uppercase(),
+                  services = services,
+                  totalCharacteristics = totalCharacteristics,
+                  truncated = allServices.size > MAX_GATT_SERVICES || totalCharacteristics > MAX_GATT_CHARACTERISTICS,
+                )
+              )
+            }
+          }
+          callbackGatt = try {
+            device.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
+          } catch (error: Exception) {
+            continuation.resumeWithException(error)
+            null
+          }
+          if (callbackGatt == null && continuation.isActive) {
+            continuation.resumeWithException(IllegalStateException("Android could not start a Bluetooth GATT connection."))
+          } else if (callbackGatt != null && !continuation.isActive) {
+            // Cancellation or an unusually fast callback may complete before connectGatt returns.
+            // Service discovery is already complete in the latter case, so closing is safe too.
+            runCatching { callbackGatt?.disconnect() }
+            runCatching { callbackGatt?.close() }
+          }
+          continuation.invokeOnCancellation {
+            runCatching { callbackGatt?.disconnect() }
+            runCatching { callbackGatt?.close() }
+          }
+          }
+        }
+      } catch (timeout: TimeoutCancellationException) {
+        throw IllegalStateException("Bluetooth GATT service inspection timed out after $timeoutMs milliseconds.", timeout)
+      }
+      activeGatt = connected.first
+      return connected.second
+    } finally {
+      withContext(NonCancellable) {
+        activeGatt?.let { gatt ->
+          runCatching { gatt.disconnect() }
+          runCatching { gatt.close() }
+        }
+      }
+    }
   }
 
   override suspend fun getUsbDevices(): List<NativeUsbDevice> {
@@ -1091,6 +1241,11 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_BLUETOOTH_SCAN_MS = 10_000L
     const val MAX_BLUETOOTH_RESULTS = 32
     const val MAX_BLUETOOTH_SERVICE_UUIDS = 16
+    const val MIN_GATT_TIMEOUT_MS = 5_000L
+    const val MAX_GATT_TIMEOUT_MS = 20_000L
+    const val MAX_GATT_SERVICES = 32
+    const val MAX_GATT_CHARACTERISTICS = 128
+    const val MAX_GATT_DESCRIPTORS_PER_CHARACTERISTIC = 16
     const val MAX_USB_DEVICES = 32
     const val MAX_USB_INTERFACES = 16
   }
