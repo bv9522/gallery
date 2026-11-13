@@ -32,6 +32,7 @@ import com.google.ai.edge.gallery.agent.coordinator.TermuxRishShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
+import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
@@ -71,7 +72,13 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
     "DEVICE CONTROL TOOL RULES: Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
-      "device enumeration. Use audio_devices to inspect " +
+      "device enumeration. Use document_tree for user-granted SAF folders and attached USB storage: " +
+      "request_access opens the Android picker, grants returns persisted tree URIs and root document IDs, " +
+      "and list/read_text/create_file/create_directory/write_text/rename/delete/metadata operate only " +
+      "inside those exact persisted grants. Do not pass raw filesystem paths or invent tree/document IDs. " +
+      "Text reads/writes are limited to 256 KiB; listing is limited to 100 entries. " +
+      "Copy, move, recursive search, and general metadata writes are not implemented. " +
+      "Use audio_devices to inspect " +
       "connected audio endpoints. display_brightness reports the stored system setting and mode; " +
       "setting brightness requires Android's Modify system settings special access and switches " +
       "to manual mode only after the user approves the exact change. Vibration is limited to 1 second. " +
@@ -360,6 +367,10 @@ class NativeAgentRuntimeExecutor(
           listOf(
             UnifiedShellTool(router, approval),
             AndroidNativeCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+            ),
+            DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
             ),
