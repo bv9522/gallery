@@ -76,3 +76,41 @@ validation, cancellation/cleanup, tests, and device acceptance are implemented.
 ## Upstream command reference
 
 https://github.com/termux/termux-api-package/tree/master/scripts
+
+
+## Verified upstream contracts — first implementation slice
+
+The following contracts were checked against the current upstream command wrappers in
+`termux/termux-api-package/scripts` (not inferred from command names). They are an
+implementation reference, not evidence of Gallery integration or device availability.
+
+| Command | Verified wrapper contract | Implementation implications |
+|---|---|---|
+| `termux-sensor` | Requires an explicit option; `-l` lists sensors, `-s <comma-delimited names>` selects sensors, `-a` selects all sensors, `-d <milliseconds>` sets delay, `-n <count>` makes the read finite, and `-c` requests cleanup. Without `-n`, reads are continuous. | Prefer `-l` and finite `-n` reads first. Validate sensor names against the observed list or a conservative character/length allowlist; never accept arbitrary option text. Bound count and delay. If a stream is later exposed, cancellation must terminate the supervised process group so the script's SIGTERM/SIGINT trap can call its sensor cleanup routine. Also provide best-effort explicit `-c` cleanup where lifecycle ownership permits. Do not use `-a` by default because upstream warns of battery impact. |
+| `termux-location` | `-p` accepts only `gps`, `network`, or `passive`; `-r` accepts only `once`, `last`, or `updates`. Defaults are `gps` and `once`. The wrapper rejects trailing arguments. | Start with `once` and `last`; constrain provider to the three exact values. Treat `updates` as a long-lived operation, not a normal read: require an explicit bounded session, cancellation, and process cleanup before exposing it. The wrapper has no separate cleanup subcommand. |
+| `termux-wifi-connectioninfo` | Accepts no arguments and invokes the current-connection information API. | Construct a constant command with no model-supplied parameters. Distinguish unavailable/disconnected/permission-restricted results from malformed output. |
+| `termux-wifi-scaninfo` | Accepts no arguments and returns information from the last Wi-Fi scan; it does not initiate a new scan. | Construct a constant command with no model-supplied parameters. Report stale/empty last-scan data as such; do not describe it as a fresh scan. Android permission and scan-throttling behavior still needs device verification. |
+
+### First-slice sequencing and readiness
+
+1. Implement read-only sensor listing and finite sensor samples, location `once`/`last`, Wi-Fi
+   connection information, and last-scan information using fixed command builders.
+2. Add per-command observational probes for companion-app presence and command availability.
+   Command presence is only a transport prerequisite, not proof that permissions or the operation
+   are usable. Report permission/availability as unknown when it cannot be observed without
+   prompting; never launch a permission prompt during discovery.
+3. Keep sensor streaming and location `updates` unavailable until bounded-session semantics,
+   cancellation, cleanup, and device behavior have dedicated tests. Their catalog ownership does
+   not make them callable or available.
+4. Test malformed/extra arguments, denied or missing permissions, output truncation, timeout,
+   cancellation, process cleanup, and no-fallback behavior. For finite operations, test that the
+   exact fixed command is dispatched; for streaming tests, verify the supervised process group
+   exits and sensor cleanup is attempted.
+5. Only after local unit tests/build and target-device acceptance should implemented capabilities
+   be reflected in provider observations. Until then, retain **Planned** status.
+
+Upstream wrapper references:
+- https://github.com/termux/termux-api-package/blob/master/scripts/termux-sensor.in
+- https://github.com/termux/termux-api-package/blob/master/scripts/termux-location.in
+- https://github.com/termux/termux-api-package/blob/master/scripts/termux-wifi-connectioninfo.in
+- https://github.com/termux/termux-api-package/blob/master/scripts/termux-wifi-scaninfo.in
