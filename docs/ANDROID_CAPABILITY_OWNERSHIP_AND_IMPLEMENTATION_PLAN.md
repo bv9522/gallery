@@ -52,12 +52,12 @@ operation do not count as a dedicated native capability implementation.
 | Display brightness | Native Kotlin (Settings.System with explicit special access) | Implemented; reports stored setting/mode; mutation requires Modify system settings access and explicit approval; switches to manual mode |
 | Vibration | Native Kotlin (VibratorManager) | Implemented; explicit approval; maximum one-second pulse |
 | Bounded wake lock | Native Kotlin (PowerManager) | Implemented; partial CPU lock, explicit approval, maximum five-minute timeout with automatic release |
-| Sensor listing and finite sensor reads | Termux:API (termux-sensor) | Implemented in code; listing-gated sensor names, 1–10 samples, 100–5000 ms delay, 8 KiB output cap; local validation/device acceptance pending |
+| Sensor listing and finite sensor reads | Termux:API (termux-sensor) | Planned; draft handlers in PR #16 enforce listing-gated names, 1–10 samples, 100–5000 ms delay, and 8 KiB output; current-head tests/build and device acceptance pending; not production-available |
 | Continuous sensor streams | Termux:API (termux-sensor) | Planned; not exposed until cancellation and sensor cleanup are verified |
-| Location once/last | Termux:API (termux-location) | Implemented in code; provider allowlist, 45-second timeout, scoped user approval; local validation/device acceptance pending |
+| Location once/last | Termux:API (termux-location) | Planned; draft handler in PR #16 uses provider allowlist, 45-second timeout, and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Continuous location updates | Termux:API (termux-location) | Planned; not exposed until bounded-session cancellation and cleanup are verified |
-| Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Implemented in code; fixed no-argument command, scoped user approval; permission behavior and device acceptance pending |
-| Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Implemented in code; fixed no-argument command, scoped user approval; reports only last scan, never initiates a scan; device acceptance pending |
+| Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Planned; draft handler in PR #16 uses a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
+| Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Planned; draft handler in PR #16 reads only the last scan with a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
 | Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / permissions) | Planned |
 | Bluetooth LE scan and GATT operations | Native Kotlin (BluetoothLeScanner / BluetoothGatt) | Planned; generic profiles, no device-specific hacks |
