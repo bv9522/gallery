@@ -1,4 +1,4 @@
-# Phase 4A — Termux:API overlap probe (transitional)
+# Phase 4A — Termux:API integration and overlap probe
 
 ## Purpose and current status
 
@@ -6,10 +6,11 @@ Phase 4A added an explicit `termux_api` tool backed by the existing supervised T
 RUN_COMMAND client. It was introduced to inspect the companion app and compare a small overlap
 slice before provider ownership was decided.
 
-The subsequent capability-ownership audit established a **single-owner policy**. Native Android
-Kotlin owns typed Android framework capabilities; the unified shell router owns path-based file
-operations; SAF owns user-granted document trees; AccessibilityService owns semantic UI
-operations. Termux:API is not registered as a second automatic owner.
+The revised ownership audit preserves a **single-owner policy** but selects Termux:API for a
+defined subset of simple, bounded operations. The unified shell router owns path-based file
+operations; Gallery's SAF grants own user-selected document trees; AccessibilityService owns
+semantic UI operations. Termux shell remains an execution transport and is distinct from the
+TERMUX_API capability owner.
 
 The existing Phase 4A operations remain transitional, explicit-comparison functionality only:
 
@@ -19,13 +20,15 @@ The existing Phase 4A operations remain transitional, explicit-comparison functi
 - `set_volume`: `termux-volume <stream> <volume>`.
 - `set_flashlight`: `termux-torch on|off`.
 
-Do not expand this overlapping slice into a second production provider. Once the native capability
-owners and deterministic result contracts are implemented, remove the redundant Termux:API
-operations from the model-facing runtime unless device evidence establishes a concrete advantage
-that justifies a documented ownership change.
+Do not treat the three overlap operations as production alternatives to the selected native owners.
+The wider Termux:API command families are now selected owners where listed in the canonical plan.
+The current termux_api model tool still implements only the initial status/battery/volume/flashlight
+slice; expanding it to selected capability families is a subsequent implementation task.
+Do not mark those capabilities available until fixed handlers, permission probes, bounds,
+cancellation, cleanup, tests, and device acceptance checks exist.
 
 See [ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md](ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md)
-for the complete Termux:API command inventory and selected owner for each capability.
+for the complete Termux:API command inventory, selected owners, and implementation constraints.
 
 ## Security and execution
 
