@@ -19,7 +19,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
-data class DocumentTreeGrant(val treeUri: String, val canRead: Boolean, val canWrite: Boolean)
+data class DocumentTreeGrant(
+  val treeUri: String,
+  val rootDocumentId: String,
+  val canRead: Boolean,
+  val canWrite: Boolean,
+)
 data class DocumentEntry(
   val documentId: String,
   val displayName: String,
@@ -33,12 +38,12 @@ data class DocumentText(val document: DocumentEntry, val text: String)
 
 interface DocumentTreeOperations : CapabilityProviderProbe {
   suspend fun listGrants(): List<DocumentTreeGrant>
-  suspend fun requestAccess(): String?
+  suspend fun requestAccess(): DocumentTreeGrant?
   suspend fun list(treeUri: String, parentDocumentId: String?): DocumentListing
   suspend fun metadata(treeUri: String, documentId: String): DocumentEntry
   suspend fun readText(treeUri: String, documentId: String): DocumentText
-  suspend fun createFile(treeUri: String, parentDocumentId: String, name: String, mimeType: String): String
-  suspend fun createDirectory(treeUri: String, parentDocumentId: String, name: String): String
+  suspend fun createFile(treeUri: String, parentDocumentId: String?, name: String, mimeType: String): String
+  suspend fun createDirectory(treeUri: String, parentDocumentId: String?, name: String): String
   suspend fun writeText(treeUri: String, documentId: String, text: String): Long
   suspend fun rename(treeUri: String, documentId: String, newName: String): String
   suspend fun delete(treeUri: String, documentId: String): Boolean
@@ -118,10 +123,10 @@ class AndroidDocumentTreeAdapter(
     authorize(AndroidCapability.DOCUMENT_TREE_LIST, "List folders and removable-storage roots granted to Gallery.")
     return resolver.persistedUriPermissions
       .filter { it.isReadPermission || it.isWritePermission }
-      .map { DocumentTreeGrant(it.uri.toString(), it.isReadPermission, it.isWritePermission) }
+      .map { DocumentTreeGrant(it.uri.toString(), DocumentsContract.getTreeDocumentId(it.uri), it.isReadPermission, it.isWritePermission) }
   }
 
-  override suspend fun requestAccess(): String? {
+  override suspend fun requestAccess(): DocumentTreeGrant? {
     authorize(
       AndroidCapability.DOCUMENT_TREE_LIST,
       "Open Android's folder picker so the user can grant Gallery access to a folder or attached USB drive.",
@@ -135,7 +140,12 @@ class AndroidDocumentTreeAdapter(
       uri,
       Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
     )
-    return uri.toString()
+    return DocumentTreeGrant(
+      treeUri = uri.toString(),
+      rootDocumentId = DocumentsContract.getTreeDocumentId(uri),
+      canRead = true,
+      canWrite = true,
+    )
   }
 
   override suspend fun list(treeUri: String, parentDocumentId: String?): DocumentListing {
@@ -197,7 +207,7 @@ class AndroidDocumentTreeAdapter(
 
   override suspend fun createFile(
     treeUri: String,
-    parentDocumentId: String,
+    parentDocumentId: String?,
     name: String,
     mimeType: String,
   ): String {
@@ -206,19 +216,21 @@ class AndroidDocumentTreeAdapter(
     require(mimeType in ALLOWED_CREATE_MIME_TYPES) { "mime_type is not in the supported text-file MIME allowlist." }
     authorize(AndroidCapability.DOCUMENT_TREE_CREATE, "Create '" + name + "' in the selected document folder.")
     return withContext(Dispatchers.IO) {
-      val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentDocumentId)
+      val parentId = parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree)
+      val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
       val created = DocumentsContract.createDocument(resolver, parent, mimeType, name)
         ?: throw IllegalStateException("The document provider refused to create '" + name + "'.")
       created.toString()
     }
   }
 
-  override suspend fun createDirectory(treeUri: String, parentDocumentId: String, name: String): String {
+  override suspend fun createDirectory(treeUri: String, parentDocumentId: String?, name: String): String {
     val tree = requireTreeGrant(treeUri, write = true)
     validateName(name)
     authorize(AndroidCapability.DOCUMENT_TREE_CREATE, "Create directory '" + name + "' in the selected document folder.")
     return withContext(Dispatchers.IO) {
-      val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentDocumentId)
+      val parentId = parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree)
+      val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
       val created = DocumentsContract.createDocument(
         resolver,
         parent,
