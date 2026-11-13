@@ -170,7 +170,11 @@ version compatibility must be verified on-device before an operation is marked i
   connection information, and last-scan information (Phase 5A code; local validation/device
   acceptance pending).
 - [ ] Remaining Termux:API operations: basic camera capture, file-based microphone recording,
-  speech-to-text, and wallpaper.
+  and wallpaper.
+- [x] Phase 5D draft: read-only camera metadata and one-shot speech recognition, with fixed
+  commands, scoped microphone approval, and a 90-second timeout. Speech recognition is not a
+  background stream; audio may be processed by the configured recognition service. Keep both
+  capabilities Planned pending local validation and consolidated device acceptance.
 - [x] Phase 5C draft: one-shot full NDEF reads and text-only NDEF writes through Termux:API,
   with explicit scoped approvals, 512-character payload bounds, and a 60-second supervised
   interaction timeout. Keep NFC capabilities Planned until local validation and consolidated
@@ -268,3 +272,15 @@ version compatibility must be verified on-device before an operation is marked i
 - Operations are one-shot and supervised with a 60-second timeout. No background NFC session or
   raw binary/arbitrary record payload is exposed. Device acceptance must verify tag interaction,
   permission behavior, and that cancellation/timeouts dismiss the external NFC UI cleanly.
+
+
+### Wave 2D — Camera metadata and one-shot speech recognition (draft code; acceptance pending)
+
+- `termux-camera-info` is a fixed no-argument metadata query; it does not capture images.
+- `termux-speech-to-text` is a fixed one-shot interactive recognition request. It requires
+  scoped approval and a 90-second timeout. The user must be told that audio may be processed by
+  the configured recognition service; this is not an on-device-only guarantee or a background
+  transcription session.
+- Cancellation/timeout must be checked on-device to ensure the recognition UI and microphone
+  session end. File-based microphone recording and photo capture remain deferred pending a
+  dedicated app-owned output/URI and lifecycle design.
