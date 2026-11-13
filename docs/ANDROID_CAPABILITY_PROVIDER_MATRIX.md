@@ -71,6 +71,17 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
   are exposed. USB device I/O remains planned.
 
 
+## Native contacts and clipboard onboarding — Phase 9A draft
+
+- Contacts use the Gallery app's ContactsContract provider. Search is query-based and bounded to 20
+  results, with at most three phone numbers and three email addresses per contact. READ_CONTACTS
+  is requested only after scoped approval; provider discovery never prompts.
+- Clipboard reads use ClipboardManager and are allowed only while Gallery is foregrounded. The
+  implementation reads plain-text items only, returns at most five items and 8192 characters,
+  and requires explicit approval. Clipboard writes are limited to 2048 characters, require
+  foreground state and explicit approval displaying the exact text. No URI, image, intent, or
+  background clipboard access is exposed.
+
 ## Native media ownership rebalance — Phase 6B draft
 
 - Camera metadata remains a bounded Termux:API query. Photo capture is native and writes to a
