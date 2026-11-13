@@ -82,8 +82,8 @@ operation do not count as a dedicated native capability implementation.
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
-| Basic speech recognition | Termux:API (termux-speech-to-text) | Planned; native only if on-device/lifecycle control is required |
-| Text-to-speech / engine information | Termux:API (termux-tts-engines / termux-tts-speak) | Planned; native only for Gallery-owned playback/session control |
+| Basic speech recognition | Native Kotlin (Gallery AsrServiceProvider: Android SpeechRecognizer, ML Kit, MediaPipe) | Phase 9A: existing hold-to-dictate UI already uses native ASR engines; model-initiated recording is intentionally not exposed |
+| Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; model-triggered speech action remains a separate integration task |
 | Biometric authentication | Native Kotlin (BiometricPrompt) | Planned; authentication result only, never expose biometric data |
 | Secure key operations | Native Kotlin (Android Keystore) | Planned; keys remain non-exportable |
 | Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
@@ -216,6 +216,13 @@ version compatibility must be verified on-device before an operation is marked i
 - Real accessory behavior and write safety remain device-acceptance concerns; only devices/profiles whose UUID semantics are known should be operated on.
 
 ### Wave 3 — Gallery-owned and privacy-sensitive integrations
+### Native speech ownership audit — existing Gallery services
+
+- The Gallery chat input already routes hold-to-dictate through `AsrServiceProvider`, which can resolve Android platform SpeechRecognizer, ML Kit ASR, or MediaPipe SpeechProcessor engines. The user initiates recording through the microphone control; no background transcription or model-triggered microphone start is added.
+- Gallery already provides `TtsServiceProvider` with Android platform `TextToSpeech`, ML Kit GenAI TTS, and MediaPipe TTS engines, plus persisted engine/voice/language selection and chat playback controls.
+- `SPEECH_RECOGNITION` and `TEXT_TO_SPEECH` are reassigned to the native provider. Their provider status is observational; no duplicate Termux:API model-facing operations remain. A future agent-triggered TTS action should call the existing playback/service stack rather than create a second TTS engine instance.
+- Termux shell commands may still exist in a user's Termux installation, but they are not selected capability owners or registered Gallery model operations.
+
 ### Wave 3A — Native contacts and clipboard (Phase 9A draft; acceptance pending)
 
 - Adds `contacts_search` using ContactsContract's filtered search URI. The query is limited to 80 characters and results to 20 contacts; each result includes a display name, at most three phone numbers, and at most three email addresses.
