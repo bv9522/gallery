@@ -39,6 +39,7 @@ internal object AndroidControlArguments {
     "open_url" to setOf("operation", "url"),
     "bluetooth_bonded_devices" to setOf("operation"),
     "bluetooth_le_scan" to setOf("operation", "duration_ms"),
+    "bluetooth_gatt_services" to setOf("operation", "device_address", "timeout_ms"),
     "usb_devices" to setOf("operation"),
     "record_audio" to setOf("operation", "duration_ms"),
     "capture_photo" to setOf("operation"),
@@ -54,6 +55,7 @@ internal object AndroidControlArguments {
     "launch_app" to setOf("package_name"),
     "open_url" to setOf("url"),
     "set_wallpaper" to setOf("content_uri"),
+    "bluetooth_gatt_services" to setOf("device_address"),
   )
 
   fun validate(arguments: JsonObject): String? {
