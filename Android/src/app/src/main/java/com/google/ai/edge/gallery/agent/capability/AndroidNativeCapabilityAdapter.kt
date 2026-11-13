@@ -219,6 +219,19 @@ fun interface NativeCapabilityAuthorizer {
  * Runtime permissions are requested only through the injected UI permission requester, and only
  * after the operation's scoped approval. Provider inspection never requests permissions.
  */
+private sealed class BluetoothGattEvent {
+  data class ConnectionState(val status: Int, val newState: Int) : BluetoothGattEvent()
+  data class ServicesDiscovered(val status: Int) : BluetoothGattEvent()
+  data class CharacteristicRead(val uuid: String, val value: ByteArray, val status: Int) : BluetoothGattEvent()
+  data class CharacteristicWrite(val uuid: String, val status: Int) : BluetoothGattEvent()
+}
+
+private data class BluetoothGattSession(
+  val gatt: BluetoothGatt,
+  val services: List<BluetoothGattService>,
+  val events: Channel<BluetoothGattEvent>,
+)
+
 class AndroidNativeCapabilityAdapter(
   context: Context,
   private val authorizer: NativeCapabilityAuthorizer,
@@ -1391,6 +1404,7 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_GATT_SERVICES = 32
     const val MAX_GATT_CHARACTERISTICS = 128
     const val MAX_GATT_DESCRIPTORS_PER_CHARACTERISTIC = 16
+    const val MAX_GATT_VALUE_BYTES = 512
     const val MAX_USB_DEVICES = 32
     const val MAX_USB_INTERFACES = 16
   }
