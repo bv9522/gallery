@@ -555,7 +555,7 @@ class AndroidNativeCapabilityAdapter(
     approvalSummary = "Read characteristic $characteristicUuid from GATT service $serviceUuid.",
   ) { session ->
     val characteristic = findGattCharacteristic(session.services, serviceUuid, characteristicUuid)
-    require(characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0) {
+    require((characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ) != 0) {
       "The selected GATT characteristic does not advertise read support."
     }
     if (!session.gatt.readCharacteristic(characteristic)) {
@@ -605,9 +605,9 @@ class AndroidNativeCapabilityAdapter(
     ) { session ->
       val characteristic = findGattCharacteristic(session.services, serviceUuid, characteristicUuid)
       val writeType = when {
-        characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0 ->
+        (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE) != 0 ->
           BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-        characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0 ->
+        (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0 ->
           BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         else -> throw IllegalArgumentException("The selected GATT characteristic does not advertise write support.")
       }
