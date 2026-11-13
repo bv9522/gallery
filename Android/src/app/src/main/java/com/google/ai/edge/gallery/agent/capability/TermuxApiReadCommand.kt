@@ -111,6 +111,17 @@ internal object TermuxApiReadCommand {
     return "termux-tts-speak ${shellQuote(text)}"
   }
 
+  fun nfcRead(): String = "termux-nfc -r full"
+
+  fun nfcWrite(text: String): String {
+    require(text.isNotBlank()) { "NFC NDEF text must not be blank." }
+    require(text.length <= MAX_NFC_TEXT_CHARS) {
+      "NFC NDEF text must not exceed ${MAX_NFC_TEXT_CHARS} characters."
+    }
+    require(text.none { it == '\u0000' }) { "NFC NDEF text contains an invalid character." }
+    return "termux-nfc -w -t ${shellQuote(text)}"
+  }
+
   fun failureState(result: TermuxShellResult): String {
     val detail = "${result.error.orEmpty()} ${result.stderr}".lowercase()
     return when {
@@ -144,4 +155,5 @@ internal object TermuxApiReadCommand {
   const val MAX_INFRARED_INTERVAL_US = 1_999_999
   const val MAX_INFRARED_PATTERN_TOTAL_US = 2_000_000L
   const val MAX_TTS_TEXT_CHARS = 500
+  const val MAX_NFC_TEXT_CHARS = 512
 }
