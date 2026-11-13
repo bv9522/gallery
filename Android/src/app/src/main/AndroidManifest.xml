@@ -211,9 +211,6 @@
     <!-- Text-to-speech engines and the XR glasses service used by speech and XR Language Teacher. -->
     <queries>
         <intent>
-            <action android:name="android.intent.action.TTS_SERVICE" />
-        </intent>
-        <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
         <package android:name="com.termux" />
