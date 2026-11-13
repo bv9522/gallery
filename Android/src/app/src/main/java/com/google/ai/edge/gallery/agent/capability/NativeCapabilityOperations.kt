@@ -52,6 +52,7 @@ data class NativeContactSummary(
 
 data class NativeClipboardContent(
   val text: String,
+  val hasText: Boolean,
   val itemCount: Int,
   val truncated: Boolean,
 )
