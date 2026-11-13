@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.JsonObject
@@ -53,6 +54,27 @@ class AndroidNativeCapabilityToolTest {
     val actions = Channel<ToolAction>(capacity = 0)
     val requester = ChannelNativeRuntimePermissionRequester(actions, timeoutMs = 10L)
     assertFalse(requester.request("android.permission.BLUETOOTH_CONNECT"))
+  }
+
+  @Test
+  fun photoCaptureRequesterPassesTheGalleryOwnedUriAndReturnsTheCameraResult() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val requester = ChannelNativePhotoCaptureRequester(actions, timeoutMs = 1_000L)
+    val uri = "content://media/external/images/media/42"
+    val responder = launch {
+      val action = actions.receive() as CapturePhotoToolAction
+      assertEquals(uri, action.contentUri)
+      action.result.complete(true)
+    }
+    assertTrue(requester.capture(uri))
+    responder.join()
+  }
+
+  @Test
+  fun photoCaptureRequesterTimesOutWhenNoUiConsumerReceivesTheAction() = runBlocking {
+    val actions = Channel<ToolAction>(capacity = 0)
+    val requester = ChannelNativePhotoCaptureRequester(actions, timeoutMs = 10L)
+    assertFalse(requester.capture("content://media/external/images/media/42"))
   }
 
   @Test
