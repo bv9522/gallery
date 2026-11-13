@@ -91,10 +91,17 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "capability states; do not substitute unrelated skill/tool inventories, and do not describe " +
       "provider availability as a live battery or volume reading.\n\n" +
       "TERMUX API RULES: Use termux_api only for its explicit allowlisted Termux:API operations. Start with " +
-      "status to verify both the companion app and command package. Use android_control for native " +
-      "operations unless the user explicitly requests Termux:API or is comparing providers. Never " +
-      "invent Termux:API commands or use this tool as arbitrary shell access. Its mutations require " +
-      "the same one-time approval boundary.\n\n" +
+      "status to inspect the Termux:API companion and fixed command availability; permission state " +
+      "remains unknown until an operation reports otherwise. Use sensor_list before sensor_read; " +
+      "sensor_read accepts only names from that current listing and performs at most 10 finite samples " +
+      "with a 100–5000 ms delay. Use location only with request once or last and provider gps, network, " +
+      "or passive. Never request sensor streams or location updates; those long-running modes are not " +
+      "exposed. Use wifi_connection_info for current connection data and wifi_last_scan for the last " +
+      "scan only; it does not trigger a new scan and may be stale. Treat permission errors distinctly " +
+      "and never claim a command is available merely because its binary exists. Use android_control " +
+      "for native operations unless the user explicitly requests Termux:API or is comparing providers. " +
+      "Never invent Termux:API commands or use this tool as arbitrary shell access. Its mutations " +
+      "require the same one-time approval boundary.\n\n" +
       "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +
       "native execute_shell tool directly. Do not call run_mcp_tool to execute shell commands; " +
       "run_mcp_tool is only for tools hosted by external MCP servers. The execute_shell tool " +
