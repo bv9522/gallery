@@ -59,8 +59,10 @@ operation do not count as a dedicated native capability implementation.
 | Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Planned; draft handler in PR #16 uses a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Planned; draft handler in PR #16 reads only the last scan with a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
-| Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / permissions) | Planned |
-| Bluetooth LE scan and GATT operations | Native Kotlin (BluetoothLeScanner / BluetoothGatt) | Planned; generic profiles, no device-specific hacks |
+| Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Phase 6A draft; scoped approval and runtime permission request |
+| Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN) | Phase 6A draft; 1–10 second low-power scan, bounded results, cancellation-safe stop |
+| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Planned; generic profiles, no device-specific hacks |
+
 | NFC read/write | Termux:API (termux-nfc) | Planned; basic NDEF read/write; foreground/tag interaction requires device verification |
 | Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | Planned; bounded carrier frequency and pulse pattern |
 | USB host device discovery / permission / I/O | Native Kotlin (UsbManager) | Planned |
@@ -185,8 +187,9 @@ version compatibility must be verified on-device before an operation is marked i
   acceptance are complete.
 - [x] Phase 6A draft: native Bluetooth bonded-device listing and bounded BLE discovery, plus
   native USB host device/interface enumeration. Bluetooth permissions are requested only after
-  scoped approval; BLE scans stop in a cancellation-safe finally block. GATT sessions and USB I/O
-  remain deferred to dedicated lifecycle/permission phases.
+  scoped approval; bonded-device listing and BLE scanning have separate capability IDs and
+  permission states. BLE scans stop in a cancellation-safe finally block. GATT sessions and USB
+  I/O remain deferred to dedicated lifecycle/permission phases.
 - [ ] Implement native Bluetooth GATT sessions and USB host permission/open/read/write sessions;
   keep Wi-Fi changes user-mediated through Android Settings.
 - [ ] Add per-command companion/package/permission probes without prompting.
