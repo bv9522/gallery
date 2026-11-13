@@ -30,12 +30,27 @@ import kotlinx.coroutines.withTimeoutOrNull
  * The first read-only slice intentionally exposes only finite sensor reads, location once/last,
  * and Wi-Fi connection/last-scan information. Continuous sensor/location sessions remain disabled.
  */
-class TermuxApiCapabilityTool(
-  context: Context,
+class TermuxApiCapabilityTool internal constructor(
   private val actionChannel: SendChannel<ToolAction>,
-  private val client: TermuxShellExecutor = TermuxRunCommandClient(context.applicationContext),
+  private val client: TermuxShellExecutor,
+  private val companionInstalledProbe: () -> Boolean,
 ) : AgentTool {
-  private val appContext = context.applicationContext
+  constructor(
+    context: Context,
+    actionChannel: SendChannel<ToolAction>,
+    client: TermuxShellExecutor = TermuxRunCommandClient(context.applicationContext),
+  ) : this(
+    actionChannel = actionChannel,
+    client = client,
+    companionInstalledProbe = {
+      try {
+        context.applicationContext.packageManager.getPackageInfo(TERMUX_API_PACKAGE, 0)
+        true
+      } catch (_: PackageManager.NameNotFoundException) {
+        false
+      }
+    },
+  )
 
   override val name: String = "termux_api"
   override val description: String =
@@ -95,12 +110,20 @@ class TermuxApiCapabilityTool(
     }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
-    val allowed = setOf(
-      "operation", "stream", "volume", "enabled", "sensors", "count", "delay_ms", "provider", "request",
-    )
+    val operation = arguments.string("operation") ?: return failure("Missing or invalid operation.")
+    val allowed = when (operation) {
+      "status", "battery_status", "volume_status", "sensor_list",
+      "wifi_connection_info", "wifi_last_scan" -> setOf("operation")
+      "sensor_read" -> setOf("operation", "sensors", "count", "delay_ms")
+      "location" -> setOf("operation", "provider", "request")
+      "set_volume" -> setOf("operation", "stream", "volume")
+      "set_flashlight" -> setOf("operation", "enabled")
+      else -> return failure("Unsupported Termux:API operation '$operation'.")
+    }
     val unexpected = arguments.keySet() - allowed
-    if (unexpected.isNotEmpty()) return failure("Unsupported argument(s): ${unexpected.sorted()}.")
-    val operation = arguments.string("operation") ?: return failure("Missing operation.")
+    if (unexpected.isNotEmpty()) {
+      return failure("Unsupported argument(s) for '$operation': ${unexpected.sorted()}.")
+    }
     return try {
       when (operation) {
         "status" -> status()
@@ -133,17 +156,12 @@ class TermuxApiCapabilityTool(
   }
 
   private suspend fun status(): AgentToolResult {
-    val companionInstalled = try {
-      appContext.packageManager.getPackageInfo(TERMUX_API_PACKAGE, 0)
-      true
-    } catch (_: PackageManager.NameNotFoundException) {
-      false
-    }
+    val companionInstalled = companionInstalledProbe()
     val probe = client.execute(
       command = "for c in termux-battery-status termux-volume termux-torch termux-sensor " +
         "termux-location termux-wifi-connectioninfo termux-wifi-scaninfo; do " +
-        "if command -v \"\$c\" >/dev/null 2>&1; then printf '%s=AVAILABLE\\n' \"\$c\"; " +
-        "else printf '%s=NOT_INSTALLED\\n' \"\$c\"; fi; done",
+        "if command -v \\"\\$c\\" >/dev/null 2>&1; then printf '%s=AVAILABLE\\\\n' \\"\\$c\\"; " +
+        "else printf '%s=NOT_INSTALLED\\\\n' \\"\\$c\\"; fi; done",
       workingDirectory = "~/",
       timeoutMs = 10_000L,
       maxOutputChars = 2_048,
@@ -154,17 +172,22 @@ class TermuxApiCapabilityTool(
       appendLine("commandProbeSucceeded=${probe.succeeded}")
       appendLine("permissionState=UNKNOWN (discovery does not request permissions)")
       if (probe.stdout.isNotBlank()) append(probe.stdout.trim())
-      if (probe.outputTruncated) appendLine("\nprobeOutputTruncated=true")
-      if (probe.stderr.isNotBlank()) appendLine("\nprobeStderr=${probe.stderr.take(500)}")
-      probe.error?.let { appendLine("\nprobeError=$it") }
+      if (probe.outputTruncated) appendLine("\\nprobeOutputTruncated=true")
+      if (probe.stderr.isNotBlank()) appendLine("\\nprobeStderr=${probe.stderr.take(500)}")
+      probe.error?.let { appendLine("\\nprobeError=$it") }
     }.trim()
     return AgentToolResult(output, probe.succeeded && companionInstalled && !probe.outputTruncated)
   }
 
   private suspend fun sensorRead(arguments: JsonObject): AgentToolResult {
-    val sensors = arguments.stringList("sensors") ?: return failure("sensor_read requires a sensors array.")
-    val count = arguments.int("count") ?: DEFAULT_SENSOR_COUNT
-    val delayMs = arguments.int("delay_ms") ?: DEFAULT_SENSOR_DELAY_MS
+    val sensors = arguments.stringList("sensors")
+      ?: return failure("sensor_read requires a string array named sensors.")
+    val count = if (arguments.has("count")) {
+      arguments.int("count") ?: return failure("count must be an integer.")
+    } else DEFAULT_SENSOR_COUNT
+    val delayMs = if (arguments.has("delay_ms")) {
+      arguments.int("delay_ms") ?: return failure("delay_ms must be an integer.")
+    } else DEFAULT_SENSOR_DELAY_MS
     TermuxApiReadCommand.validateSensorRequest(sensors, count, delayMs)
     val listing = client.execute(
       TermuxApiReadCommand.sensorList(),
@@ -185,8 +208,12 @@ class TermuxApiCapabilityTool(
   }
 
   private suspend fun location(arguments: JsonObject): AgentToolResult {
-    val provider = arguments.string("provider") ?: DEFAULT_LOCATION_PROVIDER
-    val request = arguments.string("request") ?: DEFAULT_LOCATION_REQUEST
+    val provider = if (arguments.has("provider")) {
+      arguments.string("provider") ?: return failure("provider must be a string.")
+    } else DEFAULT_LOCATION_PROVIDER
+    val request = if (arguments.has("request")) {
+      arguments.string("request") ?: return failure("request must be a string.")
+    } else DEFAULT_LOCATION_REQUEST
     val command = TermuxApiReadCommand.location(provider, request)
     if (!authorize(AndroidCapability.LOCATION_READ, "Read a one-time or last-known location using Termux:API.")) {
       return failure("Location request denied or approval unavailable.")
@@ -200,8 +227,7 @@ class TermuxApiCapabilityTool(
   ): AgentToolResult {
     val result = client.execute(command, "~/", timeoutMs, MAX_OUTPUT_CHARS)
     if (!TermuxApiReadCommand.isCompleteRead(result)) return readFailure(result, "Termux:API read")
-    val output = result.stdout.trim()
-    return AgentToolResult(output, true)
+    return AgentToolResult(result.stdout.trim(), true)
   }
 
   private fun readFailure(result: TermuxShellResult, label: String): AgentToolResult {
@@ -210,7 +236,9 @@ class TermuxApiCapabilityTool(
   }
 
   private suspend fun setVolume(arguments: JsonObject): AgentToolResult {
-    val stream = arguments.string("stream") ?: "music"
+    val stream = if (arguments.has("stream")) {
+      arguments.string("stream") ?: return failure("stream must be a string.")
+    } else "music"
     if (stream !in ALLOWED_STREAMS) return failure("Unsupported audio stream.")
     val volume = arguments.int("volume") ?: return failure("set_volume requires integer volume.")
     if (volume !in 0..100) return failure("Volume must be between 0 and 100.")
@@ -252,14 +280,14 @@ class TermuxApiCapabilityTool(
       buildString {
         appendLine("$label completed.")
         if (result.stdout.isNotBlank()) append(result.stdout.trim())
-        if (result.stderr.isNotBlank()) appendLine("\nSTDERR: ${result.stderr.trim()}")
-        if (result.outputTruncated) appendLine("\nOUTPUT_TRUNCATED=true")
+        if (result.stderr.isNotBlank()) appendLine("\\nSTDERR: ${result.stderr.trim()}")
+        if (result.outputTruncated) appendLine("\\nOUTPUT_TRUNCATED=true")
       }.trim(),
       true,
     )
   }
 
-  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\\\''") + "'"
   private fun failure(message: String) = AgentToolResult(message, false)
   private fun JsonObject.string(key: String): String? =
     get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
