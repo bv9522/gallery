@@ -36,8 +36,10 @@ class ChannelNativeCapabilityAuthorizer(
   override suspend fun authorize(capability: AndroidCapability, summary: String): Boolean {
     val action = AskNativeCapabilityPermissionAction(capability.name, summary)
     return try {
-      actionChannel.send(action)
-      withTimeoutOrNull(approvalTimeoutMs) { action.result.await() } ?: false
+      withTimeoutOrNull(approvalTimeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (_: Exception) {
@@ -51,9 +53,9 @@ class ChannelNativeCapabilityAuthorizer(
 /**
  * Compact model-facing interface for native Android capabilities.
  *
- * Read operations never prompt. Mutations are authorized by the adapter immediately before the
- * framework call. Every operation is routed through the capability registry; this tool does not
- * fall back to a shell provider when native Android support is unavailable.
+ * Ordinary state reads do not prompt. Privacy-sensitive device discovery and mutations require
+ * one-time approval; runtime Android permissions are requested only when needed. Every operation
+ * is routed through the capability registry; this tool does not fall back to a shell provider.
  */
 class AndroidNativeCapabilityTool internal constructor(
   private val adapter: NativeCapabilityOperations,
@@ -67,6 +69,7 @@ class AndroidNativeCapabilityTool internal constructor(
     AndroidNativeCapabilityAdapter(
       context = context.applicationContext,
       authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
+      permissionRequester = ChannelNativeRuntimePermissionRequester(actionChannel),
     ),
     registry,
   )
@@ -79,7 +82,10 @@ class AndroidNativeCapabilityTool internal constructor(
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
-      "set_display_brightness, vibrate, wake_lock_status, set_wake_lock. Mutations always require one-time user approval. " +
+      "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
+      "bluetooth_le_scan, usb_devices. Device discovery requires one-time user approval; Bluetooth " +
+      "Nearby devices permissions are requested only after approval. BLE scans are limited to 1–10 " +
+      "seconds and stop on cancellation. Bluetooth GATT sessions and USB I/O are not yet exposed. " +
       "This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
@@ -92,7 +98,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "usb_devices",
             ).forEach { add(it) }
           })
         })
@@ -111,7 +117,7 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("duration_ms", JsonObject().apply {
           addProperty("type", "integer")
-          addProperty("description", "Vibration duration (1-1000 ms) or wake-lock timeout (1-300000 ms).")
+          addProperty("description", "Operation-specific duration: vibration 1–1000 ms, wake lock 1–300000 ms, Bluetooth LE scan 1000–10000 ms (defaults to 5000).")
         })
         add("held", JsonObject().apply {
           addProperty("type", "boolean")
@@ -207,6 +213,17 @@ class AndroidNativeCapabilityTool internal constructor(
             ?: return failure("open_url requires url.")
           mutate(AndroidCapability.OPEN_URL) { adapter.openUrl(url) }
         }
+        "bluetooth_bonded_devices" -> AgentToolResult(Gson().toJson(adapter.getBluetoothBondedDevices()))
+        "bluetooth_le_scan" -> {
+          val duration = if (arguments.has("duration_ms")) {
+            arguments.long("duration_ms") ?: return failure("duration_ms must be an integer.")
+          } else DEFAULT_BLUETOOTH_SCAN_MS
+          if (duration !in MIN_BLUETOOTH_SCAN_MS..MAX_BLUETOOTH_SCAN_MS) {
+            return failure("Bluetooth LE scan duration must be between $MIN_BLUETOOTH_SCAN_MS and $MAX_BLUETOOTH_SCAN_MS milliseconds.")
+          }
+          AgentToolResult(Gson().toJson(adapter.scanBluetoothLe(duration)))
+        }
+        "usb_devices" -> AgentToolResult(Gson().toJson(adapter.getUsbDevices()))
         else -> failure("Unsupported operation '$operation'.")
       }
     } catch (cancelled: CancellationException) {
@@ -274,5 +291,8 @@ class AndroidNativeCapabilityTool internal constructor(
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
 
   private companion object {
+    const val DEFAULT_BLUETOOTH_SCAN_MS = 5_000L
+    const val MIN_BLUETOOTH_SCAN_MS = 1_000L
+    const val MAX_BLUETOOTH_SCAN_MS = 10_000L
   }
 }

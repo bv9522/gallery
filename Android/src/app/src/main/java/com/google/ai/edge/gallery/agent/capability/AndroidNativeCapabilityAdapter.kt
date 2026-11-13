@@ -14,6 +14,12 @@
 package com.google.ai.edge.gallery.agent.capability
 
 import android.Manifest
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -22,6 +28,8 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
 import android.media.AudioManager
 import android.media.AudioDeviceInfo
 import android.net.Uri
@@ -31,7 +39,8 @@ import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.provider.Settings
-
+import kotlinx.coroutines.delay
+import java.util.concurrent.atomic.AtomicInteger
 /** Small, privacy-conscious device facts suitable for a local agent. */
 data class NativeDeviceInfo(
   val manufacturer: String,
@@ -98,6 +107,58 @@ data class NativeCapabilityActionResult(
   val message: String,
 )
 
+data class NativeBluetoothDevice(
+  val address: String,
+  val name: String,
+  val type: String,
+  val bondState: String,
+  val rssi: Int? = null,
+  val serviceUuids: List<String> = emptyList(),
+)
+
+data class NativeUsbInterface(
+  val id: Int,
+  val classCode: Int,
+  val subclassCode: Int,
+  val protocolCode: Int,
+  val endpointCount: Int,
+)
+
+data class NativeUsbDevice(
+  val deviceId: Int,
+  val vendorId: Int,
+  val productId: Int,
+  val classCode: Int,
+  val subclassCode: Int,
+  val protocolCode: Int,
+  val interfaces: List<NativeUsbInterface>,
+)
+
+fun interface NativeRuntimePermissionRequester {
+  suspend fun request(permission: String): Boolean
+}
+
+class ChannelNativeRuntimePermissionRequester(
+  private val actionChannel: kotlinx.coroutines.channels.SendChannel<com.google.ai.edge.gallery.tools.ToolAction>,
+  private val timeoutMs: Long = 120_000L,
+) : NativeRuntimePermissionRequester {
+  override suspend fun request(permission: String): Boolean {
+    val action = com.google.ai.edge.gallery.tools.RequestPermissionToolAction(permission)
+    return try {
+      kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      false
+    } finally {
+      if (!action.result.isCompleted) action.result.complete(false)
+    }
+  }
+}
+
 /**
  * The caller must connect this to the app's existing user-approval boundary. There is deliberately
  * no permissive default: device mutations fail closed unless the caller supplies authorization.
@@ -110,11 +171,13 @@ fun interface NativeCapabilityAuthorizer {
  * Typed Android framework operations. Discovery is observational; mutating methods require an
  * injected authorizer and validate their inputs before touching Android system services.
  *
- * This adapter never requests permissions. The UI must request any required permission explicitly.
+ * Runtime permissions are requested only through the injected UI permission requester, and only
+ * after the operation's scoped approval. Provider inspection never requests permissions.
  */
 class AndroidNativeCapabilityAdapter(
   context: Context,
   private val authorizer: NativeCapabilityAuthorizer,
+  private val permissionRequester: NativeRuntimePermissionRequester = NativeRuntimePermissionRequester { false },
 ) : NativeCapabilityOperations {
   private val appContext = context.applicationContext
   private val wakeLockGuard = Any()
@@ -123,6 +186,7 @@ class AndroidNativeCapabilityAdapter(
   override val descriptor: CapabilityProviderDescriptor =
     CapabilityCatalog.providers.first { it.id == CapabilityProviderId.ANDROID_NATIVE }
 
+  @SuppressLint("MissingPermission")
   override suspend fun inspect(): CapabilityProviderObservation {
     val capabilities = descriptor.capabilities.associateWith { ProviderAvailability.UNSUPPORTED }
       .toMutableMap()
@@ -177,6 +241,53 @@ class AndroidNativeCapabilityAdapter(
         ProviderAvailability.UNSUPPORTED
       }
 
+    val bluetoothAdapter = appContext.getSystemService(BluetoothManager::class.java)?.adapter
+    capabilities[AndroidCapability.BLUETOOTH_DISCOVERY] = when {
+      bluetoothAdapter == null -> {
+        details[AndroidCapability.BLUETOOTH_DISCOVERY] = "Bluetooth adapter is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !hasBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT) -> {
+        details[AndroidCapability.BLUETOOTH_DISCOVERY] =
+          "Nearby devices connect permission is required; discovery did not request it."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      !bluetoothAdapter.isEnabled -> {
+        details[AndroidCapability.BLUETOOTH_DISCOVERY] = "Bluetooth is turned off."
+        ProviderAvailability.SERVICE_STOPPED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
+    capabilities[AndroidCapability.BLUETOOTH_LE_SCAN] = when {
+      bluetoothAdapter == null -> ProviderAvailability.UNSUPPORTED
+      !hasBluetoothPermission(Manifest.permission.BLUETOOTH_SCAN) ||
+        !hasBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT) -> {
+        details[AndroidCapability.BLUETOOTH_LE_SCAN] =
+          "Nearby devices scan/connect permissions are required; discovery did not request them."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      !bluetoothAdapter.isEnabled -> {
+        details[AndroidCapability.BLUETOOTH_LE_SCAN] = "Bluetooth is turned off."
+        ProviderAvailability.SERVICE_STOPPED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
+    capabilities[AndroidCapability.BLUETOOTH_GATT] = ProviderAvailability.UNSUPPORTED
+    details[AndroidCapability.BLUETOOTH_GATT] =
+      "Bluetooth GATT sessions are not implemented in this onboarding phase."
+
+    val usbManager = appContext.getSystemService(UsbManager::class.java)
+    val usbHostSupported = appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)
+    capabilities[AndroidCapability.USB_DEVICE_DISCOVERY] =
+      if (usbManager != null && usbHostSupported) ProviderAvailability.AVAILABLE
+      else {
+        details[AndroidCapability.USB_DEVICE_DISCOVERY] = "USB host mode is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+    capabilities[AndroidCapability.USB_DEVICE_IO] = ProviderAvailability.UNSUPPORTED
+    details[AndroidCapability.USB_DEVICE_IO] =
+      "USB permission, connection, and I/O sessions are not implemented in this onboarding phase."
+
     capabilities[AndroidCapability.FLASHLIGHT_CONTROL] = flashlightAvailability()
       .also { availability ->
         if (availability == ProviderAvailability.PERMISSION_REQUIRED) {
@@ -215,6 +326,156 @@ class AndroidNativeCapabilityAdapter(
       capabilityDetails = details,
     )
   }
+
+  @SuppressLint("MissingPermission")
+  override suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice> {
+    if (!authorizer.authorize(AndroidCapability.BLUETOOTH_DISCOVERY,
+        "Read paired Bluetooth device names, types, and addresses.")) {
+      throw SecurityException("Bluetooth device discovery was not approved.")
+    }
+    ensureBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    val bluetooth = appContext.getSystemService(BluetoothManager::class.java)?.adapter
+      ?: throw IllegalStateException("Bluetooth adapter is unavailable.")
+    if (!bluetooth.isEnabled) throw IllegalStateException("Bluetooth is turned off.")
+    return bluetooth.bondedDevices
+      .take(MAX_BLUETOOTH_RESULTS)
+      .map { it.toNativeBluetoothDevice() }
+      .sortedWith(compareBy<NativeBluetoothDevice> { it.name.lowercase() }.thenBy { it.address })
+  }
+
+  @SuppressLint("MissingPermission")
+  override suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice> {
+    require(durationMs in MIN_BLUETOOTH_SCAN_MS..MAX_BLUETOOTH_SCAN_MS) {
+      "Bluetooth LE scan duration must be between $MIN_BLUETOOTH_SCAN_MS and $MAX_BLUETOOTH_SCAN_MS milliseconds."
+    }
+    if (!authorizer.authorize(AndroidCapability.BLUETOOTH_LE_SCAN,
+        "Scan for nearby Bluetooth LE devices for $durationMs milliseconds.")) {
+      throw SecurityException("Bluetooth discovery was not approved.")
+    }
+    ensureBluetoothPermission(Manifest.permission.BLUETOOTH_SCAN)
+    ensureBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    val bluetooth = appContext.getSystemService(BluetoothManager::class.java)?.adapter
+      ?: throw IllegalStateException("Bluetooth adapter is unavailable.")
+    if (!bluetooth.isEnabled) throw IllegalStateException("Bluetooth is turned off.")
+    val scanner = bluetooth.bluetoothLeScanner
+      ?: throw IllegalStateException("Bluetooth LE scanner is unavailable.")
+    val found = linkedMapOf<String, NativeBluetoothDevice>()
+    val scanError = AtomicInteger(-1)
+    val callback = object : ScanCallback() {
+      override fun onScanResult(callbackType: Int, result: ScanResult) {
+        addResult(result)
+      }
+      override fun onBatchScanResults(results: MutableList<ScanResult>) {
+        results.forEach(::addResult)
+      }
+      override fun onScanFailed(errorCode: Int) {
+        scanError.set(errorCode)
+      }
+      private fun addResult(result: ScanResult) {
+        val device = result.device
+        val address = device.address ?: return
+        val item = device.toNativeBluetoothDevice(
+          rssi = result.rssi,
+          serviceUuids = result.scanRecord?.serviceUuids?.take(MAX_BLUETOOTH_SERVICE_UUIDS)
+            ?.map { it.uuid.toString() }.orEmpty(),
+          advertisedName = result.scanRecord?.deviceName,
+        )
+        synchronized(found) {
+          if (found.containsKey(address) || found.size < MAX_BLUETOOTH_RESULTS) found[address] = item
+        }
+      }
+    }
+    scanner.startScan(
+      null,
+      ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_POWER).build(),
+      callback,
+    )
+    var primaryFailure: Throwable? = null
+    try {
+      delay(durationMs)
+    } catch (error: Throwable) {
+      primaryFailure = error
+      throw error
+    } finally {
+      try {
+        scanner.stopScan(callback)
+      } catch (cleanupError: Exception) {
+        if (primaryFailure != null) primaryFailure.addSuppressed(cleanupError)
+        else throw IllegalStateException("Bluetooth LE scan cleanup could not be confirmed.", cleanupError)
+      }
+    }
+    scanError.get().takeIf { it >= 0 }?.let {
+      throw IllegalStateException("Bluetooth LE scan failed with Android error code $it.")
+    }
+    return synchronized(found) { found.values.sortedWith(compareByDescending<NativeBluetoothDevice> { it.rssi ?: Int.MIN_VALUE }.thenBy { it.address }) }
+  }
+
+  override suspend fun getUsbDevices(): List<NativeUsbDevice> {
+    if (!authorizer.authorize(AndroidCapability.USB_DEVICE_DISCOVERY,
+        "Inspect connected USB host devices and their interface descriptors.")) {
+      throw SecurityException("USB device discovery was not approved.")
+    }
+    if (!appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)) {
+      throw IllegalStateException("This device does not support USB host mode.")
+    }
+    val manager = appContext.getSystemService(UsbManager::class.java)
+      ?: throw IllegalStateException("USB manager is unavailable.")
+    return manager.deviceList.values.take(MAX_USB_DEVICES).map { device ->
+      device.toNativeUsbDevice()
+    }.sortedWith(compareBy<NativeUsbDevice> { it.vendorId }.thenBy { it.productId }.thenBy { it.deviceId })
+  }
+
+  private suspend fun ensureBluetoothPermission(permission: String) {
+    if (hasBluetoothPermission(permission)) return
+    if (!permissionRequester.request(permission) || !hasBluetoothPermission(permission)) {
+      throw SecurityException("Android permission $permission was denied or unavailable.")
+    }
+  }
+
+  private fun hasBluetoothPermission(permission: String): Boolean =
+    appContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+
+  @SuppressLint("MissingPermission")
+  private fun BluetoothDevice.toNativeBluetoothDevice(
+    rssi: Int? = null,
+    serviceUuids: List<String> = emptyList(),
+    advertisedName: String? = null,
+  ) = NativeBluetoothDevice(
+    address = address.orEmpty(),
+    name = (advertisedName ?: name).orEmpty().take(80),
+    type = when (type) {
+      BluetoothDevice.DEVICE_TYPE_CLASSIC -> "CLASSIC"
+      BluetoothDevice.DEVICE_TYPE_LE -> "LE"
+      BluetoothDevice.DEVICE_TYPE_DUAL -> "DUAL"
+      else -> "UNKNOWN"
+    },
+    bondState = when (bondState) {
+      BluetoothDevice.BOND_BONDED -> "BONDED"
+      BluetoothDevice.BOND_BONDING -> "BONDING"
+      else -> "NOT_BONDED"
+    },
+    rssi = rssi,
+    serviceUuids = serviceUuids,
+  )
+
+  private fun UsbDevice.toNativeUsbDevice() = NativeUsbDevice(
+    deviceId = deviceId,
+    vendorId = vendorId,
+    productId = productId,
+    classCode = deviceClass,
+    subclassCode = deviceSubclass,
+    protocolCode = deviceProtocol,
+    interfaces = (0 until interfaceCount).take(MAX_USB_INTERFACES).map { index ->
+      val usbInterface = getInterface(index)
+      NativeUsbInterface(
+        id = usbInterface.id,
+        classCode = usbInterface.interfaceClass,
+        subclassCode = usbInterface.interfaceSubclass,
+        protocolCode = usbInterface.interfaceProtocol,
+        endpointCount = usbInterface.endpointCount,
+      )
+    },
+  )
 
   override fun getDeviceInfo(): NativeDeviceInfo =
     NativeDeviceInfo(
@@ -624,6 +885,12 @@ class AndroidNativeCapabilityAdapter(
   private companion object {
     const val MAX_VIBRATION_DURATION_MS = 1_000L
     const val MAX_WAKE_LOCK_DURATION_MS = 5 * 60 * 1_000L
+    const val MIN_BLUETOOTH_SCAN_MS = 1_000L
+    const val MAX_BLUETOOTH_SCAN_MS = 10_000L
+    const val MAX_BLUETOOTH_RESULTS = 32
+    const val MAX_BLUETOOTH_SERVICE_UUIDS = 16
+    const val MAX_USB_DEVICES = 32
+    const val MAX_USB_INTERFACES = 16
   }
 
   private fun canResolveWebUrl(): Boolean {

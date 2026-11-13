@@ -70,7 +70,8 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
   append(
     "DEVICE CONTROL TOOL RULES: Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
-      "launcher-visible apps, flashlight, and HTTP(S) URL actions. Use audio_devices to inspect " +
+      "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
+      "device enumeration. Use audio_devices to inspect " +
       "connected audio endpoints. display_brightness reports the stored system setting and mode; " +
       "setting brightness requires Android's Modify system settings special access and switches " +
       "to manual mode only after the user approves the exact change. Vibration is limited to 1 second. " +
@@ -112,6 +113,11 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "content. Present the intended tag when the Termux NFC interaction opens. These are bounded " +
       "single interactions, not background NFC sessions. Use android_control " +
       "for native operations unless the user explicitly requests Termux:API or is comparing providers. " +
+      "Use bluetooth_bonded_devices to list paired devices (one-time approval plus BLUETOOTH_CONNECT) " +
+      "and bluetooth_le_scan to discover nearby BLE devices (one-time approval plus BLUETOOTH_SCAN " +
+      "and CONNECT). BLE scans " +
+      "last 1–10 seconds and must stop on cancellation. Use usb_devices to inspect attached USB host " +
+      "device/interface descriptors; this does not grant USB device access or perform storage I/O. " +
       "Never invent Termux:API commands or use this tool as arbitrary shell access. Its mutations " +
       "require the same one-time approval boundary.\n\n" +
       "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +

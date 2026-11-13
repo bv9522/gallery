@@ -17,7 +17,7 @@ package com.google.ai.edge.gallery.agent.capability
  *
  * Keeping the tool behind this contract makes operation dispatch and provider gating testable
  * without Android framework services. Implementations remain responsible for enforcing the
- * injected authorization boundary before every mutation.
+ * injected authorization boundary before every mutation and privacy-sensitive discovery operation.
  */
 interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun getDeviceInfo(): NativeDeviceInfo
@@ -34,4 +34,7 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun listLaunchableApps(): List<NativeLaunchableApp>
   suspend fun launchApp(packageName: String): NativeCapabilityActionResult
   suspend fun openUrl(url: String): NativeCapabilityActionResult
+  suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice>
+  suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice>
+  suspend fun getUsbDevices(): List<NativeUsbDevice>
 }

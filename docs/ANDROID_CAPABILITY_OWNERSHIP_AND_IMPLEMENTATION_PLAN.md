@@ -59,8 +59,10 @@ operation do not count as a dedicated native capability implementation.
 | Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Planned; draft handler in PR #16 uses a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Planned; draft handler in PR #16 reads only the last scan with a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
-| Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / permissions) | Planned |
-| Bluetooth LE scan and GATT operations | Native Kotlin (BluetoothLeScanner / BluetoothGatt) | Planned; generic profiles, no device-specific hacks |
+| Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Phase 6A draft; scoped approval and CONNECT runtime permission request |
+| Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN + CONNECT) | Phase 6A draft; separate capability ID, 1–10 second low-power scan, bounded results, cancellation-safe stop |
+| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Planned; generic profiles, no device-specific hacks |
+
 | NFC read/write | Termux:API (termux-nfc) | Planned; basic NDEF read/write; foreground/tag interaction requires device verification |
 | Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | Planned; bounded carrier frequency and pulse pattern |
 | USB host device discovery / permission / I/O | Native Kotlin (UsbManager) | Planned |
@@ -183,8 +185,13 @@ version compatibility must be verified on-device before an operation is marked i
   discovery/speech, with fixed command builders, scoped approvals for transmission/speech, and
   unit coverage. Keep these capabilities Planned until local validation and consolidated device
   acceptance are complete.
-- [ ] Implement native Bluetooth discovery/BLE/GATT and USB host sessions; keep Wi-Fi changes
-  user-mediated through Android Settings.
+- [x] Phase 6A draft: native Bluetooth bonded-device listing and bounded BLE discovery, plus
+  native USB host device/interface enumeration. Bluetooth permissions are requested only after
+  scoped approval; bonded-device listing and BLE scanning have separate capability IDs and
+  permission states. BLE scans stop in a cancellation-safe finally block. GATT sessions and USB
+  I/O remain deferred to dedicated lifecycle/permission phases.
+- [ ] Implement native Bluetooth GATT sessions and USB host permission/open/read/write sessions;
+  keep Wi-Fi changes user-mediated through Android Settings.
 - [ ] Add per-command companion/package/permission probes without prompting.
 - Bound stream duration, output, and process lifetime; sensor and microphone operations need
   explicit cancellation and cleanup semantics.
@@ -284,3 +291,17 @@ version compatibility must be verified on-device before an operation is marked i
 - Cancellation/timeout must be checked on-device to ensure the recognition UI and microphone
   session end. File-based microphone recording and photo capture remain deferred pending a
   dedicated app-owned output/URI and lifecycle design.
+
+
+### Wave 3A — Native Bluetooth and USB discovery (draft code; acceptance pending)
+
+- Bluetooth is native because Android exposes the adapter, bonded devices, runtime Nearby devices
+  permissions, BLE scanner callbacks, and scan cancellation directly. Gallery requests only
+  BLUETOOTH_CONNECT/BLUETOOTH_SCAN after one-time scoped approval; discovery never prompts.
+- Bonded-device output and BLE scan output are bounded to 32 devices. BLE scan duration is 1–10
+  seconds, uses low-power scan mode, and always calls stopScan in a cancellation-safe finally block.
+- USB discovery is native through UsbManager and reports bounded device/interface descriptors
+  without serial numbers or opening devices. USB permission requests and actual I/O sessions are
+  deliberately deferred; enumeration is not treated as USB mass-storage filesystem access.
+- GATT sessions and USB I/O require separate lifecycle, user permission, cancellation, and typed
+  transfer contracts before being exposed.
