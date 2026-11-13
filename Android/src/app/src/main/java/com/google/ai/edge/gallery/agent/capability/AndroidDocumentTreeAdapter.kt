@@ -288,6 +288,9 @@ class AndroidDocumentTreeAdapter(
   ): String {
     val tree = requireTreeGrant(treeUri, write = true)
     val entry = withContext(Dispatchers.IO) { queryMetadata(tree, documentId) }
+    if (entry.flags != null && (entry.flags.toInt() and DocumentsContract.Document.FLAG_SUPPORTS_COPY) == 0) {
+      throw IllegalArgumentException("The document provider does not support copying this item.")
+    }
     authorize(
       AndroidCapability.DOCUMENT_TREE_COPY,
       "Copy '" + entry.displayName + "' into the selected destination folder.",
@@ -309,6 +312,9 @@ class AndroidDocumentTreeAdapter(
   ): String {
     val tree = requireTreeGrant(treeUri, write = true)
     val entry = withContext(Dispatchers.IO) { queryMetadata(tree, documentId) }
+    if (entry.flags != null && (entry.flags.toInt() and DocumentsContract.Document.FLAG_SUPPORTS_MOVE) == 0) {
+      throw IllegalArgumentException("The document provider does not support moving this item.")
+    }
     authorize(
       AndroidCapability.DOCUMENT_TREE_MOVE,
       "Move '" + entry.displayName + "' to the selected destination folder.",
@@ -359,7 +365,7 @@ class AndroidDocumentTreeAdapter(
           }
         }
       }
-      if (queue.isNotEmpty()) truncated = true
+      if (queue.isNotEmpty() || matches.size >= MAX_SEARCH_RESULTS || visited >= MAX_SEARCH_NODES) truncated = true
       DocumentSearchResult(matches, visited, truncated)
     }
   }
