@@ -70,6 +70,7 @@ class AndroidNativeCapabilityTool internal constructor(
       context = context.applicationContext,
       authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
       permissionRequester = ChannelNativeRuntimePermissionRequester(actionChannel),
+      photoCaptureRequester = ChannelNativePhotoCaptureRequester(actionChannel),
     ),
     registry,
   )
@@ -83,7 +84,8 @@ class AndroidNativeCapabilityTool internal constructor(
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
-      "bluetooth_le_scan, usb_devices. Device discovery requires one-time user approval; Bluetooth " +
+      "bluetooth_le_scan, usb_devices, capture_photo, set_wallpaper. Device discovery, photo capture, " +
+      "and wallpaper changes require one-time user approval; Bluetooth " +
       "Nearby devices permissions are requested only after approval. BLE scans are limited to 1–10 " +
       "seconds and stop on cancellation. Bluetooth GATT sessions and USB I/O are not yet exposed. " +
       "This tool never executes shell commands."
@@ -98,7 +100,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "usb_devices",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "usb_devices", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
         })
@@ -118,6 +120,14 @@ class AndroidNativeCapabilityTool internal constructor(
         add("duration_ms", JsonObject().apply {
           addProperty("type", "integer")
           addProperty("description", "Operation-specific duration: vibration 1–1000 ms, wake lock 1–300000 ms, Bluetooth LE scan 1000–10000 ms (defaults to 5000).")
+        })
+        add("content_uri", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Gallery-readable image content URI, such as one returned by capture_photo or a user-granted picker.")
+        })
+        add("target", JsonObject().apply {
+          addProperty("type", "string")
+          add("enum", JsonArray().apply { listOf("SYSTEM", "LOCK", "BOTH").forEach { add(it) } })
         })
         add("held", JsonObject().apply {
           addProperty("type", "boolean")
@@ -224,6 +234,20 @@ class AndroidNativeCapabilityTool internal constructor(
           AgentToolResult(Gson().toJson(adapter.scanBluetoothLe(duration)))
         }
         "usb_devices" -> AgentToolResult(Gson().toJson(adapter.getUsbDevices()))
+        "capture_photo" -> {
+          val unavailable = availabilityFailure(AndroidCapability.CAMERA_CAPTURE)
+          if (unavailable != null) return unavailable
+          AgentToolResult(adapter.capturePhoto())
+        }
+        "set_wallpaper" -> {
+          val unavailable = availabilityFailure(AndroidCapability.WALLPAPER_CONTROL)
+          if (unavailable != null) return unavailable
+          val uri = arguments.string("content_uri")
+            ?: return failure("set_wallpaper requires content_uri from a Gallery-readable image.")
+          val target = arguments.string("target") ?: "SYSTEM"
+          val result = adapter.setWallpaper(uri, target)
+          AgentToolResult(result.message, result.success)
+        }
         else -> failure("Unsupported operation '$operation'.")
       }
     } catch (cancelled: CancellationException) {

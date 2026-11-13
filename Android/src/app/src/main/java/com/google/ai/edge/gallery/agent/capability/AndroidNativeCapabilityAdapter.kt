@@ -20,7 +20,9 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -34,10 +36,12 @@ import android.media.AudioManager
 import android.media.AudioDeviceInfo
 import android.net.Uri
 import android.os.BatteryManager
+import android.os.Environment
 import android.os.Build
 import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.VibratorManager
+import android.provider.MediaStore
 import android.provider.Settings
 import kotlinx.coroutines.delay
 import java.util.concurrent.atomic.AtomicInteger
@@ -159,6 +163,31 @@ class ChannelNativeRuntimePermissionRequester(
   }
 }
 
+fun interface NativePhotoCaptureRequester {
+  suspend fun capture(contentUri: String): Boolean
+}
+
+class ChannelNativePhotoCaptureRequester(
+  private val actionChannel: kotlinx.coroutines.channels.SendChannel<com.google.ai.edge.gallery.tools.ToolAction>,
+  private val timeoutMs: Long = 120_000L,
+) : NativePhotoCaptureRequester {
+  override suspend fun capture(contentUri: String): Boolean {
+    val action = com.google.ai.edge.gallery.tools.CapturePhotoToolAction(contentUri)
+    return try {
+      kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      false
+    } finally {
+      if (!action.result.isCompleted) action.result.complete(false)
+    }
+  }
+}
+
 /**
  * The caller must connect this to the app's existing user-approval boundary. There is deliberately
  * no permissive default: device mutations fail closed unless the caller supplies authorization.
@@ -178,6 +207,7 @@ class AndroidNativeCapabilityAdapter(
   context: Context,
   private val authorizer: NativeCapabilityAuthorizer,
   private val permissionRequester: NativeRuntimePermissionRequester = NativeRuntimePermissionRequester { false },
+  private val photoCaptureRequester: NativePhotoCaptureRequester = NativePhotoCaptureRequester { false },
 ) : NativeCapabilityOperations {
   private val appContext = context.applicationContext
   private val wakeLockGuard = Any()
@@ -272,6 +302,21 @@ class AndroidNativeCapabilityAdapter(
       }
       else -> ProviderAvailability.AVAILABLE
     }
+    val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+    capabilities[AndroidCapability.CAMERA_CAPTURE] =
+      if (cameraIntent.resolveActivity(appContext.packageManager) != null) ProviderAvailability.AVAILABLE
+      else {
+        details[AndroidCapability.CAMERA_CAPTURE] = "No camera capture activity is available."
+        ProviderAvailability.UNSUPPORTED
+      }
+    capabilities[AndroidCapability.WALLPAPER_CONTROL] =
+      if (appContext.getSystemService(WallpaperManager::class.java)?.isWallpaperSupported == true) {
+        ProviderAvailability.AVAILABLE
+      } else {
+        details[AndroidCapability.WALLPAPER_CONTROL] = "Wallpaper setting is unavailable on this device."
+        ProviderAvailability.UNSUPPORTED
+      }
+
     capabilities[AndroidCapability.BLUETOOTH_GATT] = ProviderAvailability.UNSUPPORTED
     details[AndroidCapability.BLUETOOTH_GATT] =
       "Bluetooth GATT sessions are not implemented in this onboarding phase."
@@ -476,6 +521,81 @@ class AndroidNativeCapabilityAdapter(
       )
     },
   )
+
+  override suspend fun capturePhoto(): String {
+    if (!authorizer.authorize(
+        AndroidCapability.CAMERA_CAPTURE,
+        "Capture one photo using the device camera and save it to Pictures/EdgeGallery.",
+      )
+    ) {
+      throw SecurityException("Photo capture was not approved.")
+    }
+    val values = ContentValues().apply {
+      put(MediaStore.Images.Media.DISPLAY_NAME, "EdgeGallery_${System.currentTimeMillis()}.jpg")
+      put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+      put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/EdgeGallery")
+      put(MediaStore.Images.Media.IS_PENDING, 1)
+    }
+    val uri = appContext.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+      ?: throw IllegalStateException("Could not create a Gallery-owned photo destination.")
+    try {
+      if (!photoCaptureRequester.capture(uri.toString())) {
+        throw IllegalStateException("Photo capture was cancelled or no camera result was returned.")
+      }
+      val published = appContext.contentResolver.update(
+        uri,
+        ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+        null,
+        null,
+      )
+      if (published <= 0) throw IllegalStateException("Captured photo could not be published.")
+      return uri.toString()
+    } catch (error: Throwable) {
+      runCatching { appContext.contentResolver.delete(uri, null, null) }
+      throw error
+    }
+  }
+
+  override suspend fun setWallpaper(
+    contentUri: String,
+    target: String,
+  ): NativeCapabilityActionResult {
+    val uri = runCatching { Uri.parse(contentUri) }.getOrNull()
+      ?: return NativeCapabilityActionResult(false, "Wallpaper content URI is invalid.")
+    if (uri.scheme != "content") {
+      return NativeCapabilityActionResult(false, "Wallpaper source must be a content URI granted to Gallery.")
+    }
+    val mimeType = appContext.contentResolver.getType(uri)
+    if (mimeType?.startsWith("image/") != true) {
+      return NativeCapabilityActionResult(false, "Wallpaper source must be an image content URI.")
+    }
+    val which = when (target.uppercase()) {
+      "SYSTEM" -> WallpaperManager.FLAG_SYSTEM
+      "LOCK" -> WallpaperManager.FLAG_LOCK
+      "BOTH" -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+      else -> return NativeCapabilityActionResult(false, "target must be SYSTEM, LOCK, or BOTH.")
+    }
+    val manager = appContext.getSystemService(WallpaperManager::class.java)
+      ?: return NativeCapabilityActionResult(false, "WallpaperManager is unavailable.")
+    if (!manager.isWallpaperSupported || !manager.isSetWallpaperAllowed) {
+      return NativeCapabilityActionResult(false, "Android does not currently allow wallpaper changes.")
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.WALLPAPER_CONTROL,
+        "Set the ${target} wallpaper using image URI ${contentUri}.",
+      )
+    ) {
+      return NativeCapabilityActionResult(false, "Wallpaper change was not approved.")
+    }
+    return try {
+      val stream = appContext.contentResolver.openInputStream(uri)
+        ?: return NativeCapabilityActionResult(false, "Could not open the wallpaper image URI.")
+      stream.use { manager.setStream(it, null, true, which) }
+      NativeCapabilityActionResult(true, "Wallpaper updated for ${target}.")
+    } catch (error: Exception) {
+      NativeCapabilityActionResult(false, "Wallpaper update failed: ${error.message}")
+    }
+  }
 
   override fun getDeviceInfo(): NativeDeviceInfo =
     NativeDeviceInfo(

@@ -28,6 +28,7 @@ enum class ToolActionName() {
   ASK_MCP_TOOL_CALL_PERMISSION,
   ASK_SHELL_COMMAND_PERMISSION,
   ASK_NATIVE_CAPABILITY_PERMISSION,
+  CAPTURE_PHOTO,
 }
 
 /**
@@ -175,3 +176,10 @@ data class CallJsSkillResultWebview(
   // calculate the height of the webview. Default is 4:3.
   val aspectRatio: Float?,
 )
+
+
+/** Requests one photo capture into a Gallery-owned MediaStore content URI. */
+class CapturePhotoToolAction(
+  val contentUri: String,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.CAPTURE_PHOTO)

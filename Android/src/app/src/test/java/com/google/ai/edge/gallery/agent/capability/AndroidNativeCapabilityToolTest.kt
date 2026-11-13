@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.JsonObject
@@ -56,6 +57,27 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun photoCaptureRequesterPassesTheGalleryOwnedUriAndReturnsTheCameraResult() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val requester = ChannelNativePhotoCaptureRequester(actions, timeoutMs = 1_000L)
+    val uri = "content://media/external/images/media/42"
+    val responder = launch {
+      val action = actions.receive() as CapturePhotoToolAction
+      assertEquals(uri, action.contentUri)
+      action.result.complete(true)
+    }
+    assertTrue(requester.capture(uri))
+    responder.join()
+  }
+
+  @Test
+  fun photoCaptureRequesterTimesOutWhenNoUiConsumerReceivesTheAction() = runBlocking {
+    val actions = Channel<ToolAction>(capacity = 0)
+    val requester = ChannelNativePhotoCaptureRequester(actions, timeoutMs = 10L)
+    assertFalse(requester.capture("content://media/external/images/media/42"))
+  }
+
+  @Test
   fun mutationOperationsReachTheirMatchingNativeAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
@@ -76,6 +98,11 @@ class AndroidNativeCapabilityToolTest {
     val bonded = tool.execute(arguments("bluetooth_bonded_devices"))
     val bleScan = tool.execute(arguments("bluetooth_le_scan").apply { addProperty("duration_ms", 5_000) })
     val usb = tool.execute(arguments("usb_devices"))
+    val photo = tool.execute(arguments("capture_photo"))
+    val wallpaper = tool.execute(arguments("set_wallpaper").apply {
+      addProperty("content_uri", "content://media/external/images/media/42")
+      addProperty("target", "SYSTEM")
+    })
 
     assertTrue(volume.isSuccessful)
     assertTrue(flashlight.isSuccessful)
@@ -84,7 +111,11 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(bonded.isSuccessful)
     assertTrue(bleScan.isSuccessful)
     assertTrue(usb.isSuccessful)
-    assertEquals(listOf("bluetooth_bonded_devices", "bluetooth_le_scan:5000", "usb_devices"), adapter.discoveryCalls)
+    assertTrue(photo.isSuccessful)
+    assertTrue(wallpaper.isSuccessful)
+    assertEquals("content://media/external/images/media/42", photo.content)
+    assertEquals("set_wallpaper:content://media/external/images/media/42:SYSTEM", adapter.discoveryCalls.last())
+    assertEquals(listOf("bluetooth_bonded_devices", "bluetooth_le_scan:5000", "usb_devices"), adapter.discoveryCalls.take(3))
     val invalidScan = tool.execute(arguments("bluetooth_le_scan").apply { addProperty("duration_ms", 10_001) })
     assertFalse(invalidScan.isSuccessful)
     assertEquals(3, adapter.discoveryCalls.size)
@@ -314,6 +345,11 @@ class AndroidNativeCapabilityToolTest {
     override suspend fun getUsbDevices(): List<NativeUsbDevice> {
       discoveryCalls += "usb_devices"
       return emptyList()
+    }
+    override suspend fun capturePhoto(): String = "content://media/external/images/media/42"
+    override suspend fun setWallpaper(contentUri: String, target: String): NativeCapabilityActionResult {
+      discoveryCalls += "set_wallpaper:$contentUri:$target"
+      return actionResult
     }
   }
 }

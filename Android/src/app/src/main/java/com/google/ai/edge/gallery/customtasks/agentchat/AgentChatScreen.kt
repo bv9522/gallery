@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.customtasks.agentchat
 
 import android.content.Context
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.webkit.ConsoleMessage
@@ -89,6 +90,7 @@ import com.google.ai.edge.gallery.skills.formatSelectedSkills
 import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
+import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
 import com.google.ai.edge.gallery.tools.CallJsToolAction
 import com.google.ai.edge.gallery.tools.PermissionResult
@@ -157,6 +159,7 @@ fun AgentChatScreen(
   var currentNativeCapabilityPermissionAction by remember {
     mutableStateOf<AskNativeCapabilityPermissionAction?>(null)
   }
+  var currentPhotoCaptureAction by remember { mutableStateOf<CapturePhotoToolAction?>(null) }
   var askInfoInputValue by remember { mutableStateOf("") }
   var webViewRef: WebView? by remember { mutableStateOf(null) }
   val chatWebViewClient = remember { ChatWebViewClient(context = context) }
@@ -173,6 +176,10 @@ fun AgentChatScreen(
       currentPermissionAction?.result?.complete(permissionGranted)
       currentPermissionAction = null
     }
+  val takePictureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+    currentPhotoCaptureAction?.result?.complete(success)
+    currentPhotoCaptureAction = null
+  }
 
   LaunchedEffect(task) { viewModel.loadSystemPrompt(task) }
   val uiSystemPrompt by viewModel.uiSystemPrompt.collectAsState()
@@ -449,6 +456,14 @@ fun AgentChatScreen(
             }
             is AskNativeCapabilityPermissionAction -> {
               currentNativeCapabilityPermissionAction = action
+            }
+            is CapturePhotoToolAction -> {
+              currentPhotoCaptureAction = action
+              runCatching { takePictureLauncher.launch(Uri.parse(action.contentUri)) }
+                .onFailure {
+                  action.result.complete(false)
+                  currentPhotoCaptureAction = null
+                }
             }
           }
         }
