@@ -113,8 +113,9 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "content. Present the intended tag when the Termux NFC interaction opens. These are bounded " +
       "single interactions, not background NFC sessions. Use android_control " +
       "for native operations unless the user explicitly requests Termux:API or is comparing providers. " +
-      "Use bluetooth_bonded_devices to list paired devices and bluetooth_le_scan to discover nearby " +
-      "BLE devices; both require one-time approval and Android Nearby devices permissions. BLE scans " +
+      "Use bluetooth_bonded_devices to list paired devices (one-time approval plus BLUETOOTH_CONNECT) " +
+      "and bluetooth_le_scan to discover nearby BLE devices (one-time approval plus BLUETOOTH_SCAN " +
+      "and CONNECT). BLE scans " +
       "last 1–10 seconds and must stop on cancellation. Use usb_devices to inspect attached USB host " +
       "device/interface descriptors; this does not grant USB device access or perform storage I/O. " +
       "Never invent Termux:API commands or use this tool as arbitrary shell access. Its mutations " +
