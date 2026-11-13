@@ -22,10 +22,15 @@ The existing Phase 4A operations remain transitional, explicit-comparison functi
 
 Do not treat the three overlap operations as production alternatives to the selected native owners.
 The wider Termux:API command families are now selected owners where listed in the canonical plan.
-The current termux_api model tool still implements only the initial status/battery/volume/flashlight
-slice; expanding it to selected capability families is a subsequent implementation task.
-Do not mark those capabilities available until fixed handlers, permission probes, bounds,
-cancellation, cleanup, tests, and device acceptance checks exist.
+The Phase 5A branch extends `termux_api` with read-only `sensor_list`, finite `sensor_read`,
+location `once`/`last`, `wifi_connection_info`, and `wifi_last_scan` operations. Sensor reads are
+limited to 1–10 samples, 100–5000 ms delay, and 8 KiB output. Location and Wi-Fi reads require
+scoped user approval. Sensor streams and location updates are deliberately not exposed. The
+status operation checks companion-app and command-binary presence separately but leaves permission
+state unknown until a real operation runs. Brian's first Phase 5A unit-test run passed on the
+pre-hardening head. The latest head adds fake-client dispatch/approval/cancellation tests and
+strict per-operation argument validation, so the unit suite must be rerun. The debug build and
+target-device acceptance remain pending; do not mark these capabilities production-ready.
 
 See [ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md](ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md)
 for the complete Termux:API command inventory, selected owners, and implementation constraints.
@@ -36,7 +41,8 @@ for the complete Termux:API command inventory, selected owners, and implementati
 - Commands are fixed allowlisted strings with validated arguments.
 - Execution uses the existing TermuxRunCommandClient and its supervision, timeout, output bounds,
   cancellation, and RUN_COMMAND permission contract.
-- Read operations do not request mutation approval.
+- Sensor listing/finite reads are read-only. Location and Wi-Fi reads use scoped user approval
+  because their results can reveal sensitive location or network details.
 - Volume and flashlight mutations use the existing one-time Agent Chat approval action.
 - Denial, timeout, or closed action channel fails closed.
 - No automatic native-to-Termux fallback is permitted.
@@ -62,5 +68,9 @@ underlying command output was corrupt. Do not use Gemma's narration as raw comma
 
 ## Acceptance status
 
-Phase 4A unit tests and the Shizuku debug build succeeded locally. Device acceptance of all
-mutations and result integrity is not complete. No PR has been merged.
+Phase 4A unit tests and the Shizuku debug build succeeded locally. Brian confirmed that the
+initial Phase 5A unit-test run passed; the current head's additional fake-client tests and argument
+validation require a fresh run. The Phase 5A debug build and target-device acceptance remain
+pending. All Phase 5A capability rows remain Planned and unavailable until the current-head tests,
+debug build, and target-device acceptance pass. Device acceptance of all mutations and result
+integrity is not complete. No PR has been merged.
