@@ -3,17 +3,17 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at https://www.apache.org/licenses/LICENSE-2.0
+ * You may obtain a copy at https://www.apache.org/licenses/LICENSE-2.0
  */
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.termux.TermuxShellResult
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import com.google.ai.edge.gallery.termux.TermuxShellResult
 
 class TermuxApiReadCommandTest {
   private val sensors = """
@@ -99,7 +99,7 @@ class TermuxApiReadCommandTest {
     assertEquals("termux-wifi-connectioninfo", TermuxApiReadCommand.wifiConnectionInfo())
     assertEquals("termux-wifi-scaninfo", TermuxApiReadCommand.wifiLastScanInfo())
   }
-}
+
   @Test
   fun readFailureStatesDistinguishPermissionMissingCommandTimeoutAndCleanup() {
     assertEquals(
@@ -128,7 +128,7 @@ class TermuxApiReadCommandTest {
   fun incompleteAndEmptyReadResultsAreNeverTreatedAsComplete() {
     val truncated = TermuxShellResult("partial", "", 0, outputTruncated = true)
     val empty = TermuxShellResult("", "", 0)
-    val complete = TermuxShellResult("{\\"ok\\":true}", "", 0)
+    val complete = TermuxShellResult("valid payload", "", 0)
 
     assertEquals("OUTPUT_TRUNCATED", TermuxApiReadCommand.failureState(truncated))
     assertEquals("EMPTY_RESULT", TermuxApiReadCommand.failureState(empty))
@@ -136,4 +136,4 @@ class TermuxApiReadCommandTest {
     assertFalse(TermuxApiReadCommand.isCompleteRead(empty))
     assertTrue(TermuxApiReadCommand.isCompleteRead(complete))
   }
-
+}
