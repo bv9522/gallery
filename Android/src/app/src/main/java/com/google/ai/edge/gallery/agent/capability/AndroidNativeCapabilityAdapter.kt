@@ -18,6 +18,7 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
@@ -55,7 +56,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import java.util.concurrent.atomic.AtomicInteger
 /** Small, privacy-conscious device facts suitable for a local agent. */
@@ -559,6 +559,11 @@ class AndroidNativeCapabilityAdapter(
                     NativeBluetoothGattCharacteristic(
                       uuid = characteristic.uuid.toString(),
                       properties = characteristic.properties,
+                      canRead = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_READ != 0,
+                      canWrite = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE != 0,
+                      canWriteWithoutResponse = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0,
+                      canNotify = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0,
+                      canIndicate = characteristic.properties and BluetoothGattCharacteristic.PROPERTY_INDICATE != 0,
                       descriptorCount = characteristic.descriptors.size.coerceAtMost(MAX_GATT_DESCRIPTORS_PER_CHARACTERISTIC),
                     )
                   },
