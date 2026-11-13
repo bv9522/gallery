@@ -1009,7 +1009,7 @@ class AndroidNativeCapabilityAdapter(
     if (!authorizer.authorize(
         AndroidCapability.CLIPBOARD_WRITE,
         if (text.isEmpty()) "Clear Gallery's current clipboard contents." else
-          "Replace the clipboard with this exact text (0 characters): $text",
+          "Replace the clipboard with this exact text (${text.length} characters): $text",
       )
     ) {
       throw SecurityException("Clipboard write was not approved.")
@@ -1022,7 +1022,7 @@ class AndroidNativeCapabilityAdapter(
     manager.setPrimaryClip(ClipData.newPlainText("Gemma", text))
     return NativeCapabilityActionResult(
       true,
-      if (text.isEmpty()) "Clipboard cleared." else "Copied $0 characters to the clipboard.",
+      if (text.isEmpty()) "Clipboard cleared." else "Copied ${text.length} characters to the clipboard.",
     )
   }
 
