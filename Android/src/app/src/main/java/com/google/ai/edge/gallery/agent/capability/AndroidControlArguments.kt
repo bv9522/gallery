@@ -44,6 +44,9 @@ internal object AndroidControlArguments {
     "bluetooth_gatt_services" to setOf("operation", "device_address", "timeout_ms"),
     "bluetooth_gatt_read" to setOf("operation", "device_address", "service_uuid", "characteristic_uuid", "timeout_ms"),
     "bluetooth_gatt_write" to setOf("operation", "device_address", "service_uuid", "characteristic_uuid", "value_base64", "timeout_ms"),
+    "contacts_search" to setOf("operation", "query", "limit"),
+    "clipboard_read" to setOf("operation"),
+    "clipboard_write" to setOf("operation", "text"),
     "usb_devices" to setOf("operation"),
     "record_audio" to setOf("operation", "duration_ms"),
     "capture_photo" to setOf("operation"),
@@ -62,6 +65,8 @@ internal object AndroidControlArguments {
     "bluetooth_gatt_services" to setOf("device_address"),
     "bluetooth_gatt_read" to setOf("device_address", "service_uuid", "characteristic_uuid"),
     "bluetooth_gatt_write" to setOf("device_address", "service_uuid", "characteristic_uuid", "value_base64"),
+    "contacts_search" to setOf("query"),
+    "clipboard_write" to setOf("text"),
   )
 
   fun validate(arguments: JsonObject): String? {
@@ -120,6 +125,32 @@ internal object AndroidControlArguments {
       val decoded = runCatching { Base64.getDecoder().decode(encoded) }.getOrNull()
       if (decoded == null || decoded.isEmpty() || decoded.size > 512) {
         return "value_base64 must encode between 1 and 512 bytes using unwrapped Base64."
+      }
+    }
+
+    if (operation == "contacts_search") {
+      val query = arguments.get("query")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (query.isBlank() || query.length > 80) {
+        return "contacts_search query must contain 1–80 non-whitespace characters."
+      }
+      if (arguments.has("limit")) {
+        val limit = arguments.get("limit")
+          ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+          ?.asString?.toIntOrNull()
+        if (limit == null || limit !in 1..20) {
+          return "contacts_search limit must be an integer from 1 to 20."
+        }
+      }
+    }
+
+    if (operation == "clipboard_write") {
+      val text = arguments.get("text")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (text.length > 2_048) {
+        return "clipboard_write text must not exceed 2048 characters."
       }
     }
 
