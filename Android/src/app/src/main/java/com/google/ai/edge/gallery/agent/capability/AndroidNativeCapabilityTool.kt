@@ -84,7 +84,8 @@ class AndroidNativeCapabilityTool internal constructor(
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
-      "bluetooth_le_scan, usb_devices, capture_photo, set_wallpaper. Device discovery, photo capture, " +
+      "bluetooth_le_scan, usb_devices, record_audio, capture_photo, set_wallpaper. Device discovery, " +
+      "audio recording, photo capture, " +
       "and wallpaper changes require one-time user approval; Bluetooth " +
       "Nearby devices permissions are requested only after approval. BLE scans are limited to 1–10 " +
       "seconds and stop on cancellation. Bluetooth GATT sessions and USB I/O are not yet exposed. " +
@@ -100,7 +101,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "usb_devices", "capture_photo", "set_wallpaper",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
         })
@@ -119,7 +120,7 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("duration_ms", JsonObject().apply {
           addProperty("type", "integer")
-          addProperty("description", "Operation-specific duration: vibration 1–1000 ms, wake lock 1–300000 ms, Bluetooth LE scan 1000–10000 ms (defaults to 5000).")
+          addProperty("description", "Operation-specific duration: vibration 1–1000 ms, wake lock 1–300000 ms, Bluetooth LE scan 1000–10000 ms (defaults to 5000), audio recording 1000–30000 ms (defaults to 5000).")
         })
         add("content_uri", JsonObject().apply {
           addProperty("type", "string")
@@ -234,6 +235,15 @@ class AndroidNativeCapabilityTool internal constructor(
           AgentToolResult(Gson().toJson(adapter.scanBluetoothLe(duration)))
         }
         "usb_devices" -> AgentToolResult(Gson().toJson(adapter.getUsbDevices()))
+        "record_audio" -> {
+          val duration = if (arguments.has("duration_ms")) {
+            arguments.long("duration_ms") ?: return failure("duration_ms must be an integer.")
+          } else DEFAULT_AUDIO_RECORD_MS
+          if (duration !in MIN_AUDIO_RECORD_MS..MAX_AUDIO_RECORD_MS) {
+            return failure("Audio recording duration must be between $MIN_AUDIO_RECORD_MS and $MAX_AUDIO_RECORD_MS milliseconds.")
+          }
+          AgentToolResult(adapter.recordAudio(duration))
+        }
         "capture_photo" -> {
           val unavailable = availabilityFailure(AndroidCapability.CAMERA_CAPTURE)
           if (unavailable != null) return unavailable
@@ -316,6 +326,9 @@ class AndroidNativeCapabilityTool internal constructor(
 
   private companion object {
     const val DEFAULT_BLUETOOTH_SCAN_MS = 5_000L
+    const val DEFAULT_AUDIO_RECORD_MS = 5_000L
+    const val MIN_AUDIO_RECORD_MS = 1_000L
+    const val MAX_AUDIO_RECORD_MS = 30_000L
     const val MIN_BLUETOOTH_SCAN_MS = 1_000L
     const val MAX_BLUETOOTH_SCAN_MS = 10_000L
   }
