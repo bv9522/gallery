@@ -28,7 +28,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * accepted. The companion app and the in-Termux termux-api package are probed independently.
  *
  * The first read-only slice intentionally exposes only finite sensor reads, location once/last,
- * and Wi-Fi connection/last-scan information. Continuous sensor/location sessions remain disabled.
+ * and Wi-Fi connection/last-scan information, infrared frequency discovery/transmission, and basic TTS. Continuous sensor/location sessions remain disabled.
  */
 class TermuxApiCapabilityTool internal constructor(
   private val actionChannel: SendChannel<ToolAction>,
@@ -70,6 +70,7 @@ class TermuxApiCapabilityTool internal constructor(
             listOf(
               "status", "battery_status", "volume_status", "set_volume", "set_flashlight",
               "sensor_list", "sensor_read", "location", "wifi_connection_info", "wifi_last_scan",
+              "infrared_frequencies", "infrared_transmit", "tts_engines", "tts_speak",
             ).forEach { add(it) }
           })
         })
@@ -104,6 +105,17 @@ class TermuxApiCapabilityTool internal constructor(
           addProperty("type", "string")
           add("enum", JsonArray().apply { listOf("once", "last").forEach { add(it) } })
         })
+        add("frequency", JsonObject().apply { addProperty("type", "integer") })
+        add("pattern", JsonObject().apply {
+          addProperty("type", "array")
+          add("items", JsonObject().apply { addProperty("type", "integer") })
+          addProperty("minItems", TermuxApiReadCommand.MIN_INFRARED_PATTERN_ITEMS)
+          addProperty("maxItems", TermuxApiReadCommand.MAX_INFRARED_PATTERN_ITEMS)
+        })
+        add("text", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("maxLength", TermuxApiReadCommand.MAX_TTS_TEXT_CHARS)
+        })
       })
       add("required", JsonArray().apply { add("operation") })
       addProperty("additionalProperties", false)
@@ -113,9 +125,11 @@ class TermuxApiCapabilityTool internal constructor(
     val operation = arguments.string("operation") ?: return failure("Missing or invalid operation.")
     val allowed = when (operation) {
       "status", "battery_status", "volume_status", "sensor_list",
-      "wifi_connection_info", "wifi_last_scan" -> setOf("operation")
+      "wifi_connection_info", "wifi_last_scan", "infrared_frequencies", "tts_engines" -> setOf("operation")
       "sensor_read" -> setOf("operation", "sensors", "count", "delay_ms")
       "location" -> setOf("operation", "provider", "request")
+      "infrared_transmit" -> setOf("operation", "frequency", "pattern")
+      "tts_speak" -> setOf("operation", "text")
       "set_volume" -> setOf("operation", "stream", "volume")
       "set_flashlight" -> setOf("operation", "enabled")
       else -> return failure("Unsupported Termux:API operation '$operation'.")
@@ -134,6 +148,10 @@ class TermuxApiCapabilityTool internal constructor(
         "sensor_list" -> runRead(TermuxApiReadCommand.sensorList())
         "sensor_read" -> sensorRead(arguments)
         "location" -> location(arguments)
+        "infrared_frequencies" -> runRead(TermuxApiReadCommand.infraredFrequencies())
+        "infrared_transmit" -> infraredTransmit(arguments)
+        "tts_engines" -> runRead(TermuxApiReadCommand.ttsEngines())
+        "tts_speak" -> ttsSpeak(arguments)
         "wifi_connection_info" -> {
           if (!authorize(AndroidCapability.WIFI_CONNECTION_INFO, "Read current Wi-Fi connection details using Termux:API.")) {
             failure("Wi-Fi connection information request denied or approval unavailable.")
@@ -159,7 +177,8 @@ class TermuxApiCapabilityTool internal constructor(
     val companionInstalled = companionInstalledProbe()
     val probe = client.execute(
       command = "for c in termux-battery-status termux-volume termux-torch termux-sensor " +
-        "termux-location termux-wifi-connectioninfo termux-wifi-scaninfo; do " +
+        "termux-location termux-wifi-connectioninfo termux-wifi-scaninfo " +
+        "termux-infrared-frequencies termux-infrared-transmit termux-tts-engines termux-tts-speak; do " +
         "if command -v \"\$c\" >/dev/null 2>&1; then printf '%s=AVAILABLE\\n' \"\$c\"; " +
         "else printf '%s=NOT_INSTALLED\\n' \"\$c\"; fi; done",
       workingDirectory = "~/",
@@ -219,6 +238,54 @@ class TermuxApiCapabilityTool internal constructor(
       return failure("Location request denied or approval unavailable.")
     }
     return runRead(command, LOCATION_TIMEOUT_MS)
+  }
+
+  private suspend fun infraredTransmit(arguments: JsonObject): AgentToolResult {
+    val frequency = arguments.int("frequency")
+      ?: return failure("infrared_transmit requires integer frequency.")
+    val pattern = arguments.intList("pattern")
+      ?: return failure("infrared_transmit requires an integer array named pattern.")
+    val frequencyResult = client.execute(
+      TermuxApiReadCommand.infraredFrequencies(), "~/", READ_TIMEOUT_MS, MAX_OUTPUT_CHARS,
+    )
+    if (!TermuxApiReadCommand.isCompleteRead(frequencyResult)) {
+      return readFailure(frequencyResult, "Infrared frequency query")
+    }
+    val command = TermuxApiReadCommand.infraredTransmit(frequency, pattern, frequencyResult.stdout)
+    if (!authorize(AndroidCapability.INFRARED_CONTROL,
+        "Transmit a bounded infrared pattern at ${frequency} Hz.")) {
+      return failure("Infrared transmission denied or approval unavailable.")
+    }
+    return runAction(command, "Infrared transmission", ACTION_TIMEOUT_MS)
+  }
+
+  private suspend fun ttsSpeak(arguments: JsonObject): AgentToolResult {
+    val text = arguments.string("text") ?: return failure("tts_speak requires string text.")
+    val command = TermuxApiReadCommand.ttsSpeak(text)
+    if (!authorize(AndroidCapability.TEXT_TO_SPEECH,
+        "Speak the supplied text aloud using the device text-to-speech engine.")) {
+      return failure("Text-to-speech request denied or approval unavailable.")
+    }
+    return runAction(command, "Text-to-speech", ACTION_TIMEOUT_MS)
+  }
+
+  private suspend fun runAction(
+    command: String,
+    label: String,
+    timeoutMs: Long = READ_TIMEOUT_MS,
+  ): AgentToolResult {
+    val result = client.execute(command, "~/", timeoutMs, MAX_OUTPUT_CHARS)
+    if (!result.succeeded || result.outputTruncated || result.processMayStillBeRunning) {
+      return failure("${TermuxApiReadCommand.failureState(result)}: ${label} failed. " +
+        (result.error ?: result.stderr.ifBlank { "The operation did not complete cleanly." }))
+    }
+    return AgentToolResult(
+      buildString {
+        appendLine("${label} completed.")
+        if (result.stdout.isNotBlank()) append(result.stdout.trim())
+      }.trim(),
+      true,
+    )
   }
 
   private suspend fun runRead(
@@ -300,11 +367,17 @@ class TermuxApiCapabilityTool internal constructor(
     if (value.any { !it.isJsonPrimitive || !it.asJsonPrimitive.isString }) return null
     return value.map { it.asString }
   }
+  private fun JsonObject.intList(key: String): List<Int>? {
+    val value = get(key)?.takeIf { it.isJsonArray }?.asJsonArray ?: return null
+    if (value.any { !it.isJsonPrimitive || !it.asJsonPrimitive.isNumber }) return null
+    return value.map { it.asString.toIntOrNull() ?: return null }
+  }
 
   private companion object {
     const val TERMUX_API_PACKAGE = "com.termux.api"
     const val READ_TIMEOUT_MS = 15_000L
     const val LOCATION_TIMEOUT_MS = 45_000L
+    const val ACTION_TIMEOUT_MS = 30_000L
     const val SENSOR_READ_BASE_TIMEOUT_MS = 10_000L
     const val MAX_SENSOR_READ_TIMEOUT_MS = 60_000L
     const val APPROVAL_TIMEOUT_MS = 120_000L
