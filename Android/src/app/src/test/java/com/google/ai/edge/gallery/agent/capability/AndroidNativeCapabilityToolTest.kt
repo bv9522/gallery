@@ -217,6 +217,39 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun contactsAndClipboardOperationsDispatchOnlyBoundedArguments() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val contacts = tool.execute(arguments("contacts_search").apply {
+      addProperty("query", "Alex")
+      addProperty("limit", 5)
+    })
+    val clipboardRead = tool.execute(arguments("clipboard_read"))
+    val clipboardWrite = tool.execute(arguments("clipboard_write").apply {
+      addProperty("text", "Meeting notes")
+    })
+    val invalidContacts = tool.execute(arguments("contacts_search").apply {
+      addProperty("query", "   ")
+    })
+    val oversizedClipboard = tool.execute(arguments("clipboard_write").apply {
+      addProperty("text", "x".repeat(2_049))
+    })
+
+    assertTrue(contacts.isSuccessful)
+    assertTrue(contacts.content.contains("Alex Example"))
+    assertTrue(clipboardRead.isSuccessful)
+    assertTrue(clipboardRead.content.contains("Meeting notes"))
+    assertTrue(clipboardWrite.isSuccessful)
+    assertFalse(invalidContacts.isSuccessful)
+    assertFalse(oversizedClipboard.isSuccessful)
+    assertEquals(
+      listOf("contacts_search:Alex:5", "clipboard_read", "clipboard_write:Meeting notes"),
+      adapter.discoveryCalls,
+    )
+  }
+
+  @Test
   fun systemCapabilityOperationsReachTheirMatchingAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
@@ -459,6 +492,21 @@ class AndroidNativeCapabilityToolTest {
       timeoutMs: Long,
     ): NativeCapabilityActionResult {
       discoveryCalls += "bluetooth_gatt_write:$deviceAddress:$serviceUuid:$characteristicUuid:$valueBase64:$timeoutMs"
+      return actionResult
+    }
+
+    override suspend fun searchContacts(query: String, limit: Int): List<NativeContactSummary> {
+      discoveryCalls += "contacts_search:$query:$limit"
+      return listOf(NativeContactSummary("Alex Example", listOf("555-0100"), listOf("alex@example.com")))
+    }
+
+    override suspend fun readClipboard(): NativeClipboardContent {
+      discoveryCalls += "clipboard_read"
+      return NativeClipboardContent("Meeting notes", hasText = true, itemCount = 1, truncated = false)
+    }
+
+    override suspend fun writeClipboard(text: String): NativeCapabilityActionResult {
+      discoveryCalls += "clipboard_write:$text"
       return actionResult
     }
 
