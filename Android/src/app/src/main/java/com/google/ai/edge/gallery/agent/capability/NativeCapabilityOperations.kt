@@ -34,4 +34,7 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun listLaunchableApps(): List<NativeLaunchableApp>
   suspend fun launchApp(packageName: String): NativeCapabilityActionResult
   suspend fun openUrl(url: String): NativeCapabilityActionResult
+  suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice>
+  suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice>
+  suspend fun getUsbDevices(): List<NativeUsbDevice>
 }
