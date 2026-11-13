@@ -568,6 +568,9 @@ class AndroidNativeCapabilityAdapter(
           if (event.status != BluetoothGatt.GATT_SUCCESS) {
             throw IllegalStateException("GATT characteristic read failed with status ${event.status}.")
           }
+          require(event.value.size <= MAX_GATT_VALUE_BYTES) {
+            "GATT characteristic value exceeded the $MAX_GATT_VALUE_BYTES-byte read limit."
+          }
           return@withBluetoothGattSession NativeBluetoothGattValue(
             deviceAddress = deviceAddress.uppercase(),
             serviceUuid = serviceUuid.lowercase(),
