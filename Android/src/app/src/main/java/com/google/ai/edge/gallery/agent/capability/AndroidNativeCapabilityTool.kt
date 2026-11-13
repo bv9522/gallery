@@ -171,14 +171,19 @@ class AndroidNativeCapabilityTool internal constructor(
         add("query", JsonObject().apply {
           addProperty("type", "string")
           addProperty("description", "Name or text query for contacts_search; 1–80 characters.")
+          addProperty("minLength", 1)
+          addProperty("maxLength", 80)
         })
         add("limit", JsonObject().apply {
           addProperty("type", "integer")
           addProperty("description", "Maximum matching contacts to return; 1–20, defaults to 10.")
+          addProperty("minimum", MIN_CONTACT_LIMIT)
+          addProperty("maximum", MAX_CONTACT_LIMIT)
         })
         add("text", JsonObject().apply {
           addProperty("type", "string")
           addProperty("description", "Text to place on the clipboard; maximum 2048 characters.")
+          addProperty("maxLength", MAX_CLIPBOARD_WRITE_CHARS)
         })
       })
       add("required", JsonArray().apply { add("operation") })
