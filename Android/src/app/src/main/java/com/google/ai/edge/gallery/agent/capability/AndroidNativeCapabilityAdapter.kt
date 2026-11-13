@@ -627,6 +627,7 @@ class AndroidNativeCapabilityAdapter(
           BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         else -> throw IllegalArgumentException("The selected GATT characteristic does not advertise write support.")
       }
+      val expectsRemoteResponse = writeType == BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         val status = session.gatt.writeCharacteristic(characteristic, value, writeType)
         if (status != BluetoothStatusCodes.SUCCESS) {
@@ -649,10 +650,12 @@ class AndroidNativeCapabilityAdapter(
             if (event.status != BluetoothGatt.GATT_SUCCESS) {
               throw IllegalStateException("GATT characteristic write failed with status ${event.status}.")
             }
-            return@withBluetoothGattSession NativeCapabilityActionResult(
-              true,
-              "Wrote ${value.size} bytes to characteristic ${characteristicUuid.lowercase()} in service ${serviceUuid.lowercase()}.",
-            )
+            val detail = if (expectsRemoteResponse) {
+              "Write-with-response completed for ${value.size} bytes to characteristic ${characteristicUuid.lowercase()} in service ${serviceUuid.lowercase()}."
+            } else {
+              "Submitted ${value.size} bytes to characteristic ${characteristicUuid.lowercase()} in service ${serviceUuid.lowercase()} using write-without-response; remote receipt cannot be confirmed."
+            }
+            return@withBluetoothGattSession NativeCapabilityActionResult(true, detail)
           }
           else -> Unit
         }
