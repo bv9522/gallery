@@ -56,10 +56,11 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
 
 ## Native connectivity onboarding — Phase 6A draft
 
-- Bluetooth bonded-device discovery and bounded BLE scanning are native Android operations. The
-  Gallery app requests Nearby devices runtime permissions only after explicit one-time approval;
-  discovery probes remain observational. BLE scan windows are bounded to 1–10 seconds and stop
-  scanning in a cancellation-safe cleanup path.
+- Bluetooth bonded-device discovery and bounded BLE scanning are separate native Android
+  capabilities with separate permission observations. The Gallery app requests BLUETOOTH_CONNECT
+  for paired-device reads and BLUETOOTH_SCAN plus CONNECT for BLE scans, only after explicit
+  one-time approval; discovery probes remain observational. BLE scan windows are bounded to 1–10
+  seconds and stop scanning in a cancellation-safe cleanup path.
 - USB host discovery uses UsbManager and reports bounded VID/PID/class/interface metadata. It does
   not open a device, request USB device permission, or treat USB mass storage as a raw filesystem.
 - Bluetooth GATT and USB device I/O remain planned until their session/permission lifecycles are
