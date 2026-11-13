@@ -171,8 +171,7 @@ class TermuxApiCapabilityTool(
       READ_TIMEOUT_MS,
       MAX_OUTPUT_CHARS,
     )
-    if (!listing.succeeded) return readFailure(listing, "Sensor listing")
-    if (listing.outputTruncated) return failure("Sensor listing exceeded the output limit; no sensor read was started.")
+    if (!TermuxApiReadCommand.isCompleteRead(listing)) return readFailure(listing, "Sensor listing")
     val command = TermuxApiReadCommand.sensorRead(
       sensorNames = sensors,
       availableSensorOutput = listing.stdout,
@@ -198,12 +197,8 @@ class TermuxApiCapabilityTool(
     timeoutMs: Long = READ_TIMEOUT_MS,
   ): AgentToolResult {
     val result = client.execute(command, "~/", timeoutMs, MAX_OUTPUT_CHARS)
-    if (!result.succeeded) return readFailure(result, "Termux:API read")
-    if (result.outputTruncated) {
-      return failure("OUTPUT_TRUNCATED: Termux:API output exceeded the $MAX_OUTPUT_CHARS character limit; the partial result is not presented as complete.")
-    }
+    if (!TermuxApiReadCommand.isCompleteRead(result)) return readFailure(result, "Termux:API read")
     val output = result.stdout.trim()
-    if (output.isBlank()) return failure("EMPTY_RESULT: Termux:API command completed without output.")
     return AgentToolResult(output, true)
   }
 
