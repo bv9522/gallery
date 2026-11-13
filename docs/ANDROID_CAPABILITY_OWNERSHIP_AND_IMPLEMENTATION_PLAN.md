@@ -79,7 +79,8 @@ operation do not count as a dedicated native capability implementation.
 | Notifications created by this app | Native Kotlin (NotificationManager) | Planned |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
 | Notification channel management | Native Kotlin (NotificationManager) | Planned |
-| Camera info / basic photo capture | Termux:API (termux-camera-info / termux-camera-photo) | Planned; still JPEG capture to an approved path; advanced sessions remain native if needed |
+| Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
+| Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Termux:API (termux-microphone-record) | Planned; explicit approval, bounded duration, output path, and stop/cleanup |
 | Basic speech recognition | Termux:API (termux-speech-to-text) | Planned; native only if on-device/lifecycle control is required |
 | Text-to-speech / engine information | Termux:API (termux-tts-engines / termux-tts-speak) | Planned; native only for Gallery-owned playback/session control |
@@ -90,7 +91,7 @@ operation do not count as a dedicated native capability implementation.
 | Media playback initiated by the app | Native Kotlin (existing media stack or platform MediaPlayer) | Planned |
 | Active media-session control | Native Kotlin (MediaSessionManager) | Planned; notification-listener access may be required |
 | Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
-| Wallpaper set/read | Termux:API (termux-wallpaper) | Planned; basic file-based wallpaper setting; explicit approval |
+| Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
 | Background scheduled work | Native Kotlin (WorkManager) | Planned; bounded, user-visible scheduling |
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
@@ -305,3 +306,16 @@ version compatibility must be verified on-device before an operation is marked i
   deliberately deferred; enumeration is not treated as USB mass-storage filesystem access.
 - GATT sessions and USB I/O require separate lifecycle, user permission, cancellation, and typed
   transfer contracts before being exposed.
+
+
+### Wave 3B — Native photo capture and wallpaper (draft code; acceptance pending)
+
+- Photo capture is moved from Termux:API to native Kotlin because Gallery needs a Gallery-owned
+  MediaStore URI. The app creates a pending JPEG row, launches the system camera through an
+  ActivityResult action, and publishes the item only after successful capture; cancellation or
+  failure deletes the pending row. Gallery does not request camera permission because capture is
+  delegated to the user's camera activity.
+- Wallpaper setting is moved from Termux:API to native WallpaperManager because the app can safely
+  consume user-granted or Gallery-owned content URIs. Only image content URIs and SYSTEM/LOCK/BOTH
+  targets are accepted; every change requires one-time approval. No arbitrary filesystem paths or
+  network URLs are accepted.
