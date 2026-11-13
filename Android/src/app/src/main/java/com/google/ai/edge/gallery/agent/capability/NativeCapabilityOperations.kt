@@ -19,6 +19,30 @@ package com.google.ai.edge.gallery.agent.capability
  * without Android framework services. Implementations remain responsible for enforcing the
  * injected authorization boundary before every mutation and privacy-sensitive discovery operation.
  */
+data class NativeBluetoothGattCharacteristic(
+  val uuid: String,
+  val properties: Int,
+  val canRead: Boolean,
+  val canWrite: Boolean,
+  val canWriteWithoutResponse: Boolean,
+  val canNotify: Boolean,
+  val canIndicate: Boolean,
+  val descriptorCount: Int,
+)
+
+data class NativeBluetoothGattService(
+  val uuid: String,
+  val type: String,
+  val characteristics: List<NativeBluetoothGattCharacteristic>,
+)
+
+data class NativeBluetoothGattInspection(
+  val deviceAddress: String,
+  val services: List<NativeBluetoothGattService>,
+  val totalCharacteristics: Int,
+  val truncated: Boolean,
+)
+
 interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun getDeviceInfo(): NativeDeviceInfo
   fun getBatteryStatus(): NativeBatteryStatus
