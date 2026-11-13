@@ -169,8 +169,12 @@ version compatibility must be verified on-device before an operation is marked i
 - [x] First Termux:API read-only slice: sensor listing/finite reads, location once/last, Wi-Fi
   connection information, and last-scan information (Phase 5A code; local validation/device
   acceptance pending).
-- [ ] Remaining Termux:API operations: NFC, basic camera capture, file-based microphone
-  recording, speech-to-text, and wallpaper.
+- [ ] Remaining Termux:API operations: basic camera capture, file-based microphone recording,
+  speech-to-text, and wallpaper.
+- [x] Phase 5C draft: one-shot full NDEF reads and text-only NDEF writes through Termux:API,
+  with explicit scoped approvals, 512-character payload bounds, and a 60-second supervised
+  interaction timeout. Keep NFC capabilities Planned until local validation and consolidated
+  device acceptance, including cancellation/UI cleanup, are complete.
 - [x] Phase 5B draft: bounded infrared frequency discovery/transmission and basic TTS engine
   discovery/speech, with fixed command builders, scoped approvals for transmission/speech, and
   unit coverage. Keep these capabilities Planned until local validation and consolidated device
@@ -252,3 +256,15 @@ version compatibility must be verified on-device before an operation is marked i
 - Neither operation assumes hardware/engine availability from command presence. Keep both
   capabilities Planned until current-head local tests/build and consolidated target-device
   acceptance are complete.
+
+
+### Wave 2C — NFC NDEF interactions (implemented in draft code; acceptance pending)
+
+- Verified upstream wrapper supports `termux-nfc -r [short|full]` for reads and `-w -t <text>`
+  for text NDEF writes; read and write modes are mutually exclusive.
+- Gallery exposes only full reads and text-only writes, bounds write text to 512 characters,
+  quotes it safely, and requires explicit one-time approval for both operations. Write approval
+  describes the exact text and warns that existing tag content may be replaced.
+- Operations are one-shot and supervised with a 60-second timeout. No background NFC session or
+  raw binary/arbitrary record payload is exposed. Device acceptance must verify tag interaction,
+  permission behavior, and that cancellation/timeouts dismiss the external NFC UI cleanly.
