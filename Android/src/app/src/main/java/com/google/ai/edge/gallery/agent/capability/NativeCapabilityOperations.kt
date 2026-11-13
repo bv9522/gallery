@@ -37,6 +37,7 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice>
   suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice>
   suspend fun getUsbDevices(): List<NativeUsbDevice>
+  suspend fun recordAudio(durationMs: Long): String
   suspend fun capturePhoto(): String
   suspend fun setWallpaper(contentUri: String, target: String): NativeCapabilityActionResult
 }
