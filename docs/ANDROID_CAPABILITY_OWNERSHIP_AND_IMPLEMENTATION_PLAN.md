@@ -206,6 +206,15 @@ version compatibility must be verified on-device before an operation is marked i
 - Caps output at 32 services and 128 characteristics. No characteristic values are read, no writes or subscriptions are performed, and no pairing/bonding is initiated.
 - Disconnects and closes the GATT client after success, failure, timeout, or coroutine cancellation. Real accessory interoperability and cleanup behavior remain part of the consolidated device acceptance pass.
 
+### Wave 2C — Native Bluetooth GATT characteristic I/O (Phase 8B draft; acceptance pending)
+
+- Extends the short-lived GATT session with one-shot characteristic reads and writes addressed by full service and characteristic UUIDs discovered from the connected device.
+- Reads return binary data as Base64 with an explicit byte count; writes accept unwrapped Base64 payloads from 1–512 bytes.
+- Every connection/read/write requires one-time scoped approval. Write approval displays the exact Base64 payload, target address, service UUID, characteristic UUID, and bounded session duration.
+- The adapter checks the characteristic's advertised READ, WRITE, or WRITE_WITHOUT_RESPONSE property before dispatch. It uses the Android 13+ typed write API where available and the compatible legacy API on Android 12.
+- Each operation has a 5–20 second overall connection/discovery/operation timeout and closes the GATT client on success, error, timeout, or cancellation. No notifications, indications, subscriptions, background sessions, automatic pairing, or retained connections are exposed.
+- Real accessory behavior and write safety remain device-acceptance concerns; only devices/profiles whose UUID semantics are known should be operated on.
+
 ### Wave 3 — Gallery-owned and privacy-sensitive integrations
 - Contacts, call logs, telephony metadata, SMS composer/inbox where platform policy permits.
 - Clipboard, notifications/listener, biometric prompt, Gallery-owned Keystore.
