@@ -19,6 +19,7 @@ package com.google.ai.edge.gallery.agent.capability
 import android.content.Context
 import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
+import com.google.gson.Gson
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.Gson
@@ -67,6 +68,7 @@ class AndroidNativeCapabilityTool internal constructor(
     AndroidNativeCapabilityAdapter(
       context = context.applicationContext,
       authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
+      permissionRequester = ChannelNativeRuntimePermissionRequester(actionChannel),
     ),
     registry,
   )
@@ -80,7 +82,8 @@ class AndroidNativeCapabilityTool internal constructor(
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock. Mutations always require one-time user approval. " +
-      "This tool never executes shell commands."
+      "Bluetooth discovery and USB host enumeration require scoped approval; BLE scans are limited to 1–10 seconds. " +
+      "Bluetooth GATT sessions and USB I/O are not yet exposed. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -92,7 +95,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "usb_devices",
             ).forEach { add(it) }
           })
         })
@@ -128,6 +131,12 @@ class AndroidNativeCapabilityTool internal constructor(
         add("url", JsonObject().apply {
           addProperty("type", "string")
           addProperty("description", "Absolute HTTP(S) URL with a host.")
+        })
+        add("duration_ms", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("minimum", 1_000)
+          addProperty("maximum", 10_000)
+          addProperty("description", "Bluetooth LE scan window from 1000 to 10000 milliseconds; defaults to 5000.")
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -207,6 +216,17 @@ class AndroidNativeCapabilityTool internal constructor(
             ?: return failure("open_url requires url.")
           mutate(AndroidCapability.OPEN_URL) { adapter.openUrl(url) }
         }
+        "bluetooth_bonded_devices" -> AgentToolResult(Gson().toJson(adapter.getBluetoothBondedDevices()))
+        "bluetooth_le_scan" -> {
+          val duration = if (arguments.has("duration_ms")) {
+            arguments.long("duration_ms") ?: return failure("duration_ms must be an integer.")
+          } else DEFAULT_BLUETOOTH_SCAN_MS
+          if (duration !in MIN_BLUETOOTH_SCAN_MS..MAX_BLUETOOTH_SCAN_MS) {
+            return failure("Bluetooth LE scan duration must be between $MIN_BLUETOOTH_SCAN_MS and $MAX_BLUETOOTH_SCAN_MS milliseconds.")
+          }
+          AgentToolResult(Gson().toJson(adapter.scanBluetoothLe(duration)))
+        }
+        "usb_devices" -> AgentToolResult(Gson().toJson(adapter.getUsbDevices()))
         else -> failure("Unsupported operation '$operation'.")
       }
     } catch (cancelled: CancellationException) {
@@ -274,5 +294,8 @@ class AndroidNativeCapabilityTool internal constructor(
     get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
 
   private companion object {
+    const val DEFAULT_BLUETOOTH_SCAN_MS = 5_000L
+    const val MIN_BLUETOOTH_SCAN_MS = 1_000L
+    const val MAX_BLUETOOTH_SCAN_MS = 10_000L
   }
 }
