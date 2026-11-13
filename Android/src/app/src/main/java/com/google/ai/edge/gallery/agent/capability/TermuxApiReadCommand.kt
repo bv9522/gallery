@@ -23,12 +23,7 @@ internal object TermuxApiReadCommand {
 
   fun sensorList(): String = "termux-sensor -l"
 
-  fun sensorRead(
-    sensorNames: List<String>,
-    availableSensorOutput: String,
-    count: Int,
-    delayMs: Int,
-  ): String {
+  fun validateSensorRequest(sensorNames: List<String>, count: Int, delayMs: Int) {
     require(sensorNames.isNotEmpty() && sensorNames.size <= MAX_SENSOR_SELECTIONS) {
       "Select between 1 and $MAX_SENSOR_SELECTIONS sensors."
     }
@@ -41,14 +36,26 @@ internal object TermuxApiReadCommand {
     val names = sensorNames.map { raw ->
       val name = raw.trim()
       require(sensorNamePattern.matches(name)) { "Invalid sensor name." }
-      val exactName = Regex("(?i)(?<![A-Za-z0-9])${Regex.escape(name)}(?![A-Za-z0-9])")
-      require(exactName.containsMatchIn(availableSensorOutput)) {
-        "Sensor '$name' was not present in the latest Termux sensor listing."
-      }
       name
     }
     require(names.distinctBy { it.lowercase() }.size == names.size) {
       "Duplicate sensor names are not allowed."
+    }
+  }
+
+  fun sensorRead(
+    sensorNames: List<String>,
+    availableSensorOutput: String,
+    count: Int,
+    delayMs: Int,
+  ): String {
+    validateSensorRequest(sensorNames, count, delayMs)
+    val names = sensorNames.map { it.trim() }
+    names.forEach { name ->
+      val exactName = Regex("(?i)(?<![A-Za-z0-9])${Regex.escape(name)}(?![A-Za-z0-9])")
+      require(exactName.containsMatchIn(availableSensorOutput)) {
+        "Sensor '$name' was not present in the latest Termux sensor listing."
+      }
     }
     return "termux-sensor -s ${shellQuote(names.joinToString(","))} -d $delayMs -n $count"
   }
@@ -68,7 +75,7 @@ internal object TermuxApiReadCommand {
   fun wifiLastScanInfo(): String = "termux-wifi-scaninfo"
 
   fun failureState(result: TermuxShellResult): String {
-    val detail = (result.error ?: result.stderr).lowercase()
+    val detail = "${result.error.orEmpty()} ${result.stderr}".lowercase()
     return when {
       result.succeeded && result.outputTruncated -> "OUTPUT_TRUNCATED"
       result.succeeded && result.stdout.isBlank() -> "EMPTY_RESULT"
