@@ -111,8 +111,16 @@ class TermuxApiCapabilityTool(
         "sensor_list" -> runRead(TermuxApiReadCommand.sensorList())
         "sensor_read" -> sensorRead(arguments)
         "location" -> location(arguments)
-        "wifi_connection_info" -> runRead(TermuxApiReadCommand.wifiConnectionInfo())
-        "wifi_last_scan" -> runRead(TermuxApiReadCommand.wifiLastScanInfo())
+        "wifi_connection_info" -> {
+          if (!authorize(AndroidCapability.WIFI_CONNECTION_INFO, "Read current Wi-Fi connection details using Termux:API.")) {
+            failure("Wi-Fi connection information request denied or approval unavailable.")
+          } else runRead(TermuxApiReadCommand.wifiConnectionInfo())
+        }
+        "wifi_last_scan" -> {
+          if (!authorize(AndroidCapability.WIFI_SCAN, "Read the last available Wi-Fi scan results using Termux:API.")) {
+            failure("Wi-Fi scan information request denied or approval unavailable.")
+          } else runRead(TermuxApiReadCommand.wifiLastScanInfo())
+        }
         else -> failure("Unsupported Termux:API operation '$operation'.")
       }
     } catch (cancelled: CancellationException) {
@@ -179,6 +187,9 @@ class TermuxApiCapabilityTool(
   private suspend fun location(arguments: JsonObject): AgentToolResult {
     val provider = arguments.string("provider") ?: DEFAULT_LOCATION_PROVIDER
     val request = arguments.string("request") ?: DEFAULT_LOCATION_REQUEST
+    if (!authorize(AndroidCapability.LOCATION_READ, "Read a one-time or last-known location using Termux:API.")) {
+      return failure("Location request denied or approval unavailable.")
+    }
     return runRead(TermuxApiReadCommand.location(provider, request), LOCATION_TIMEOUT_MS)
   }
 
