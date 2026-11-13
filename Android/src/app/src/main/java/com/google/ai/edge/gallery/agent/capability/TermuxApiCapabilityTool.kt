@@ -209,17 +209,7 @@ class TermuxApiCapabilityTool(
 
   private fun readFailure(result: TermuxShellResult, label: String): AgentToolResult {
     val detail = result.error ?: result.stderr.ifBlank { "$label failed (exit ${result.exitCode})." }
-    val normalized = detail.lowercase()
-    val state = when {
-      listOf("permission denied", "permission required", "not authorized", "securityexception",
-        "access denied", "permission is not granted").any { it in normalized } -> "PERMISSION_REQUIRED"
-      listOf("command not found", "not installed", "no such file or directory").any { it in normalized } ->
-        "COMMAND_NOT_INSTALLED"
-      result.timedOut -> "TIMEOUT"
-      result.processMayStillBeRunning -> "PROCESS_CLEANUP_UNCONFIRMED"
-      else -> "OPERATION_FAILED"
-    }
-    return failure("$state: $label failed. $detail")
+    return failure("${TermuxApiReadCommand.failureState(result)}: $label failed. $detail")
   }
 
   private suspend fun setVolume(arguments: JsonObject): AgentToolResult {
