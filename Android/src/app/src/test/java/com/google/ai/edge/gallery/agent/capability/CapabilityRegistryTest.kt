@@ -51,6 +51,9 @@ class CapabilityRegistryTest {
       AndroidCapability.BLUETOOTH_GATT,
       AndroidCapability.USB_DEVICE_DISCOVERY,
       AndroidCapability.USB_DEVICE_IO,
+      AndroidCapability.CONTACT_READ,
+      AndroidCapability.CLIPBOARD_READ,
+      AndroidCapability.CLIPBOARD_WRITE,
     ).forEach { capability ->
       val ownership = CapabilityCatalog.preferences.single { it.capability == capability }
       assertEquals(CapabilityProviderId.ANDROID_NATIVE, ownership.providerId)
