@@ -261,8 +261,12 @@ class AndroidDocumentTreeAdapter(
         stream.use { output -> output.write(bytes); output.flush() }
         created.toString()
       } catch (error: Throwable) {
-        runCatching { DocumentsContract.deleteDocument(resolver, created) }
-        throw error
+        val removed = runCatching { DocumentsContract.deleteDocument(resolver, created) }.getOrNull() == true
+        if (removed) throw error
+        throw IllegalStateException(
+          "The document was created but could not be fully written; cleanup was not confirmed for " + created + ".",
+          error,
+        )
       }
     }
   }
@@ -433,7 +437,7 @@ class AndroidDocumentTreeAdapter(
               if (count < 0) break
               total += count
               require(total <= MAX_TRANSFER_BYTES) {
-                "The document exceeded the cross-tree transfer limit of $MAX_TRANSFER_BYTES bytes; the incomplete destination was removed."
+                "The document exceeded the cross-tree transfer limit of $MAX_TRANSFER_BYTES bytes."
               }
               targetStream.write(buffer, 0, count)
             }
@@ -442,12 +446,25 @@ class AndroidDocumentTreeAdapter(
         }
         created!!
       } catch (error: Throwable) {
-        created?.let { runCatching { DocumentsContract.deleteDocument(resolver, it) } }
-        throw error
+        val removed = created?.let {
+          runCatching { DocumentsContract.deleteDocument(resolver, it) }.getOrNull()
+        } == true
+        if (removed) throw error
+        throw IllegalStateException(
+          "The transfer failed and cleanup of the incomplete destination could not be confirmed; a partial file may remain.",
+          error,
+        )
       }
     }
     if (move) {
-      val removed = withContext(Dispatchers.IO) { DocumentsContract.deleteDocument(resolver, source) }
+      val removed = try {
+        withContext(Dispatchers.IO) { DocumentsContract.deleteDocument(resolver, source) }
+      } catch (error: Throwable) {
+        throw IllegalStateException(
+          "The destination copy was created at " + destination + ", but source deletion failed; both copies may remain.",
+          error,
+        )
+      }
       if (!removed) {
         throw IllegalStateException(
           "The destination copy was created at " + destination + ", but the source could not be deleted and remains in place.",
