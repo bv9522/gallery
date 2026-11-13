@@ -10,7 +10,10 @@ package com.google.ai.edge.gallery.agent.capability
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.google.ai.edge.gallery.termux.TermuxShellResult
 
 class TermuxApiReadCommandTest {
   private val sensors = """
@@ -97,3 +100,40 @@ class TermuxApiReadCommandTest {
     assertEquals("termux-wifi-scaninfo", TermuxApiReadCommand.wifiLastScanInfo())
   }
 }
+  @Test
+  fun readFailureStatesDistinguishPermissionMissingCommandTimeoutAndCleanup() {
+    assertEquals(
+      "PERMISSION_REQUIRED",
+      TermuxApiReadCommand.failureState(TermuxShellResult("", "Permission denied", 1)),
+    )
+    assertEquals(
+      "COMMAND_NOT_INSTALLED",
+      TermuxApiReadCommand.failureState(TermuxShellResult("", "termux-location: command not found", 127)),
+    )
+    assertEquals(
+      "TIMEOUT",
+      TermuxApiReadCommand.failureState(
+        TermuxShellResult("", "", -1, timedOut = true, error = "deadline exceeded"),
+      ),
+    )
+    assertEquals(
+      "PROCESS_CLEANUP_UNCONFIRMED",
+      TermuxApiReadCommand.failureState(
+        TermuxShellResult("", "", 0, processMayStillBeRunning = true, error = "cleanup failed"),
+      ),
+    )
+  }
+
+  @Test
+  fun incompleteAndEmptyReadResultsAreNeverTreatedAsComplete() {
+    val truncated = TermuxShellResult("partial", "", 0, outputTruncated = true)
+    val empty = TermuxShellResult("", "", 0)
+    val complete = TermuxShellResult("{\\"ok\\":true}", "", 0)
+
+    assertEquals("OUTPUT_TRUNCATED", TermuxApiReadCommand.failureState(truncated))
+    assertEquals("EMPTY_RESULT", TermuxApiReadCommand.failureState(empty))
+    assertFalse(TermuxApiReadCommand.isCompleteRead(truncated))
+    assertFalse(TermuxApiReadCommand.isCompleteRead(empty))
+    assertTrue(TermuxApiReadCommand.isCompleteRead(complete))
+  }
+
