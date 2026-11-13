@@ -174,7 +174,7 @@ class TermuxApiCapabilityTool internal constructor(
       if (probe.stdout.isNotBlank()) append(probe.stdout.trim())
       if (probe.outputTruncated) appendLine("\nprobeOutputTruncated=true")
       if (probe.stderr.isNotBlank()) appendLine("\nprobeStderr=" + probe.stderr.take(500))
-      probe.error?.let { appendLine("\\nprobeError=$it") }
+      probe.error?.let { appendLine("\nprobeError=$it") }
     }.trim()
     return AgentToolResult(output, probe.succeeded && companionInstalled && !probe.outputTruncated)
   }
@@ -281,13 +281,13 @@ class TermuxApiCapabilityTool internal constructor(
         appendLine("$label completed.")
         if (result.stdout.isNotBlank()) append(result.stdout.trim())
         if (result.stderr.isNotBlank()) appendLine("\nSTDERR: " + result.stderr.trim())
-        if (result.outputTruncated) appendLine("\\nOUTPUT_TRUNCATED=true")
+        if (result.outputTruncated) appendLine("\nOUTPUT_TRUNCATED=true")
       }.trim(),
       true,
     )
   }
 
-  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\\\''") + "'"
   private fun failure(message: String) = AgentToolResult(message, false)
   private fun JsonObject.string(key: String): String? =
     get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
