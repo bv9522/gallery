@@ -71,5 +71,6 @@ underlying command output was corrupt. Do not use Gemma's narration as raw comma
 Phase 4A unit tests and the Shizuku debug build succeeded locally. Brian confirmed that the
 initial Phase 5A unit-test run passed; the current head's additional fake-client tests and argument
 validation require a fresh run. The Phase 5A debug build and target-device acceptance remain
-pending. Device acceptance of all mutations and result integrity is not complete. No PR has been
-merged.
+pending. All Phase 5A capability rows remain Planned and unavailable until the current-head tests,
+debug build, and target-device acceptance pass. Device acceptance of all mutations and result
+integrity is not complete. No PR has been merged.
