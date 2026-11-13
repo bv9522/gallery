@@ -180,3 +180,13 @@ unverified until local tests/build and the consolidated device acceptance pass.
   Termux-private output paths and cross-app file access assumptions.
 - `termux-wallpaper` is no longer selected for wallpaper changes. Native WallpaperManager accepts
   only Gallery-readable image content URIs, avoiding Termux path/URI ownership ambiguity.
+
+
+## Ownership rebalance — Phase 6C draft
+
+- `termux-microphone-record` is no longer selected for Gallery's microphone recording capability.
+  Native MediaRecorder writes a bounded AAC recording to a Gallery-owned MediaStore URI and
+  explicitly stops/releases the recorder on completion or cancellation. This avoids Termux-owned
+  background recording services and cross-app file-path assumptions.
+- `termux-speech-to-text` remains the selected Termux:API owner for one-shot interactive speech
+  recognition; it is a separate capability and may use the configured Android recognition service.

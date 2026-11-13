@@ -40,6 +40,7 @@ internal object AndroidControlArguments {
     "bluetooth_bonded_devices" to setOf("operation"),
     "bluetooth_le_scan" to setOf("operation", "duration_ms"),
     "usb_devices" to setOf("operation"),
+    "record_audio" to setOf("operation", "duration_ms"),
     "capture_photo" to setOf("operation"),
     "set_wallpaper" to setOf("operation", "content_uri", "target"),
   )

@@ -113,6 +113,12 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "content. Present the intended tag when the Termux NFC interaction opens. These are bounded " +
       "single interactions, not background NFC sessions. Use android_control " +
       "for native operations unless the user explicitly requests Termux:API or is comparing providers. " +
+      "Use record_audio for a bounded 1–30 second local AAC recording saved to Music/EdgeGallery; " +
+      "it requires one-time MICROPHONE_RECORD approval and RECORD_AUDIO permission, returns a local " +
+      "content URI, and does not upload or transcribe the audio. " +
+      "Use capture_photo for one user-mediated camera capture saved to a Gallery-owned MediaStore URI; " +
+      "it requires one-time approval. Use set_wallpaper only with a Gallery-readable image content " +
+      "URI and a target of SYSTEM, LOCK, or BOTH; it requires one-time approval. " +
       "Use bluetooth_bonded_devices to list paired devices (one-time approval plus BLUETOOTH_CONNECT) " +
       "and bluetooth_le_scan to discover nearby BLE devices (one-time approval plus BLUETOOTH_SCAN " +
       "and CONNECT). BLE scans " +

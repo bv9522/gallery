@@ -81,7 +81,7 @@ operation do not count as a dedicated native capability implementation.
 | Notification channel management | Native Kotlin (NotificationManager) | Planned |
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
-| Microphone recording to file | Termux:API (termux-microphone-record) | Planned; explicit approval, bounded duration, output path, and stop/cleanup |
+| Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
 | Basic speech recognition | Termux:API (termux-speech-to-text) | Planned; native only if on-device/lifecycle control is required |
 | Text-to-speech / engine information | Termux:API (termux-tts-engines / termux-tts-speak) | Planned; native only for Gallery-owned playback/session control |
 | Biometric authentication | Native Kotlin (BiometricPrompt) | Planned; authentication result only, never expose biometric data |
@@ -125,7 +125,7 @@ started with only three commands.
 | keystore | Native Kotlin Android Keystore |
 | location | Termux:API for once/last/updates; native only for Gallery-owned location lifecycle |
 | media-player, media-scan | Native Kotlin media APIs |
-| microphone-record | Termux:API for bounded file recording; native for live/in-app audio capture |
+| microphone-record | Native Kotlin MediaRecorder + MediaStore for bounded Gallery-owned file recording |
 | nfc | Termux:API for basic NDEF read/write; native for foreground reader-mode integration |
 | notification, notification-channel, notification-list, notification-remove | Native Kotlin NotificationManager / NotificationListenerService |
 | sensor | Termux:API for bounded reads/streams with explicit cleanup |
@@ -172,8 +172,8 @@ version compatibility must be verified on-device before an operation is marked i
 - [x] First Termux:API read-only slice: sensor listing/finite reads, location once/last, Wi-Fi
   connection information, and last-scan information (Phase 5A code; local validation/device
   acceptance pending).
-- [ ] Remaining Termux:API operations: basic camera capture, file-based microphone recording,
-  and wallpaper.
+- [ ] Remaining Termux:API operations: none of camera capture, file-based microphone recording,
+  or wallpaper; these have been reassigned to native Kotlin in Phases 6B–6C.
 - [x] Phase 5D draft: read-only camera metadata and one-shot speech recognition, with fixed
   commands, scoped microphone approval, and a 90-second timeout. Speech recognition is not a
   background stream; audio may be processed by the configured recognition service. Keep both
@@ -319,3 +319,15 @@ version compatibility must be verified on-device before an operation is marked i
   consume user-granted or Gallery-owned content URIs. Only image content URIs and SYSTEM/LOCK/BOTH
   targets are accepted; every change requires one-time approval. No arbitrary filesystem paths or
   network URLs are accepted.
+
+
+### Wave 3C — Native bounded microphone recording (draft code; acceptance pending)
+
+- File-based microphone recording is moved from Termux:API to native Kotlin because Gallery needs
+  an app-owned MediaStore URI and deterministic start/stop/release behavior. The implementation
+  records AAC in an MPEG-4 container under Music/EdgeGallery for 1–30 seconds (default 5 seconds).
+- A one-time MICROPHONE_RECORD approval occurs before requesting RECORD_AUDIO. Provider discovery
+  reports permission state without prompting. Recording cancellation stops/releases MediaRecorder
+  under NonCancellable cleanup and deletes an unpublished MediaStore row.
+- The result is a local content URI; the audio is not automatically uploaded or transcribed. Basic
+  speech recognition remains a separate one-shot Termux:API capability.

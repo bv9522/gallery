@@ -98,6 +98,7 @@ class AndroidNativeCapabilityToolTest {
     val bonded = tool.execute(arguments("bluetooth_bonded_devices"))
     val bleScan = tool.execute(arguments("bluetooth_le_scan").apply { addProperty("duration_ms", 5_000) })
     val usb = tool.execute(arguments("usb_devices"))
+    val audio = tool.execute(arguments("record_audio").apply { addProperty("duration_ms", 5_000) })
     val photo = tool.execute(arguments("capture_photo"))
     val wallpaper = tool.execute(arguments("set_wallpaper").apply {
       addProperty("content_uri", "content://media/external/images/media/42")
@@ -111,14 +112,18 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(bonded.isSuccessful)
     assertTrue(bleScan.isSuccessful)
     assertTrue(usb.isSuccessful)
+    assertTrue(audio.isSuccessful)
     assertTrue(photo.isSuccessful)
     assertTrue(wallpaper.isSuccessful)
+    assertEquals("content://media/external/audio/media/84", audio.content)
     assertEquals("content://media/external/images/media/42", photo.content)
     assertEquals("set_wallpaper:content://media/external/images/media/42:SYSTEM", adapter.discoveryCalls.last())
     assertEquals(listOf("bluetooth_bonded_devices", "bluetooth_le_scan:5000", "usb_devices"), adapter.discoveryCalls.take(3))
     val invalidScan = tool.execute(arguments("bluetooth_le_scan").apply { addProperty("duration_ms", 10_001) })
+    val invalidAudio = tool.execute(arguments("record_audio").apply { addProperty("duration_ms", 30_001) })
     assertFalse(invalidScan.isSuccessful)
-    assertEquals(3, adapter.discoveryCalls.size)
+    assertFalse(invalidAudio.isSuccessful)
+    assertEquals(5, adapter.discoveryCalls.size)
     assertEquals(
       listOf(
         "set_volume:MUSIC:7",
@@ -345,6 +350,10 @@ class AndroidNativeCapabilityToolTest {
     override suspend fun getUsbDevices(): List<NativeUsbDevice> {
       discoveryCalls += "usb_devices"
       return emptyList()
+    }
+    override suspend fun recordAudio(durationMs: Long): String {
+      discoveryCalls += "record_audio:$durationMs"
+      return "content://media/external/audio/media/84"
     }
     override suspend fun capturePhoto(): String = "content://media/external/images/media/42"
     override suspend fun setWallpaper(contentUri: String, target: String): NativeCapabilityActionResult {
