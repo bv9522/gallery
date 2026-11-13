@@ -1049,7 +1049,11 @@ class AndroidNativeCapabilityAdapter(
     }
     val manager = appContext.getSystemService(ClipboardManager::class.java)
       ?: throw IllegalStateException("ClipboardManager is unavailable.")
-    manager.setPrimaryClip(ClipData.newPlainText("Gemma", text))
+    if (text.isEmpty()) {
+      manager.clearPrimaryClip()
+    } else {
+      manager.setPrimaryClip(ClipData.newPlainText("Gemma", text))
+    }
     return NativeCapabilityActionResult(
       true,
       if (text.isEmpty()) "Clipboard cleared." else "Copied ${text.length} characters to the clipboard.",
