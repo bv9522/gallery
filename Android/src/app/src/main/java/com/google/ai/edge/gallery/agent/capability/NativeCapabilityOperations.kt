@@ -36,6 +36,14 @@ data class NativeBluetoothGattInspection(
   val truncated: Boolean,
 )
 
+data class NativeBluetoothGattValue(
+  val deviceAddress: String,
+  val serviceUuid: String,
+  val characteristicUuid: String,
+  val valueBase64: String,
+  val byteCount: Int,
+)
+
 /**
  * Typed operations consumed by [AndroidNativeCapabilityTool].
  *
@@ -61,6 +69,19 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice>
   suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice>
   suspend fun inspectBluetoothGatt(deviceAddress: String, timeoutMs: Long): NativeBluetoothGattInspection
+  suspend fun readBluetoothGattCharacteristic(
+    deviceAddress: String,
+    serviceUuid: String,
+    characteristicUuid: String,
+    timeoutMs: Long,
+  ): NativeBluetoothGattValue
+  suspend fun writeBluetoothGattCharacteristic(
+    deviceAddress: String,
+    serviceUuid: String,
+    characteristicUuid: String,
+    valueBase64: String,
+    timeoutMs: Long,
+  ): NativeCapabilityActionResult
   suspend fun getUsbDevices(): List<NativeUsbDevice>
   suspend fun recordAudio(durationMs: Long): String
   suspend fun capturePhoto(): String
