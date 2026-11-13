@@ -63,8 +63,11 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
   seconds and stop scanning in a cancellation-safe cleanup path.
 - USB host discovery uses UsbManager and reports bounded VID/PID/class/interface metadata. It does
   not open a device, request USB device permission, or treat USB mass storage as a raw filesystem.
-- Bluetooth GATT and USB device I/O remain planned until their session/permission lifecycles are
-  implemented and tested.
+- Phase 8A adds generic Bluetooth GATT service inspection through a short-lived native LE
+  connection. It requires scoped approval and BLUETOOTH_CONNECT, returns at most 32 services and
+  128 characteristic descriptors, exposes capability flags but does not read/write values or
+  subscribe to notifications, and closes the connection on success/failure/timeout/cancellation.
+  GATT value operations and USB device I/O remain planned.
 
 
 ## Native media ownership rebalance — Phase 6B draft
