@@ -52,10 +52,12 @@ operation do not count as a dedicated native capability implementation.
 | Display brightness | Native Kotlin (Settings.System with explicit special access) | Implemented; reports stored setting/mode; mutation requires Modify system settings access and explicit approval; switches to manual mode |
 | Vibration | Native Kotlin (VibratorManager) | Implemented; explicit approval; maximum one-second pulse |
 | Bounded wake lock | Native Kotlin (PowerManager) | Implemented; partial CPU lock, explicit approval, maximum five-minute timeout with automatic release |
-| Sensors and bounded sensor streams | Termux:API (termux-sensor) | Planned; finite reads use a limit; continuous streams require cancellation and cleanup |
-| Location and bounded location updates | Termux:API (termux-location) | Planned; once/last/updates requests bounded by router timeout and cancellation |
-| Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Planned; permission behavior requires device verification |
-| Wi-Fi scan results | Termux:API (termux-wifi-scaninfo) | Planned; returns last scan, subject to Android throttling and permissions |
+| Sensor listing and finite sensor reads | Termux:API (termux-sensor) | Implemented in code; listing-gated sensor names, 1–10 samples, 100–5000 ms delay, 8 KiB output cap; local validation/device acceptance pending |
+| Continuous sensor streams | Termux:API (termux-sensor) | Planned; not exposed until cancellation and sensor cleanup are verified |
+| Location once/last | Termux:API (termux-location) | Implemented in code; provider allowlist, 45-second timeout, scoped user approval; local validation/device acceptance pending |
+| Continuous location updates | Termux:API (termux-location) | Planned; not exposed until bounded-session cancellation and cleanup are verified |
+| Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Implemented in code; fixed no-argument command, scoped user approval; permission behavior and device acceptance pending |
+| Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Implemented in code; fixed no-argument command, scoped user approval; reports only last scan, never initiates a scan; device acceptance pending |
 | Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
 | Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / permissions) | Planned |
 | Bluetooth LE scan and GATT operations | Native Kotlin (BluetoothLeScanner / BluetoothGatt) | Planned; generic profiles, no device-specific hacks |
@@ -164,9 +166,11 @@ version compatibility must be verified on-device before an operation is marked i
 
 ### Wave 2 — System and connectivity providers
 - [x] Audio device information, brightness, vibration, bounded wake lock (Phase 4C first slice).
-- [ ] Add fixed, validated Termux:API operations for sensors, location, Wi-Fi information/scan,
-  NFC, infrared, basic camera capture, file-based microphone recording, speech-to-text, TTS,
-  and wallpaper.
+- [x] First Termux:API read-only slice: sensor listing/finite reads, location once/last, Wi-Fi
+  connection information, and last-scan information (Phase 5A code; local validation/device
+  acceptance pending).
+- [ ] Remaining Termux:API operations: NFC, infrared, basic camera capture, file-based microphone
+  recording, speech-to-text, TTS, and wallpaper.
 - [ ] Implement native Bluetooth discovery/BLE/GATT and USB host sessions; keep Wi-Fi changes
   user-mediated through Android Settings.
 - [ ] Add per-command companion/package/permission probes without prompting.
@@ -211,7 +215,7 @@ version compatibility must be verified on-device before an operation is marked i
   access.
 
 
-### Wave 2A — Termux:API first slice (contract audit)
+### Wave 2A — Termux:API first slice (implemented in code; acceptance pending)
 
 - Prioritize read-only, bounded sensors, location `once`/`last`, Wi-Fi connection information,
   and last-scan information before NFC, infrared, camera, microphone, speech, TTS, or wallpaper.
