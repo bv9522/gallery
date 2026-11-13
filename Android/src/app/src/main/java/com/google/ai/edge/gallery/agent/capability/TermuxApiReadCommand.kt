@@ -74,6 +74,43 @@ internal object TermuxApiReadCommand {
 
   fun wifiLastScanInfo(): String = "termux-wifi-scaninfo"
 
+  fun infraredFrequencies(): String = "termux-infrared-frequencies"
+
+  fun infraredTransmit(
+    frequency: Int,
+    pattern: List<Int>,
+    supportedFrequencyOutput: String,
+  ): String {
+    require(frequency in MIN_INFRARED_FREQUENCY_HZ..MAX_INFRARED_FREQUENCY_HZ) {
+      "Infrared frequency is outside the supported safety bounds."
+    }
+    require(Regex("(?<!\\d)${frequency}(?!\\d)").containsMatchIn(supportedFrequencyOutput)) {
+      "Infrared frequency was not reported by the latest hardware frequency query."
+    }
+    require(pattern.size in MIN_INFRARED_PATTERN_ITEMS..MAX_INFRARED_PATTERN_ITEMS) {
+      "Infrared pattern must contain ${MIN_INFRARED_PATTERN_ITEMS} to ${MAX_INFRARED_PATTERN_ITEMS} intervals."
+    }
+    require(pattern.all { it in 1..MAX_INFRARED_INTERVAL_US }) {
+      "Infrared intervals must be positive and no greater than ${MAX_INFRARED_INTERVAL_US} microseconds."
+    }
+    require(pattern.sumOf { it.toLong() } < MAX_INFRARED_PATTERN_TOTAL_US) {
+      "Infrared patterns must be shorter than two seconds."
+    }
+    val encodedPattern = pattern.joinToString(",")
+    return "termux-infrared-transmit -f ${frequency} '$encodedPattern'"
+  }
+
+  fun ttsEngines(): String = "termux-tts-engines"
+
+  fun ttsSpeak(text: String): String {
+    require(text.isNotBlank()) { "Text to speak must not be blank." }
+    require(text.length <= MAX_TTS_TEXT_CHARS) {
+      "Text to speak must not exceed ${MAX_TTS_TEXT_CHARS} characters."
+    }
+    require(text.none { it == '\u0000' }) { "Text to speak contains an invalid character." }
+    return "termux-tts-speak ${shellQuote(text)}"
+  }
+
   fun failureState(result: TermuxShellResult): String {
     val detail = "${result.error.orEmpty()} ${result.stderr}".lowercase()
     return when {
@@ -100,4 +137,11 @@ internal object TermuxApiReadCommand {
   const val MIN_SENSOR_DELAY_MS = 100
   const val MAX_SENSOR_DELAY_MS = 5_000
   const val MAX_SENSOR_SELECTIONS = 8
+  const val MIN_INFRARED_FREQUENCY_HZ = 20_000
+  const val MAX_INFRARED_FREQUENCY_HZ = 500_000
+  const val MIN_INFRARED_PATTERN_ITEMS = 2
+  const val MAX_INFRARED_PATTERN_ITEMS = 256
+  const val MAX_INFRARED_INTERVAL_US = 1_999_999
+  const val MAX_INFRARED_PATTERN_TOTAL_US = 2_000_000L
+  const val MAX_TTS_TEXT_CHARS = 500
 }
