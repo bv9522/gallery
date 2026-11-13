@@ -19,11 +19,11 @@ Android capability provider, the other is a general shell execution transport.
 | WIFI_CONNECTION_INFO | termux-wifi-connectioninfo | Read current connection metadata; respect Android location/nearby-device privacy restrictions |
 | WIFI_SCAN | termux-wifi-scaninfo | Read last scan only; scanning is subject to Android throttling and permissions |
 | NFC_READ / NFC_WRITE | termux-nfc | Basic NDEF read/write; require explicit user intent and validate tag interaction |
-| INFRARED_CONTROL | termux-infrared-frequencies, termux-infrared-transmit | Report hardware support; bound carrier frequency and pulse pattern (upstream script documents patterns shorter than two seconds) |
+| INFRARED_CONTROL | termux-infrared-frequencies, termux-infrared-transmit | Report hardware support; bound carrier frequency and pulse pattern (upstream script documents patterns shorter than two seconds); Phase 5B draft handler checks a fresh frequency query and requires approval to transmit |
 | CAMERA_INFO / CAMERA_CAPTURE | termux-camera-info, termux-camera-photo | Basic camera metadata and still JPEG capture to an approved path; advanced sessions remain native if needed |
 | MICROPHONE_RECORD | termux-microphone-record | File-based recording only; explicit approval, bounded duration, output path, and stop/cleanup |
 | SPEECH_RECOGNITION | termux-speech-to-text | Basic interactive speech recognition and text output; not a persistent background transcription service |
-| TEXT_TO_SPEECH | termux-tts-engines, termux-tts-speak | Ordinary speech synthesis; native only if Gallery needs richer playback/session control |
+| TEXT_TO_SPEECH | termux-tts-engines, termux-tts-speak | Ordinary speech synthesis; Phase 5B draft handler bounds speech text to 500 characters and requires approval; native only if Gallery needs richer playback/session control |
 | WALLPAPER_CONTROL | termux-wallpaper | Basic image-file wallpaper setting; explicit approval |
 
 These are selected owners in the catalog. The Phase 5A draft contains fixed handlers for sensor
@@ -115,13 +115,32 @@ implementation reference, not evidence of Gallery integration or device availabi
    The no-fallback registry test remains in `CapabilityRegistryTest`. The cancellation fake proves
    tool-level propagation, not real-device process-group termination. Finite sensor reads use
    `-n`; streams are not exposed.
-5. Brian's first local unit-test run passed before the latest fake-client tests and strict
-   argument-validation changes. Rerun the unit tests on this head; the debug build and target-device
-   acceptance remain pending. Keep the Phase 5A capabilities **Planned and unavailable** in
-   production provider observations until every gate passes.
+5. Brian confirmed that the current Phase 5A head passed both
+   `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` locally. Target-device
+   acceptance remains intentionally deferred until capability onboarding is complete. Keep the
+   Phase 5A capabilities **Planned and unavailable** in production provider observations until
+   the consolidated device acceptance gate passes.
 
 Upstream wrapper references:
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-sensor.in
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-location.in
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-wifi-connectioninfo.in
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-wifi-scaninfo.in
+
+
+## Verified upstream contracts — Phase 5B draft
+
+- `termux-infrared-frequencies` accepts no arguments and queries supported carrier frequencies.
+- `termux-infrared-transmit` requires `-f <frequency>` and one comma-separated pulse pattern;
+  upstream documents that patterns shorter than two seconds are transmitted. Gallery accepts
+  only numeric intervals, checks the requested frequency against a fresh frequency query, caps
+  the pattern at 256 intervals, and requires one-time approval.
+- `termux-tts-engines` accepts no arguments and lists available engines.
+- `termux-tts-speak` accepts optional engine/language/rate/pitch/stream controls and text (or
+  stdin). The first Gallery slice exposes only bounded text with default engine settings, uses
+  shell-safe quoting, caps text at 500 characters, and requires one-time approval for audible
+  output. The operation is supervised with a 30-second timeout.
+
+Phase 5B operations are draft implementations. Command presence does not prove hardware support,
+engine availability, permission state, or successful operation. Keep their catalog availability
+unverified until local tests/build and the consolidated device acceptance pass.

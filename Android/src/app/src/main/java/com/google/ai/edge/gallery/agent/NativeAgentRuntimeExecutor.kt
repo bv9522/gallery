@@ -100,7 +100,12 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "those long-running modes are not exposed. Use wifi_connection_info for current connection data " +
       "and wifi_last_scan for the last scan only; it does not trigger a new scan and may be stale. " +
       "Treat permission errors distinctly " +
-      "and never claim a command is available merely because its binary exists. Use android_control " +
+      "and never claim a command is available merely because its binary exists. Use infrared_frequencies " +
+      "to inspect supported carrier frequencies before infrared_transmit; transmission accepts only a " +
+      "reported frequency and a numeric pulse pattern shorter than two seconds, and always requires " +
+      "one-time approval. Use tts_engines to inspect installed speech engines; tts_speak is limited to " +
+      "500 characters and requires approval because it speaks aloud. Never use these operations as " +
+      "a substitute for arbitrary shell commands. Use android_control " +
       "for native operations unless the user explicitly requests Termux:API or is comparing providers. " +
       "Never invent Termux:API commands or use this tool as arbitrary shell access. Its mutations " +
       "require the same one-time approval boundary.\n\n" +

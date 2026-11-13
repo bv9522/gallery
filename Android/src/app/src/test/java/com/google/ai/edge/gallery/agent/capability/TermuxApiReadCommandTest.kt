@@ -104,6 +104,39 @@ class TermuxApiReadCommandTest {
   }
 
   @Test
+  fun infraredCommandRequiresReportedFrequencyAndSubTwoSecondNumericPattern() {
+    assertEquals("termux-infrared-frequencies", TermuxApiReadCommand.infraredFrequencies())
+    assertEquals(
+      "termux-infrared-transmit -f 38000 '500,500,400,400'",
+      TermuxApiReadCommand.infraredTransmit(38_000, listOf(500, 500, 400, 400), """{"frequencies":[30000,38000]}"""),
+    )
+    assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.infraredTransmit(40_000, listOf(500, 500), "[30000,38000]")
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.infraredTransmit(38_000, listOf(1_000_000, 1_000_000), "[38000]")
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.infraredTransmit(38_000, listOf(0, 500), "[38000]")
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.infraredTransmit(38_000, listOf(500), "[38000]")
+    }
+  }
+
+  @Test
+  fun ttsCommandQuotesTextAndEnforcesBounds() {
+    assertEquals("termux-tts-engines", TermuxApiReadCommand.ttsEngines())
+    assertEquals("termux-tts-speak 'Hello Coco'\\''s world'", TermuxApiReadCommand.ttsSpeak("Hello Coco's world"))
+    assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.ttsSpeak("  ")
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      TermuxApiReadCommand.ttsSpeak("x".repeat(TermuxApiReadCommand.MAX_TTS_TEXT_CHARS + 1))
+    }
+  }
+
+  @Test
   fun readFailureStatesDistinguishPermissionMissingCommandTimeoutAndCleanup() {
     assertEquals(
       "PERMISSION_REQUIRED",
