@@ -22,6 +22,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
@@ -57,9 +58,6 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import java.util.concurrent.atomic.AtomicInteger
 /** Small, privacy-conscious device facts suitable for a local agent. */
 data class NativeDeviceInfo(
@@ -613,10 +611,20 @@ class AndroidNativeCapabilityAdapter(
           BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
         else -> throw IllegalArgumentException("The selected GATT characteristic does not advertise write support.")
       }
-      characteristic.writeType = writeType
-      characteristic.value = value
-      if (!session.gatt.writeCharacteristic(characteristic)) {
-        throw IllegalStateException("Android could not start the GATT characteristic write.")
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val status = session.gatt.writeCharacteristic(characteristic, value, writeType)
+        if (status != BluetoothStatusCodes.SUCCESS) {
+          throw IllegalStateException("Android could not start the GATT characteristic write (status $status).")
+        }
+      } else {
+        @Suppress("DEPRECATION")
+        run {
+          characteristic.writeType = writeType
+          characteristic.value = value
+          if (!session.gatt.writeCharacteristic(characteristic)) {
+            throw IllegalStateException("Android could not start the GATT characteristic write.")
+          }
+        }
       }
       while (true) {
         when (val event = session.events.receive()) {
