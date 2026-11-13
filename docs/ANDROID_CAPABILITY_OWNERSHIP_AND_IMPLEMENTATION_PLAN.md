@@ -61,7 +61,7 @@ operation do not count as a dedicated native capability implementation.
 | Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
 | Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Phase 6A draft; scoped approval and CONNECT runtime permission request |
 | Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN + CONNECT) | Phase 6A draft; separate capability ID, 1–10 second low-power scan, bounded results, cancellation-safe stop |
-| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Phase 8A draft: short-lived connection and bounded service/characteristic discovery; read/write operations remain deferred pending session design |
+| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Phase 8A–8B draft: short-lived connection, bounded service/characteristic discovery, one-shot characteristic read/write by full UUID, 512-byte value cap, explicit approval and cancellation-safe close |
 
 | NFC read/write | Termux:API (termux-nfc) | Planned; basic NDEF read/write; foreground/tag interaction requires device verification |
 | Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | Planned; bounded carrier frequency and pulse pattern |
