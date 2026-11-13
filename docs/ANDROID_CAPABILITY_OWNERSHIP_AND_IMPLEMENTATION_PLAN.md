@@ -69,13 +69,13 @@ operation do not count as a dedicated native capability implementation.
 | App discovery | Native Kotlin (PackageManager launcher queries) | Implemented |
 | App launch | Native Kotlin (launch intents) | Implemented |
 | URL open | Native Kotlin (ACTION_VIEW) | Implemented |
-| Contacts read | Native Kotlin (ContactsContract) | Planned; explicit runtime permission |
+| Contacts read | Native Kotlin (ContactsContract) | Phase 9A draft: scoped name/text search, READ_CONTACTS requested only after approval, maximum 20 results with at most 3 phone numbers and 3 email addresses each |
 | Call-log read | Native Kotlin (CallLog provider) | Planned; restricted permission and privacy review |
 | Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Planned; return only permitted, non-secret metadata |
 | SMS inbox/list | Native Kotlin (Telephony provider where permitted) | Planned; permission/role restrictions may make this unavailable |
 | SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Planned; user-mediated send, no silent bulk sending |
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Planned; user confirms call in dialer |
-| Clipboard read/write | Native Kotlin (ClipboardManager) | Planned; foreground/Android clipboard privacy restrictions |
+| Clipboard read/write | Native Kotlin (ClipboardManager) | Phase 9A draft: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval |
 | Notifications created by this app | Native Kotlin (NotificationManager) | Planned |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
 | Notification channel management | Native Kotlin (NotificationManager) | Planned |
@@ -216,6 +216,15 @@ version compatibility must be verified on-device before an operation is marked i
 - Real accessory behavior and write safety remain device-acceptance concerns; only devices/profiles whose UUID semantics are known should be operated on.
 
 ### Wave 3 — Gallery-owned and privacy-sensitive integrations
+### Wave 3A — Native contacts and clipboard (Phase 9A draft; acceptance pending)
+
+- Adds `contacts_search` using ContactsContract's filtered search URI. The query is limited to 80 characters and results to 20 contacts; each result includes a display name, at most three phone numbers, and at most three email addresses.
+- READ_CONTACTS is requested only after one-time approval that identifies the search query and result limit. Provider discovery reports permission state without prompting.
+- Adds `clipboard_read` for plain-text items only, limited to five items and 8192 characters. Reads require Gallery to be foregrounded before and after approval to respect Android clipboard privacy rules.
+- Adds `clipboard_write` for text up to 2048 characters. The exact text (or clear-clipboard action) is shown in the approval request, and writes also require Gallery to remain foregrounded.
+- No clipboard URI, intent, image, or binary content is read or written. No background clipboard scraping or broad contact export is exposed.
+
+
 - Contacts, call logs, telephony metadata, SMS composer/inbox where platform policy permits.
 - Clipboard, notifications/listener, biometric prompt, Gallery-owned Keystore.
 - Advanced camera/live audio sessions only if Termux commands prove insufficient.
