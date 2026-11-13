@@ -111,6 +111,10 @@ internal object TermuxApiReadCommand {
     return "termux-tts-speak ${shellQuote(text)}"
   }
 
+  fun cameraInfo(): String = "termux-camera-info"
+
+  fun speechToText(): String = "termux-speech-to-text"
+
   fun nfcRead(): String = "termux-nfc -r full"
 
   fun nfcWrite(text: String): String {

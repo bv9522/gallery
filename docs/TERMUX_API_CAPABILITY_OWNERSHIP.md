@@ -158,3 +158,15 @@ unverified until local tests/build and the consolidated device acceptance pass.
 - The wrapper delegates to an NFC interaction activity. Cancellation and timeout must be checked
   on-device to ensure the external interaction UI does not remain active after the supervised
   command is terminated. No continuous reader mode or raw NDEF payload is exposed.
+
+
+## Verified upstream contracts — Phase 5D draft
+
+- `termux-camera-info` accepts no arguments and returns camera metadata; it does not capture
+  images. Gallery exposes this as a read-only fixed command.
+- `termux-speech-to-text` accepts no arguments (optional `-p` exposes partial matches). The
+  wrapper emits the final recognition result by default. Gallery exposes only the fixed final
+  result command, requires scoped approval, and bounds execution to 90 seconds. Recognition may
+  use the configured Android speech service and is not guaranteed to be on-device.
+- The speech wrapper delegates to an interactive recognition flow. Device acceptance must verify
+  that cancellation/timeouts terminate the microphone session and dismiss any external UI.
