@@ -42,11 +42,18 @@ class AndroidNativeCapabilityToolTest {
     val url = tool.execute(arguments("open_url").apply {
       addProperty("url", "https://example.com")
     })
+    val bonded = tool.execute(arguments("bluetooth_bonded_devices"))
+    val bleScan = tool.execute(arguments("bluetooth_le_scan").apply { addProperty("duration_ms", 5_000) })
+    val usb = tool.execute(arguments("usb_devices"))
 
     assertTrue(volume.isSuccessful)
     assertTrue(flashlight.isSuccessful)
     assertTrue(launch.isSuccessful)
     assertTrue(url.isSuccessful)
+    assertTrue(bonded.isSuccessful)
+    assertTrue(bleScan.isSuccessful)
+    assertTrue(usb.isSuccessful)
+    assertEquals(listOf("bluetooth_bonded_devices", "bluetooth_le_scan:5000", "usb_devices"), adapter.discoveryCalls)
     assertEquals(
       listOf(
         "set_volume:MUSIC:7",
@@ -179,6 +186,7 @@ class AndroidNativeCapabilityToolTest {
       ProviderAvailability.AVAILABLE
     }.toMutableMap()
     val mutations = mutableListOf<String>()
+    val discoveryCalls = mutableListOf<String>()
     var actionResult = NativeCapabilityActionResult(true, "Action completed.")
 
     override suspend fun inspect() = CapabilityProviderObservation(
@@ -260,6 +268,18 @@ class AndroidNativeCapabilityToolTest {
     override suspend fun openUrl(url: String): NativeCapabilityActionResult {
       mutations += "open_url:$url"
       return actionResult
+    }
+    override suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice> {
+      discoveryCalls += "bluetooth_bonded_devices"
+      return emptyList()
+    }
+    override suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice> {
+      discoveryCalls += "bluetooth_le_scan:$durationMs"
+      return emptyList()
+    }
+    override suspend fun getUsbDevices(): List<NativeUsbDevice> {
+      discoveryCalls += "usb_devices"
+      return emptyList()
     }
   }
 }
