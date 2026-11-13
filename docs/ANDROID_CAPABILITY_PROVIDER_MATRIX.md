@@ -65,3 +65,13 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
   not open a device, request USB device permission, or treat USB mass storage as a raw filesystem.
 - Bluetooth GATT and USB device I/O remain planned until their session/permission lifecycles are
   implemented and tested.
+
+
+## Native media ownership rebalance — Phase 6B draft
+
+- Camera metadata remains a bounded Termux:API query. Photo capture is native and writes to a
+  Gallery-owned MediaStore URI through a user-mediated camera activity; no Termux-private output
+  path is involved.
+- Wallpaper changes are native through WallpaperManager and accept only Gallery-readable image
+  content URIs with an explicit SYSTEM/LOCK/BOTH target. This keeps content URI permissions under
+  Gallery's identity and avoids passing paths or URLs into Termux:API.
