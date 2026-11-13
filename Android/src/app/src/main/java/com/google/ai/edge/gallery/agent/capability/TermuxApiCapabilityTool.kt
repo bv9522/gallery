@@ -56,7 +56,7 @@ class TermuxApiCapabilityTool internal constructor(
   override val description: String =
     "Inspect and use the Termux:API provider. Read operations include status, finite sensor reads, " +
       "location once/last, Wi-Fi connection/last-scan information, infrared frequency discovery, " +
-      "and TTS engine discovery. Approved actions include infrared transmission and bounded speech. " +
+      "and infrared frequency discovery. Approved actions include infrared transmission and NFC writes. " +
       "Existing comparison operations include battery/volume reads and volume/flashlight changes. " +
       "This is not arbitrary shell access."
 
@@ -70,8 +70,8 @@ class TermuxApiCapabilityTool internal constructor(
             listOf(
               "status", "battery_status", "volume_status", "set_volume", "set_flashlight",
               "sensor_list", "sensor_read", "location", "wifi_connection_info", "wifi_last_scan",
-              "infrared_frequencies", "infrared_transmit", "tts_engines", "tts_speak",
-              "nfc_read", "nfc_write", "camera_info", "speech_to_text",
+              "infrared_frequencies", "infrared_transmit", 
+              "nfc_read", "nfc_write", "camera_info", 
             ).forEach { add(it) }
           })
         })
@@ -113,10 +113,6 @@ class TermuxApiCapabilityTool internal constructor(
           addProperty("minItems", TermuxApiReadCommand.MIN_INFRARED_PATTERN_ITEMS)
           addProperty("maxItems", TermuxApiReadCommand.MAX_INFRARED_PATTERN_ITEMS)
         })
-        add("text", JsonObject().apply {
-          addProperty("type", "string")
-          addProperty("maxLength", TermuxApiReadCommand.MAX_TTS_TEXT_CHARS)
-        })
         add("ndef_text", JsonObject().apply {
           addProperty("type", "string")
           addProperty("maxLength", TermuxApiReadCommand.MAX_NFC_TEXT_CHARS)
@@ -130,15 +126,15 @@ class TermuxApiCapabilityTool internal constructor(
     val operation = arguments.string("operation") ?: return failure("Missing or invalid operation.")
     val allowed = when (operation) {
       "status", "battery_status", "volume_status", "sensor_list",
-      "wifi_connection_info", "wifi_last_scan", "infrared_frequencies", "tts_engines" -> setOf("operation")
+      "wifi_connection_info", "wifi_last_scan", "infrared_frequencies", 
       "sensor_read" -> setOf("operation", "sensors", "count", "delay_ms")
       "location" -> setOf("operation", "provider", "request")
       "infrared_transmit" -> setOf("operation", "frequency", "pattern")
-      "tts_speak" -> setOf("operation", "text")
+      
       "nfc_read" -> setOf("operation")
       "nfc_write" -> setOf("operation", "ndef_text")
       "camera_info" -> setOf("operation")
-      "speech_to_text" -> setOf("operation")
+      
       "set_volume" -> setOf("operation", "stream", "volume")
       "set_flashlight" -> setOf("operation", "enabled")
       else -> return failure("Unsupported Termux:API operation '$operation'.")
@@ -159,12 +155,12 @@ class TermuxApiCapabilityTool internal constructor(
         "location" -> location(arguments)
         "infrared_frequencies" -> runRead(TermuxApiReadCommand.infraredFrequencies())
         "infrared_transmit" -> infraredTransmit(arguments)
-        "tts_engines" -> runRead(TermuxApiReadCommand.ttsEngines())
-        "tts_speak" -> ttsSpeak(arguments)
+        
+        
         "nfc_read" -> nfcRead()
         "nfc_write" -> nfcWrite(arguments)
         "camera_info" -> runRead(TermuxApiReadCommand.cameraInfo())
-        "speech_to_text" -> speechToText()
+        
         "wifi_connection_info" -> {
           if (!authorize(AndroidCapability.WIFI_CONNECTION_INFO, "Read current Wi-Fi connection details using Termux:API.")) {
             failure("Wi-Fi connection information request denied or approval unavailable.")
@@ -191,8 +187,8 @@ class TermuxApiCapabilityTool internal constructor(
     val probe = client.execute(
       command = "for c in termux-battery-status termux-volume termux-torch termux-sensor " +
         "termux-location termux-wifi-connectioninfo termux-wifi-scaninfo " +
-        "termux-infrared-frequencies termux-infrared-transmit termux-tts-engines termux-tts-speak " +
-        "termux-nfc termux-camera-info termux-speech-to-text; do " +
+        "termux-infrared-frequencies termux-infrared-transmit " +
+        "termux-nfc termux-camera-info ; do " +
         "if command -v \"\$c\" >/dev/null 2>&1; then printf '%s=AVAILABLE\\n' \"\$c\"; " +
         "else printf '%s=NOT_INSTALLED\\n' \"\$c\"; fi; done",
       workingDirectory = "~/",
@@ -273,16 +269,6 @@ class TermuxApiCapabilityTool internal constructor(
     return runAction(command, "Infrared transmission", ACTION_TIMEOUT_MS)
   }
 
-  private suspend fun ttsSpeak(arguments: JsonObject): AgentToolResult {
-    val text = arguments.string("text") ?: return failure("tts_speak requires string text.")
-    val command = TermuxApiReadCommand.ttsSpeak(text)
-    if (!authorize(AndroidCapability.TEXT_TO_SPEECH,
-        "Speak the supplied text aloud using the device text-to-speech engine.")) {
-      return failure("Text-to-speech request denied or approval unavailable.")
-    }
-    return runAction(command, "Text-to-speech", ACTION_TIMEOUT_MS)
-  }
-
   private suspend fun runAction(
     command: String,
     label: String,
@@ -300,14 +286,6 @@ class TermuxApiCapabilityTool internal constructor(
       }.trim(),
       true,
     )
-  }
-
-  private suspend fun speechToText(): AgentToolResult {
-    if (!authorize(AndroidCapability.SPEECH_RECOGNITION,
-        "Start one interactive speech-recognition session. Audio may be processed by the configured recognition service.")) {
-      return failure("Speech recognition denied or approval unavailable.")
-    }
-    return runRead(TermuxApiReadCommand.speechToText(), SPEECH_RECOGNITION_TIMEOUT_MS)
   }
 
   private suspend fun nfcRead(): AgentToolResult {
@@ -419,7 +397,6 @@ class TermuxApiCapabilityTool internal constructor(
     const val LOCATION_TIMEOUT_MS = 45_000L
     const val ACTION_TIMEOUT_MS = 30_000L
     const val NFC_TIMEOUT_MS = 60_000L
-    const val SPEECH_RECOGNITION_TIMEOUT_MS = 90_000L
     const val SENSOR_READ_BASE_TIMEOUT_MS = 10_000L
     const val MAX_SENSOR_READ_TIMEOUT_MS = 60_000L
     const val APPROVAL_TIMEOUT_MS = 120_000L
