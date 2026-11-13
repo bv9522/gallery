@@ -202,7 +202,7 @@ class AndroidNativeCapabilityToolTest {
     assertFalse(invalidPayload.isSuccessful)
     assertEquals(
       listOf(
-        "bluetooth_gatt_read:$address:$service:$characteristic:15000",
+        "bluetooth_gatt_read:$address:$service:$characteristic:10000",
         "bluetooth_gatt_write:$address:$service:$characteristic:AQID:15000",
       ),
       adapter.discoveryCalls,
