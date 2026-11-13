@@ -87,7 +87,7 @@ class AndroidDocumentTreeAdapter(
     CapabilityCatalog.providers.single { it.id == CapabilityProviderId.ANDROID_DOCUMENTS }
 
   override suspend fun inspect(): CapabilityProviderObservation {
-    val grants = resolver.persistedUriPermissions
+    val grants = resolver.persistedUriPermissions.filter { DocumentsContract.isTreeUri(it.uri) }
     val canRead = grants.any { it.isReadPermission }
     val canWrite = grants.any { it.isWritePermission }
     val availability = mapOf(
@@ -122,7 +122,7 @@ class AndroidDocumentTreeAdapter(
   override suspend fun listGrants(): List<DocumentTreeGrant> {
     authorize(AndroidCapability.DOCUMENT_TREE_LIST, "List folders and removable-storage roots granted to Gallery.")
     return resolver.persistedUriPermissions
-      .filter { it.isReadPermission || it.isWritePermission }
+      .filter { DocumentsContract.isTreeUri(it.uri) && (it.isReadPermission || it.isWritePermission) }
       .map { DocumentTreeGrant(it.uri.toString(), DocumentsContract.getTreeDocumentId(it.uri), it.isReadPermission, it.isWritePermission) }
   }
 
