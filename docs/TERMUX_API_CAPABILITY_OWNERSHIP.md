@@ -109,11 +109,16 @@ implementation reference, not evidence of Gallery integration or device availabi
    not make them callable or available.
 4. [x] Add pure unit coverage for malformed/extra sensor and location arguments, exact fixed
    command construction, permission/command-not-installed/timeout/cleanup error classification,
-   and truncated/empty output handling. [ ] Complete end-to-end fake-client tests for dispatch,
-   approval denial, timeout/cancellation cleanup, and no-fallback before declaring the slice
-   locally validated. Finite sensor reads use `-n`; streams are not exposed.
-5. Local unit tests/build and target-device acceptance remain pending. Keep the new capabilities
-   unavailable in production provider observations until those gates pass.
+   and truncated/empty output handling. [x] Add fake-client tests for fixed dispatch, malformed
+   per-operation arguments, approval denial/closed-channel failure, output truncation, timeout,
+   and cancellation propagation through the tool to the executor's cleanup `finally` block.
+   The no-fallback registry test remains in `CapabilityRegistryTest`. The cancellation fake proves
+   tool-level propagation, not real-device process-group termination. Finite sensor reads use
+   `-n`; streams are not exposed.
+5. Brian's first local unit-test run passed before the latest fake-client tests and strict
+   argument-validation changes. Rerun the unit tests on this head; the debug build and target-device
+   acceptance remain pending. Keep the new capabilities unavailable in production provider
+   observations until all gates pass.
 
 Upstream wrapper references:
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-sensor.in
