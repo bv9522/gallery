@@ -145,6 +145,5 @@ internal object TermuxApiReadCommand {
   const val MAX_INFRARED_PATTERN_ITEMS = 256
   const val MAX_INFRARED_INTERVAL_US = 1_999_999
   const val MAX_INFRARED_PATTERN_TOTAL_US = 2_000_000L
-  const val MAX_TTS_TEXT_CHARS = 500
   const val MAX_NFC_TEXT_CHARS = 512
 }
