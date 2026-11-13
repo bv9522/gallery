@@ -421,10 +421,10 @@ class AndroidDocumentTreeAdapter(
           ?: throw IllegalStateException("The destination provider refused to create '" + entry.displayName + "'.")
         val input = resolver.openInputStream(source)
           ?: throw IllegalStateException("Could not open the source document for reading.")
-        val output = resolver.openOutputStream(created, "wt")
-          ?: throw IllegalStateException("Could not open the destination document for writing.")
         var total = 0L
         input.use { sourceStream ->
+          val output = resolver.openOutputStream(created, "wt")
+            ?: throw IllegalStateException("Could not open the destination document for writing.")
           output.use { targetStream ->
             val buffer = ByteArray(32 * 1024)
             while (true) {
