@@ -36,8 +36,10 @@ class ChannelNativeCapabilityAuthorizer(
   override suspend fun authorize(capability: AndroidCapability, summary: String): Boolean {
     val action = AskNativeCapabilityPermissionAction(capability.name, summary)
     return try {
-      actionChannel.send(action)
-      withTimeoutOrNull(approvalTimeoutMs) { action.result.await() } ?: false
+      withTimeoutOrNull(approvalTimeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (_: Exception) {
@@ -51,9 +53,9 @@ class ChannelNativeCapabilityAuthorizer(
 /**
  * Compact model-facing interface for native Android capabilities.
  *
- * Read operations never prompt. Mutations are authorized by the adapter immediately before the
- * framework call. Every operation is routed through the capability registry; this tool does not
- * fall back to a shell provider when native Android support is unavailable.
+ * Ordinary state reads do not prompt. Privacy-sensitive device discovery and mutations require
+ * one-time approval; runtime Android permissions are requested only when needed. Every operation
+ * is routed through the capability registry; this tool does not fall back to a shell provider.
  */
 class AndroidNativeCapabilityTool internal constructor(
   private val adapter: NativeCapabilityOperations,
