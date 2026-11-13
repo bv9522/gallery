@@ -432,11 +432,17 @@ class AndroidNativeCapabilityAdapter(
       }
       else -> ProviderAvailability.AVAILABLE
     }
-    capabilities[AndroidCapability.CLIPBOARD_WRITE] =
-      if (clipboardManager != null) ProviderAvailability.AVAILABLE else {
+    capabilities[AndroidCapability.CLIPBOARD_WRITE] = when {
+      clipboardManager == null -> {
         details[AndroidCapability.CLIPBOARD_WRITE] = "ClipboardManager is unavailable."
         ProviderAvailability.UNSUPPORTED
       }
+      !isAppForeground() -> {
+        details[AndroidCapability.CLIPBOARD_WRITE] = "Clipboard writes require Gallery to be in the foreground."
+        ProviderAvailability.SERVICE_STOPPED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
     capabilities[AndroidCapability.CONTACT_READ] =
       if (hasRuntimePermission(Manifest.permission.READ_CONTACTS)) ProviderAvailability.AVAILABLE else {
         details[AndroidCapability.CONTACT_READ] =
