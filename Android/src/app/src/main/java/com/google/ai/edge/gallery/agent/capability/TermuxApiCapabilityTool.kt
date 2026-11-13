@@ -71,7 +71,7 @@ class TermuxApiCapabilityTool internal constructor(
               "status", "battery_status", "volume_status", "set_volume", "set_flashlight",
               "sensor_list", "sensor_read", "location", "wifi_connection_info", "wifi_last_scan",
               "infrared_frequencies", "infrared_transmit", "tts_engines", "tts_speak",
-              "nfc_read", "nfc_write",
+              "nfc_read", "nfc_write", "camera_info", "speech_to_text",
             ).forEach { add(it) }
           })
         })
@@ -137,6 +137,8 @@ class TermuxApiCapabilityTool internal constructor(
       "tts_speak" -> setOf("operation", "text")
       "nfc_read" -> setOf("operation")
       "nfc_write" -> setOf("operation", "ndef_text")
+      "camera_info" -> setOf("operation")
+      "speech_to_text" -> setOf("operation")
       "set_volume" -> setOf("operation", "stream", "volume")
       "set_flashlight" -> setOf("operation", "enabled")
       else -> return failure("Unsupported Termux:API operation '$operation'.")
@@ -161,6 +163,8 @@ class TermuxApiCapabilityTool internal constructor(
         "tts_speak" -> ttsSpeak(arguments)
         "nfc_read" -> nfcRead()
         "nfc_write" -> nfcWrite(arguments)
+        "camera_info" -> runRead(TermuxApiReadCommand.cameraInfo())
+        "speech_to_text" -> speechToText()
         "wifi_connection_info" -> {
           if (!authorize(AndroidCapability.WIFI_CONNECTION_INFO, "Read current Wi-Fi connection details using Termux:API.")) {
             failure("Wi-Fi connection information request denied or approval unavailable.")
@@ -188,7 +192,7 @@ class TermuxApiCapabilityTool internal constructor(
       command = "for c in termux-battery-status termux-volume termux-torch termux-sensor " +
         "termux-location termux-wifi-connectioninfo termux-wifi-scaninfo " +
         "termux-infrared-frequencies termux-infrared-transmit termux-tts-engines termux-tts-speak " +
-        "termux-nfc; do " +
+        "termux-nfc termux-camera-info termux-speech-to-text; do " +
         "if command -v \"\$c\" >/dev/null 2>&1; then printf '%s=AVAILABLE\\n' \"\$c\"; " +
         "else printf '%s=NOT_INSTALLED\\n' \"\$c\"; fi; done",
       workingDirectory = "~/",
@@ -296,6 +300,14 @@ class TermuxApiCapabilityTool internal constructor(
       }.trim(),
       true,
     )
+  }
+
+  private suspend fun speechToText(): AgentToolResult {
+    if (!authorize(AndroidCapability.SPEECH_RECOGNITION,
+        "Start one interactive speech-recognition session. Audio may be processed by the configured recognition service.")) {
+      return failure("Speech recognition denied or approval unavailable.")
+    }
+    return runRead(TermuxApiReadCommand.speechToText(), SPEECH_RECOGNITION_TIMEOUT_MS)
   }
 
   private suspend fun nfcRead(): AgentToolResult {
@@ -407,6 +419,7 @@ class TermuxApiCapabilityTool internal constructor(
     const val LOCATION_TIMEOUT_MS = 45_000L
     const val ACTION_TIMEOUT_MS = 30_000L
     const val NFC_TIMEOUT_MS = 60_000L
+    const val SPEECH_RECOGNITION_TIMEOUT_MS = 90_000L
     const val SENSOR_READ_BASE_TIMEOUT_MS = 10_000L
     const val MAX_SENSOR_READ_TIMEOUT_MS = 60_000L
     const val APPROVAL_TIMEOUT_MS = 120_000L
