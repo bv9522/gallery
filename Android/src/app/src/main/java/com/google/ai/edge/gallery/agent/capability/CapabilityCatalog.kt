@@ -9,8 +9,8 @@ package com.google.ai.edge.gallery.agent.capability
  * Canonical capability ownership catalog.
  *
  * Shell backends are intentionally represented by one UNIFIED_SHELL owner. Termux, Shizuku,
- * and Rish remain execution transports inside that router, not duplicate capability providers.
- * Termux:API is not registered as a parallel owner for Android framework operations.
+ * and Rish remain execution transports inside that router. Termux:API owns only the bounded
+ * command capabilities explicitly assigned below; it does not duplicate Gallery-native owners.
  */
 object CapabilityCatalog {
   private val shellCapabilities = setOf(
@@ -48,8 +48,26 @@ object CapabilityCatalog {
     AndroidCapability.DOCUMENT_TREE_METADATA_WRITE,
   )
 
+  private val termuxApiCapabilities = setOf(
+    AndroidCapability.SENSOR_READ,
+    AndroidCapability.SENSOR_STREAM,
+    AndroidCapability.LOCATION_READ,
+    AndroidCapability.LOCATION_UPDATES,
+    AndroidCapability.WIFI_CONNECTION_INFO,
+    AndroidCapability.WIFI_SCAN,
+    AndroidCapability.NFC_READ,
+    AndroidCapability.NFC_WRITE,
+    AndroidCapability.INFRARED_CONTROL,
+    AndroidCapability.CAMERA_INFO,
+    AndroidCapability.CAMERA_CAPTURE,
+    AndroidCapability.MICROPHONE_RECORD,
+    AndroidCapability.SPEECH_RECOGNITION,
+    AndroidCapability.TEXT_TO_SPEECH,
+    AndroidCapability.WALLPAPER_CONTROL,
+  )
+
   private val nativeCapabilities = AndroidCapability.values().toSet() -
-    shellCapabilities - accessibilityCapabilities - documentCapabilities
+    shellCapabilities - termuxApiCapabilities - accessibilityCapabilities - documentCapabilities
 
   val providers: List<CapabilityProviderDescriptor> = listOf(
     CapabilityProviderDescriptor(
@@ -63,6 +81,12 @@ object CapabilityCatalog {
       "Native Android framework APIs",
       ProviderExecutionIdentity.GALLERY_APP_UID,
       nativeCapabilities,
+    ),
+    CapabilityProviderDescriptor(
+      CapabilityProviderId.TERMUX_API,
+      "Termux:API command provider",
+      ProviderExecutionIdentity.TERMUX_RUN_COMMAND_CLIENT,
+      termuxApiCapabilities,
     ),
     CapabilityProviderDescriptor(
       CapabilityProviderId.ANDROID_ACCESSIBILITY,
