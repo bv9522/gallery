@@ -144,3 +144,17 @@ Upstream wrapper references:
 Phase 5B operations are draft implementations. Command presence does not prove hardware support,
 engine availability, permission state, or successful operation. Keep their catalog availability
 unverified until local tests/build and the consolidated device acceptance pass.
+
+
+## Verified upstream contracts — Phase 5C draft
+
+- `termux-nfc` requires an explicit operation: `-r [short|full]` reads NDEF content, while
+  `-w -t <text>` writes a text payload. Read and write modes are mutually exclusive; the wrapper
+  rejects trailing arguments.
+- Gallery exposes only full reads and text-only writes, bounds payloads to 512 characters,
+  shell-quotes the payload, requires scoped approval for both operations, and uses a 60-second
+  supervised timeout. NFC write approval includes the exact text and warns that existing tag
+  content may be replaced.
+- The wrapper delegates to an NFC interaction activity. Cancellation and timeout must be checked
+  on-device to ensure the external interaction UI does not remain active after the supervised
+  command is terminated. No continuous reader mode or raw NDEF payload is exposed.
