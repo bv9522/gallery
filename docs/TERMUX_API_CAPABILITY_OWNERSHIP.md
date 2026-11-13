@@ -115,10 +115,11 @@ implementation reference, not evidence of Gallery integration or device availabi
    The no-fallback registry test remains in `CapabilityRegistryTest`. The cancellation fake proves
    tool-level propagation, not real-device process-group termination. Finite sensor reads use
    `-n`; streams are not exposed.
-5. Brian's first local unit-test run passed before the latest fake-client tests and strict
-   argument-validation changes. Rerun the unit tests on this head; the debug build and target-device
-   acceptance remain pending. Keep the Phase 5A capabilities **Planned and unavailable** in
-   production provider observations until every gate passes.
+5. Brian confirmed that the current Phase 5A head passed both
+   `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` locally. Target-device
+   acceptance remains intentionally deferred until capability onboarding is complete. Keep the
+   Phase 5A capabilities **Planned and unavailable** in production provider observations until
+   the consolidated device acceptance gate passes.
 
 Upstream wrapper references:
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-sensor.in
