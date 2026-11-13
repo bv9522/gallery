@@ -49,6 +49,13 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun runtimePermissionRequesterTimesOutIfNoUiConsumerCanReceiveTheAction() = runBlocking {
+    val actions = Channel<ToolAction>(capacity = 0)
+    val requester = ChannelNativeRuntimePermissionRequester(actions, timeoutMs = 10L)
+    assertFalse(requester.request("android.permission.BLUETOOTH_CONNECT"))
+  }
+
+  @Test
   fun mutationOperationsReachTheirMatchingNativeAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
