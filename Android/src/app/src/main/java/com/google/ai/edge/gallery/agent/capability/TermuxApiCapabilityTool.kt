@@ -287,7 +287,7 @@ class TermuxApiCapabilityTool internal constructor(
     )
   }
 
-  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\\\''") + "'"
+  private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
   private fun failure(message: String) = AgentToolResult(message, false)
   private fun JsonObject.string(key: String): String? =
     get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
