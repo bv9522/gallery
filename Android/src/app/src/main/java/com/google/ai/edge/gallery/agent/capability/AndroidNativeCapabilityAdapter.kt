@@ -53,6 +53,7 @@ import android.provider.MediaStore
 import android.provider.Settings
 import android.util.Base64
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
@@ -573,6 +574,11 @@ class AndroidNativeCapabilityAdapter(
     }
     while (true) {
       when (val event = session.events.receive()) {
+        is BluetoothGattEvent.ConnectionState -> {
+          if (event.newState == BluetoothProfile.STATE_DISCONNECTED) {
+            throw IllegalStateException("Bluetooth device disconnected before the GATT read completed.")
+          }
+        }
         is BluetoothGattEvent.CharacteristicRead -> {
           if (!event.uuid.equals(characteristicUuid, ignoreCase = true)) continue
           if (event.status != BluetoothGatt.GATT_SUCCESS) {
@@ -645,6 +651,11 @@ class AndroidNativeCapabilityAdapter(
       }
       while (true) {
         when (val event = session.events.receive()) {
+          is BluetoothGattEvent.ConnectionState -> {
+            if (event.newState == BluetoothProfile.STATE_DISCONNECTED) {
+              throw IllegalStateException("Bluetooth device disconnected before the GATT write completed.")
+            }
+          }
           is BluetoothGattEvent.CharacteristicWrite -> {
             if (!event.uuid.equals(characteristicUuid, ignoreCase = true)) continue
             if (event.status != BluetoothGatt.GATT_SUCCESS) {
@@ -760,6 +771,7 @@ class AndroidNativeCapabilityAdapter(
           block(BluetoothGattSession(gatt, services, events))
         }
       } catch (timeout: TimeoutCancellationException) {
+        if (!currentCoroutineContext().isActive) throw timeout
         throw IllegalStateException("Bluetooth GATT operation timed out after $timeoutMs milliseconds.", timeout)
       }
     } finally {
