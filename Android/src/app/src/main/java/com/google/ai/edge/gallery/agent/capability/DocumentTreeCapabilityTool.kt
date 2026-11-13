@@ -79,6 +79,12 @@ class DocumentTreeCapabilityTool internal constructor(
     if (missing.isNotEmpty()) {
       return failure("Missing required arguments for " + operation + ": " + missing.joinToString() + ".")
     }
+    if (arguments.has("parent_document_id") && arguments.string("parent_document_id") == null) {
+      return failure("parent_document_id must be a string when provided.")
+    }
+    if (arguments.has("mime_type") && arguments.string("mime_type") == null) {
+      return failure("mime_type must be a string when provided.")
+    }
 
     return try {
       when (operation) {
