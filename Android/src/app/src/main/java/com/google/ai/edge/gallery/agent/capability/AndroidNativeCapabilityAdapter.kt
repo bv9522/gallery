@@ -33,17 +33,22 @@ import android.hardware.camera2.CameraManager
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.media.AudioManager
+import android.media.MediaRecorder
 import android.media.AudioDeviceInfo
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Environment
 import android.os.Build
 import android.os.PowerManager
+import android.os.ParcelFileDescriptor
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.provider.MediaStore
 import android.provider.Settings
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
 /** Small, privacy-conscious device facts suitable for a local agent. */
 data class NativeDeviceInfo(
@@ -277,7 +282,7 @@ class AndroidNativeCapabilityAdapter(
         details[AndroidCapability.BLUETOOTH_DISCOVERY] = "Bluetooth adapter is unavailable."
         ProviderAvailability.UNSUPPORTED
       }
-      !hasBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT) -> {
+      !hasRuntimePermission(Manifest.permission.BLUETOOTH_CONNECT) -> {
         details[AndroidCapability.BLUETOOTH_DISCOVERY] =
           "Nearby devices connect permission is required; discovery did not request it."
         ProviderAvailability.PERMISSION_REQUIRED
@@ -290,8 +295,8 @@ class AndroidNativeCapabilityAdapter(
     }
     capabilities[AndroidCapability.BLUETOOTH_LE_SCAN] = when {
       bluetoothAdapter == null -> ProviderAvailability.UNSUPPORTED
-      !hasBluetoothPermission(Manifest.permission.BLUETOOTH_SCAN) ||
-        !hasBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT) -> {
+      !hasRuntimePermission(Manifest.permission.BLUETOOTH_SCAN) ||
+        !hasRuntimePermission(Manifest.permission.BLUETOOTH_CONNECT) -> {
         details[AndroidCapability.BLUETOOTH_LE_SCAN] =
           "Nearby devices scan/connect permissions are required; discovery did not request them."
         ProviderAvailability.PERMISSION_REQUIRED
@@ -303,6 +308,13 @@ class AndroidNativeCapabilityAdapter(
       else -> ProviderAvailability.AVAILABLE
     }
     val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+    capabilities[AndroidCapability.MICROPHONE_RECORD] =
+      if (hasRuntimePermission(Manifest.permission.RECORD_AUDIO)) ProviderAvailability.AVAILABLE
+      else {
+        details[AndroidCapability.MICROPHONE_RECORD] =
+          "Microphone permission is required; provider discovery did not request it."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
     capabilities[AndroidCapability.CAMERA_CAPTURE] =
       if (cameraIntent.resolveActivity(appContext.packageManager) != null) ProviderAvailability.AVAILABLE
       else {
@@ -378,7 +390,7 @@ class AndroidNativeCapabilityAdapter(
         "Read paired Bluetooth device names, types, and addresses.")) {
       throw SecurityException("Bluetooth device discovery was not approved.")
     }
-    ensureBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    ensureRuntimePermission(Manifest.permission.BLUETOOTH_CONNECT)
     val bluetooth = appContext.getSystemService(BluetoothManager::class.java)?.adapter
       ?: throw IllegalStateException("Bluetooth adapter is unavailable.")
     if (!bluetooth.isEnabled) throw IllegalStateException("Bluetooth is turned off.")
@@ -397,8 +409,8 @@ class AndroidNativeCapabilityAdapter(
         "Scan for nearby Bluetooth LE devices for $durationMs milliseconds.")) {
       throw SecurityException("Bluetooth discovery was not approved.")
     }
-    ensureBluetoothPermission(Manifest.permission.BLUETOOTH_SCAN)
-    ensureBluetoothPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    ensureRuntimePermission(Manifest.permission.BLUETOOTH_SCAN)
+    ensureRuntimePermission(Manifest.permission.BLUETOOTH_CONNECT)
     val bluetooth = appContext.getSystemService(BluetoothManager::class.java)?.adapter
       ?: throw IllegalStateException("Bluetooth adapter is unavailable.")
     if (!bluetooth.isEnabled) throw IllegalStateException("Bluetooth is turned off.")
@@ -470,14 +482,14 @@ class AndroidNativeCapabilityAdapter(
     }.sortedWith(compareBy<NativeUsbDevice> { it.vendorId }.thenBy { it.productId }.thenBy { it.deviceId })
   }
 
-  private suspend fun ensureBluetoothPermission(permission: String) {
-    if (hasBluetoothPermission(permission)) return
-    if (!permissionRequester.request(permission) || !hasBluetoothPermission(permission)) {
+  private suspend fun ensureRuntimePermission(permission: String) {
+    if (hasRuntimePermission(permission)) return
+    if (!permissionRequester.request(permission) || !hasRuntimePermission(permission)) {
       throw SecurityException("Android permission $permission was denied or unavailable.")
     }
   }
 
-  private fun hasBluetoothPermission(permission: String): Boolean =
+  private fun hasRuntimePermission(permission: String): Boolean =
     appContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
   @SuppressLint("MissingPermission")
@@ -521,6 +533,74 @@ class AndroidNativeCapabilityAdapter(
       )
     },
   )
+
+  override suspend fun recordAudio(durationMs: Long): String {
+    require(durationMs in MIN_AUDIO_RECORD_MS..MAX_AUDIO_RECORD_MS) {
+      "Audio recording duration must be between $MIN_AUDIO_RECORD_MS and $MAX_AUDIO_RECORD_MS milliseconds."
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.MICROPHONE_RECORD,
+        "Record audio locally for $durationMs milliseconds and save it under Music/EdgeGallery.",
+      )
+    ) {
+      throw SecurityException("Microphone recording was not approved.")
+    }
+    ensureRuntimePermission(Manifest.permission.RECORD_AUDIO)
+    val values = ContentValues().apply {
+      put(MediaStore.Audio.Media.DISPLAY_NAME, "EdgeGallery_Audio_${System.currentTimeMillis()}.m4a")
+      put(MediaStore.Audio.Media.MIME_TYPE, "audio/mp4")
+      put(MediaStore.Audio.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MUSIC}/EdgeGallery")
+      put(MediaStore.Audio.Media.IS_PENDING, 1)
+    }
+    val uri = appContext.contentResolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
+      ?: throw IllegalStateException("Could not create a Gallery-owned audio destination.")
+    var descriptor: ParcelFileDescriptor? = null
+    var recorder: MediaRecorder? = null
+    var recordingStarted = false
+    var published = false
+    try {
+      withContext(Dispatchers.IO) {
+        descriptor = appContext.contentResolver.openFileDescriptor(uri, "w")
+          ?: throw IllegalStateException("Could not open the audio destination.")
+        recorder = MediaRecorder(appContext).apply {
+          setAudioSource(MediaRecorder.AudioSource.MIC)
+          setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+          setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+          setAudioEncodingBitRate(96_000)
+          setAudioSamplingRate(44_100)
+          setOutputFile(descriptor!!.fileDescriptor)
+          prepare()
+          start()
+        }
+        recordingStarted = true
+        delay(durationMs)
+        recorder?.stop()
+        recordingStarted = false
+      }
+      withContext(Dispatchers.IO) {
+        recorder?.release()
+        recorder = null
+        descriptor?.close()
+        descriptor = null
+        val updated = appContext.contentResolver.update(
+          uri,
+          ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0) },
+          null,
+          null,
+        )
+        if (updated <= 0) throw IllegalStateException("Recorded audio could not be published.")
+      }
+      published = true
+      return uri.toString()
+    } finally {
+      withContext(NonCancellable + Dispatchers.IO) {
+        if (recordingStarted) runCatching { recorder?.stop() }
+        runCatching { recorder?.release() }
+        runCatching { descriptor?.close() }
+        if (!published) runCatching { appContext.contentResolver.delete(uri, null, null) }
+      }
+    }
+  }
 
   override suspend fun capturePhoto(): String {
     if (!authorizer.authorize(
@@ -1004,6 +1084,8 @@ class AndroidNativeCapabilityAdapter(
 
   private companion object {
     const val MAX_VIBRATION_DURATION_MS = 1_000L
+    const val MIN_AUDIO_RECORD_MS = 1_000L
+    const val MAX_AUDIO_RECORD_MS = 30_000L
     const val MAX_WAKE_LOCK_DURATION_MS = 5 * 60 * 1_000L
     const val MIN_BLUETOOTH_SCAN_MS = 1_000L
     const val MAX_BLUETOOTH_SCAN_MS = 10_000L
