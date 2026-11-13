@@ -349,6 +349,13 @@ version compatibility must be verified on-device before an operation is marked i
   enumeration does not grant raw filesystem access.
 
 
+### Wave 4C — SAF cross-tree file transfer and generated text files (draft code; acceptance pending)
+
+- Adds `create_text_file` to create and populate an allowlisted UTF-8 text document in one approved operation, capped at 256 KiB.
+- Adds `copy_between_trees` and `move_between_trees` for files between two separately persisted Gallery tree grants, such as internal storage and an attached USB drive.
+- Transfers stream in 32 KiB chunks, enforce a 100 MiB maximum even when provider metadata omits size, and remove incomplete destination files when cleanup succeeds. Cleanup failures and partial moves are reported explicitly.
+- Cross-tree move deletes the source only after the destination stream completes. Directory transfer, arbitrary MIME types, raw paths, and cross-tree URI inputs remain unsupported.
+
 ### Wave 4B — SAF copy, move, and bounded name search (draft code; acceptance pending)
 
 - Copy and move operate only within the same persisted tree URI and require explicit approval.
