@@ -164,6 +164,59 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun bluetoothGattReadWriteDispatchBoundedUuidAddressAndPayloadArguments() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+    val address = "AA:BB:CC:DD:EE:FF"
+    val service = "0000180f-0000-1000-8000-00805f9b34fb"
+    val characteristic = "00002a19-0000-1000-8000-00805f9b34fb"
+
+    val read = tool.execute(arguments("bluetooth_gatt_read").apply {
+      addProperty("device_address", address)
+      addProperty("service_uuid", service)
+      addProperty("characteristic_uuid", characteristic)
+      addProperty("timeout_ms", 10_000)
+    })
+    val write = tool.execute(arguments("bluetooth_gatt_write").apply {
+      addProperty("device_address", address)
+      addProperty("service_uuid", service)
+      addProperty("characteristic_uuid", characteristic)
+      addProperty("value_base64", "AQID")
+    })
+    val invalidUuid = tool.execute(arguments("bluetooth_gatt_read").apply {
+      addProperty("device_address", address)
+      addProperty("service_uuid", "not-a-uuid")
+      addProperty("characteristic_uuid", characteristic)
+    })
+    val invalidPayload = tool.execute(arguments("bluetooth_gatt_write").apply {
+      addProperty("device_address", address)
+      addProperty("service_uuid", service)
+      addProperty("characteristic_uuid", characteristic)
+      addProperty("value_base64", "not-base64!")
+    })
+    val oversizedPayload = tool.execute(arguments("bluetooth_gatt_write").apply {
+      addProperty("device_address", address)
+      addProperty("service_uuid", service)
+      addProperty("characteristic_uuid", characteristic)
+      addProperty("value_base64", java.util.Base64.getEncoder().encodeToString(ByteArray(513)))
+    })
+
+    assertTrue(read.isSuccessful)
+    assertTrue(read.content.contains("AQID"))
+    assertTrue(write.isSuccessful)
+    assertFalse(invalidUuid.isSuccessful)
+    assertFalse(invalidPayload.isSuccessful)
+    assertFalse(oversizedPayload.isSuccessful)
+    assertEquals(
+      listOf(
+        "bluetooth_gatt_read:$address:$service:$characteristic:10000",
+        "bluetooth_gatt_write:$address:$service:$characteristic:AQID:15000",
+      ),
+      adapter.discoveryCalls,
+    )
+  }
+
+  @Test
   fun systemCapabilityOperationsReachTheirMatchingAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
@@ -386,6 +439,27 @@ class AndroidNativeCapabilityToolTest {
         totalCharacteristics = 0,
         truncated = false,
       )
+    }
+
+    override suspend fun readBluetoothGattCharacteristic(
+      deviceAddress: String,
+      serviceUuid: String,
+      characteristicUuid: String,
+      timeoutMs: Long,
+    ): NativeBluetoothGattValue {
+      discoveryCalls += "bluetooth_gatt_read:$deviceAddress:$serviceUuid:$characteristicUuid:$timeoutMs"
+      return NativeBluetoothGattValue(deviceAddress, serviceUuid, characteristicUuid, "AQID", 3)
+    }
+
+    override suspend fun writeBluetoothGattCharacteristic(
+      deviceAddress: String,
+      serviceUuid: String,
+      characteristicUuid: String,
+      valueBase64: String,
+      timeoutMs: Long,
+    ): NativeCapabilityActionResult {
+      discoveryCalls += "bluetooth_gatt_write:$deviceAddress:$serviceUuid:$characteristicUuid:$valueBase64:$timeoutMs"
+      return actionResult
     }
 
     override suspend fun getUsbDevices(): List<NativeUsbDevice> {

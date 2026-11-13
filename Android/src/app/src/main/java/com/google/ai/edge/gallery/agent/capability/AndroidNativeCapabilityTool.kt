@@ -84,13 +84,14 @@ class AndroidNativeCapabilityTool internal constructor(
       "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
-      "bluetooth_le_scan, bluetooth_gatt_services, usb_devices, record_audio, capture_photo, set_wallpaper. " +
-      "Device discovery, GATT connections, audio recording (1–30 seconds, local MediaStore output), " +
-      "photo capture, and wallpaper changes require one-time user approval. Bluetooth permissions are " +
-      "requested only after approval. BLE scans are limited to 1–10 seconds; GATT service inspection " +
-      "connects to one address for at most 20 seconds, returns bounded service/characteristic metadata, " +
-      "and disconnects on completion, timeout, or cancellation. GATT characteristic read/write and USB " +
-      "I/O are not yet exposed. This tool never executes shell commands."
+      "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
+      "record_audio, capture_photo, set_wallpaper. Device discovery, GATT connections, GATT reads/writes, " +
+      "audio recording (1–30 seconds, local MediaStore output), photo capture, and wallpaper changes " +
+      "require one-time user approval. Bluetooth permissions are requested only after approval. BLE scans " +
+      "are limited to 1–10 seconds; each GATT operation connects to one address for at most 20 seconds, " +
+      "performs one bounded action, and disconnects on completion, timeout, or cancellation. GATT writes " +
+      "are limited to 512 bytes and require approval showing the exact Base64 payload. No subscriptions or " +
+      "persistent connections are retained. USB I/O is not yet exposed. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -102,7 +103,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
         })
@@ -153,7 +154,19 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("timeout_ms", JsonObject().apply {
           addProperty("type", "integer")
-          addProperty("description", "Bluetooth GATT connection and service discovery timeout, 5000–20000 ms; defaults to 15000.")
+          addProperty("description", "Overall Bluetooth GATT connection, discovery, and characteristic operation timeout, 5000–20000 ms; defaults to 15000.")
+        })
+        add("service_uuid", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Full service UUID returned by bluetooth_gatt_services.")
+        })
+        add("characteristic_uuid", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Full characteristic UUID returned by bluetooth_gatt_services.")
+        })
+        add("value_base64", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "For bluetooth_gatt_write only: 1–512 bytes encoded as unwrapped Base64.")
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -245,6 +258,43 @@ class AndroidNativeCapabilityTool internal constructor(
           }
           // The adapter requests BLUETOOTH_CONNECT only after the scoped approval.
           AgentToolResult(Gson().toJson(adapter.inspectBluetoothGatt(address, timeout)))
+        }
+        "bluetooth_gatt_read" -> {
+          val address = arguments.string("device_address")
+            ?: return failure("bluetooth_gatt_read requires device_address.")
+          val serviceUuid = arguments.string("service_uuid")
+            ?: return failure("bluetooth_gatt_read requires service_uuid.")
+          val characteristicUuid = arguments.string("characteristic_uuid")
+            ?: return failure("bluetooth_gatt_read requires characteristic_uuid.")
+          val timeout = if (arguments.has("timeout_ms")) {
+            arguments.long("timeout_ms") ?: return failure("timeout_ms must be an integer.")
+          } else DEFAULT_GATT_TIMEOUT_MS
+          if (timeout !in MIN_GATT_TIMEOUT_MS..MAX_GATT_TIMEOUT_MS) {
+            return failure("Bluetooth GATT timeout must be between $MIN_GATT_TIMEOUT_MS and $MAX_GATT_TIMEOUT_MS milliseconds.")
+          }
+          AgentToolResult(Gson().toJson(
+            adapter.readBluetoothGattCharacteristic(address, serviceUuid, characteristicUuid, timeout)
+          ))
+        }
+        "bluetooth_gatt_write" -> {
+          val address = arguments.string("device_address")
+            ?: return failure("bluetooth_gatt_write requires device_address.")
+          val serviceUuid = arguments.string("service_uuid")
+            ?: return failure("bluetooth_gatt_write requires service_uuid.")
+          val characteristicUuid = arguments.string("characteristic_uuid")
+            ?: return failure("bluetooth_gatt_write requires characteristic_uuid.")
+          val value = arguments.string("value_base64")
+            ?: return failure("bluetooth_gatt_write requires value_base64.")
+          val timeout = if (arguments.has("timeout_ms")) {
+            arguments.long("timeout_ms") ?: return failure("timeout_ms must be an integer.")
+          } else DEFAULT_GATT_TIMEOUT_MS
+          if (timeout !in MIN_GATT_TIMEOUT_MS..MAX_GATT_TIMEOUT_MS) {
+            return failure("Bluetooth GATT timeout must be between $MIN_GATT_TIMEOUT_MS and $MAX_GATT_TIMEOUT_MS milliseconds.")
+          }
+          val result = adapter.writeBluetoothGattCharacteristic(
+            address, serviceUuid, characteristicUuid, value, timeout,
+          )
+          AgentToolResult(result.message, result.success)
         }
         "bluetooth_le_scan" -> {
           val duration = if (arguments.has("duration_ms")) {
