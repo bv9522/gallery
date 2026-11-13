@@ -59,11 +59,9 @@ object CapabilityCatalog {
     AndroidCapability.NFC_WRITE,
     AndroidCapability.INFRARED_CONTROL,
     AndroidCapability.CAMERA_INFO,
-    AndroidCapability.CAMERA_CAPTURE,
     AndroidCapability.MICROPHONE_RECORD,
     AndroidCapability.SPEECH_RECOGNITION,
     AndroidCapability.TEXT_TO_SPEECH,
-    AndroidCapability.WALLPAPER_CONTROL,
   )
 
   private val nativeCapabilities = AndroidCapability.values().toSet() -
