@@ -243,8 +243,7 @@ class AndroidNativeCapabilityTool internal constructor(
           if (timeout !in MIN_GATT_TIMEOUT_MS..MAX_GATT_TIMEOUT_MS) {
             return failure("Bluetooth GATT timeout must be between $MIN_GATT_TIMEOUT_MS and $MAX_GATT_TIMEOUT_MS milliseconds.")
           }
-          val unavailable = availabilityFailure(AndroidCapability.BLUETOOTH_GATT)
-          if (unavailable != null) return unavailable
+          // The adapter requests BLUETOOTH_CONNECT only after the scoped approval.
           AgentToolResult(Gson().toJson(adapter.inspectBluetoothGatt(address, timeout)))
         }
         "bluetooth_le_scan" -> {
