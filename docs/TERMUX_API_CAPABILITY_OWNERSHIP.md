@@ -199,3 +199,12 @@ unverified until local tests/build and the consolidated device acceptance pass.
   user's exact tree URI grant, and uses DocumentsContract document IDs for bounded file operations.
 - SAF grants are scoped to the Gallery app identity and are not shared with Termux. Shell commands
   must not assume they can access a tree URI or a path from the Gallery document provider.
+
+
+## SAF capability expansion — Phase 7B draft
+
+- SAF copy and move are exposed only within a single persisted tree grant and require scoped
+  approval. Provider capability flags are checked where supplied.
+- Name search is bounded (500 visited entries, depth 4, 50 results) and does not inspect file
+  contents. General metadata writes remain unsupported; rename is the explicit supported metadata
+  mutation.
