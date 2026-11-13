@@ -59,7 +59,6 @@ object CapabilityCatalog {
     AndroidCapability.NFC_WRITE,
     AndroidCapability.INFRARED_CONTROL,
     AndroidCapability.CAMERA_INFO,
-    AndroidCapability.MICROPHONE_RECORD,
     AndroidCapability.SPEECH_RECOGNITION,
     AndroidCapability.TEXT_TO_SPEECH,
   )
