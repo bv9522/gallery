@@ -49,6 +49,51 @@ class CapabilityRegistryTest {
     }
   }
 
+
+  @Test
+  fun termuxApiOwnsOnlyTheSelectedBoundedCommandCapabilities() {
+    listOf(
+      AndroidCapability.SENSOR_READ,
+      AndroidCapability.SENSOR_STREAM,
+      AndroidCapability.LOCATION_READ,
+      AndroidCapability.LOCATION_UPDATES,
+      AndroidCapability.WIFI_CONNECTION_INFO,
+      AndroidCapability.WIFI_SCAN,
+      AndroidCapability.NFC_READ,
+      AndroidCapability.NFC_WRITE,
+      AndroidCapability.INFRARED_CONTROL,
+      AndroidCapability.CAMERA_INFO,
+      AndroidCapability.CAMERA_CAPTURE,
+      AndroidCapability.MICROPHONE_RECORD,
+      AndroidCapability.SPEECH_RECOGNITION,
+      AndroidCapability.TEXT_TO_SPEECH,
+      AndroidCapability.WALLPAPER_CONTROL,
+    ).forEach { capability ->
+      val ownership = CapabilityCatalog.preferences.single { it.capability == capability }
+      assertEquals(CapabilityProviderId.TERMUX_API, ownership.providerId)
+    }
+    assertEquals(
+      ProviderExecutionIdentity.TERMUX_RUN_COMMAND_CLIENT,
+      CapabilityCatalog.providers.single { it.id == CapabilityProviderId.TERMUX_API }.executionIdentity,
+    )
+  }
+
+  @Test
+  fun termuxApiOwnerDoesNotFallBackToNativeWhenUnavailable() {
+    val result = registry.resolve(
+      AndroidCapability.SENSOR_READ,
+      listOf(
+        observation(CapabilityProviderId.TERMUX_API, ProviderAvailability.NOT_INSTALLED),
+        observation(CapabilityProviderId.ANDROID_NATIVE, ProviderAvailability.AVAILABLE),
+      ),
+    )
+
+    assertNull(result.selectedProviderId)
+    assertEquals(1, result.candidates.size)
+    assertEquals(CapabilityProviderId.TERMUX_API, result.candidates.single().providerId)
+    assertEquals(ProviderAvailability.NOT_INSTALLED, result.candidates.single().availability)
+  }
+
   @Test
   fun pathBasedFileOperationsBelongToUnifiedShellRouter() {
     listOf(
