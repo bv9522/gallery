@@ -145,8 +145,10 @@ class ChannelNativeRuntimePermissionRequester(
   override suspend fun request(permission: String): Boolean {
     val action = com.google.ai.edge.gallery.tools.RequestPermissionToolAction(permission)
     return try {
-      actionChannel.send(action)
-      kotlinx.coroutines.withTimeoutOrNull(timeoutMs) { action.result.await() } ?: false
+      kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
     } catch (cancelled: kotlinx.coroutines.CancellationException) {
       throw cancelled
     } catch (_: Exception) {
@@ -184,6 +186,7 @@ class AndroidNativeCapabilityAdapter(
   override val descriptor: CapabilityProviderDescriptor =
     CapabilityCatalog.providers.first { it.id == CapabilityProviderId.ANDROID_NATIVE }
 
+  @SuppressLint("MissingPermission")
   override suspend fun inspect(): CapabilityProviderObservation {
     val capabilities = descriptor.capabilities.associateWith { ProviderAvailability.UNSUPPORTED }
       .toMutableMap()
