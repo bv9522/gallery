@@ -34,8 +34,8 @@ class DocumentTreeCapabilityTool internal constructor(
       "children, read_text for bounded text files, create_file/create_directory to create items, write_text to write " +
       "text, rename/delete for explicit file management, and metadata for document details. The user must select " +
       "the folder or USB drive; no raw filesystem paths, arbitrary URIs, or shell commands are accepted. " +
-      "Read and write actions require scoped approval. Copy, move, recursive search, and general metadata writes " +
-      "are not implemented yet."
+      "Read and write actions require scoped approval. Copy/move are same-tree operations; search matches names " +
+      "only and is bounded to 500 visited entries, depth 4, and 50 results. General metadata writes are not supported."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -46,12 +46,15 @@ class DocumentTreeCapabilityTool internal constructor(
           add("enum", JsonArray().apply {
             listOf(
               "status", "grants", "request_access", "list", "metadata", "read_text",
-              "create_file", "create_directory", "write_text", "rename", "delete",
+              "create_file", "create_directory", "write_text", "rename", "delete", "copy", "move", "search",
             ).forEach { add(it) }
           })
         })
         add("tree_uri", JsonObject().apply { addProperty("type", "string") })
         add("parent_document_id", JsonObject().apply { addProperty("type", "string") })
+        add("source_parent_document_id", JsonObject().apply { addProperty("type", "string") })
+        add("target_parent_document_id", JsonObject().apply { addProperty("type", "string") })
+        add("query", JsonObject().apply { addProperty("type", "string"); addProperty("maxLength", 128) })
         add("document_id", JsonObject().apply { addProperty("type", "string") })
         add("name", JsonObject().apply { addProperty("type", "string") })
         add("new_name", JsonObject().apply { addProperty("type", "string") })
@@ -143,6 +146,30 @@ class DocumentTreeCapabilityTool internal constructor(
             deleted,
           )
         }
+        "copy" -> AgentToolResult(
+          operations.copy(
+            arguments.requiredString("tree_uri"),
+            arguments.requiredString("document_id"),
+            arguments.requiredString("target_parent_document_id"),
+          ),
+        )
+        "move" -> AgentToolResult(
+          operations.move(
+            arguments.requiredString("tree_uri"),
+            arguments.requiredString("document_id"),
+            arguments.requiredString("source_parent_document_id"),
+            arguments.requiredString("target_parent_document_id"),
+          ),
+        )
+        "search" -> AgentToolResult(
+          Gson().toJson(
+            operations.search(
+              arguments.requiredString("tree_uri"),
+              arguments.requiredString("query"),
+              arguments.string("parent_document_id"),
+            ),
+          ),
+        )
         else -> failure("Unsupported document_tree operation '" + operation + "'.")
       }
     } catch (cancelled: CancellationException) {
@@ -176,6 +203,9 @@ class DocumentTreeCapabilityTool internal constructor(
       "write_text" to setOf("operation", "tree_uri", "document_id", "text"),
       "rename" to setOf("operation", "tree_uri", "document_id", "new_name"),
       "delete" to setOf("operation", "tree_uri", "document_id"),
+      "copy" to setOf("operation", "tree_uri", "document_id", "target_parent_document_id"),
+      "move" to setOf("operation", "tree_uri", "document_id", "source_parent_document_id", "target_parent_document_id"),
+      "search" to setOf("operation", "tree_uri", "query", "parent_document_id"),
     )
     val REQUIRED_ARGUMENTS = mapOf(
       "list" to setOf("tree_uri"),
@@ -186,6 +216,9 @@ class DocumentTreeCapabilityTool internal constructor(
       "write_text" to setOf("tree_uri", "document_id", "text"),
       "rename" to setOf("tree_uri", "document_id", "new_name"),
       "delete" to setOf("tree_uri", "document_id"),
+      "copy" to setOf("tree_uri", "document_id", "target_parent_document_id"),
+      "move" to setOf("tree_uri", "document_id", "source_parent_document_id", "target_parent_document_id"),
+      "search" to setOf("tree_uri", "query"),
     )
   }
 }

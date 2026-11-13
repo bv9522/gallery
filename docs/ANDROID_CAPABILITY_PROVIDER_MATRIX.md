@@ -89,9 +89,10 @@ and user-mediated controls. The canonical plan lists the complete mapping and co
 
 - Gallery owns a dedicated `document_tree` tool backed by DocumentsContract and user-persisted
   tree grants. It supports grant listing, folder picker, bounded listing, metadata, text read/write,
-  text file and directory creation, rename, and delete.
+  text file and directory creation, rename, delete, same-tree copy/move, and bounded name-only search.
 - Tree access is scoped to exact persisted Gallery URI grants. Model-supplied raw paths and arbitrary
-  URIs are rejected. Text I/O is capped at 256 KiB and listings at 100 entries. Copy, move, recursive
-  search, and general metadata writes remain unsupported.
+  URIs are rejected. Text I/O is capped at 256 KiB and listings at 100 entries. Search is limited to
+  500 visited entries, depth 4, and 50 results; it never searches file contents. General metadata
+  writes remain unsupported.
 - Attached USB mass storage is accessed through SAF, not through UsbManager bulk transfers. UsbManager
   is only used for peripheral enumeration and future non-storage USB protocols.
