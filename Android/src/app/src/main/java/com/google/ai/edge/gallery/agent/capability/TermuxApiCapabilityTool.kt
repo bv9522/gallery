@@ -56,7 +56,7 @@ class TermuxApiCapabilityTool internal constructor(
   override val description: String =
     "Inspect and use the Termux:API provider. Read operations include status, finite sensor reads, " +
       "location once/last, Wi-Fi connection/last-scan information, infrared frequency discovery, " +
-      "and infrared frequency discovery. Approved actions include infrared transmission and NFC writes. " +
+      "Approved actions include infrared transmission and NFC writes. " +
       "Existing comparison operations include battery/volume reads and volume/flashlight changes. " +
       "This is not arbitrary shell access."
 
@@ -70,8 +70,8 @@ class TermuxApiCapabilityTool internal constructor(
             listOf(
               "status", "battery_status", "volume_status", "set_volume", "set_flashlight",
               "sensor_list", "sensor_read", "location", "wifi_connection_info", "wifi_last_scan",
-              "infrared_frequencies", "infrared_transmit", 
-              "nfc_read", "nfc_write", "camera_info", 
+              "infrared_frequencies", "infrared_transmit",
+              "nfc_read", "nfc_write", "camera_info",
             ).forEach { add(it) }
           })
         })
@@ -126,15 +126,13 @@ class TermuxApiCapabilityTool internal constructor(
     val operation = arguments.string("operation") ?: return failure("Missing or invalid operation.")
     val allowed = when (operation) {
       "status", "battery_status", "volume_status", "sensor_list",
-      "wifi_connection_info", "wifi_last_scan", "infrared_frequencies", 
+      "wifi_connection_info", "wifi_last_scan", "infrared_frequencies" -> setOf("operation")
       "sensor_read" -> setOf("operation", "sensors", "count", "delay_ms")
       "location" -> setOf("operation", "provider", "request")
       "infrared_transmit" -> setOf("operation", "frequency", "pattern")
-      
       "nfc_read" -> setOf("operation")
       "nfc_write" -> setOf("operation", "ndef_text")
       "camera_info" -> setOf("operation")
-      
       "set_volume" -> setOf("operation", "stream", "volume")
       "set_flashlight" -> setOf("operation", "enabled")
       else -> return failure("Unsupported Termux:API operation '$operation'.")
@@ -155,12 +153,9 @@ class TermuxApiCapabilityTool internal constructor(
         "location" -> location(arguments)
         "infrared_frequencies" -> runRead(TermuxApiReadCommand.infraredFrequencies())
         "infrared_transmit" -> infraredTransmit(arguments)
-        
-        
         "nfc_read" -> nfcRead()
         "nfc_write" -> nfcWrite(arguments)
         "camera_info" -> runRead(TermuxApiReadCommand.cameraInfo())
-        
         "wifi_connection_info" -> {
           if (!authorize(AndroidCapability.WIFI_CONNECTION_INFO, "Read current Wi-Fi connection details using Termux:API.")) {
             failure("Wi-Fi connection information request denied or approval unavailable.")
