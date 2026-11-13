@@ -194,12 +194,19 @@ class AndroidNativeCapabilityToolTest {
       addProperty("characteristic_uuid", characteristic)
       addProperty("value_base64", "not-base64!")
     })
+    val oversizedPayload = tool.execute(arguments("bluetooth_gatt_write").apply {
+      addProperty("device_address", address)
+      addProperty("service_uuid", service)
+      addProperty("characteristic_uuid", characteristic)
+      addProperty("value_base64", java.util.Base64.getEncoder().encodeToString(ByteArray(513)))
+    })
 
     assertTrue(read.isSuccessful)
     assertTrue(read.content.contains("AQID"))
     assertTrue(write.isSuccessful)
     assertFalse(invalidUuid.isSuccessful)
     assertFalse(invalidPayload.isSuccessful)
+    assertFalse(oversizedPayload.isSuccessful)
     assertEquals(
       listOf(
         "bluetooth_gatt_read:$address:$service:$characteristic:10000",
