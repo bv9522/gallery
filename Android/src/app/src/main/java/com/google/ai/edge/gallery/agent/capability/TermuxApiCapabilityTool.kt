@@ -54,11 +54,11 @@ class TermuxApiCapabilityTool internal constructor(
 
   override val name: String = "termux_api"
   override val description: String =
-    "Inspect and use the Termux:API provider. Read-only operations: status, sensor_list, " +
-      "sensor_read, location, wifi_connection_info, wifi_last_scan, battery_status, volume_status. " +
-      "Existing comparison mutations: set_volume, set_flashlight. Sensor reads are finite and " +
-      "bounded; location supports only once or last. Wi-Fi scan information is the last scan, " +
-      "not a request to initiate a fresh scan. This is not arbitrary shell access."
+    "Inspect and use the Termux:API provider. Read operations include status, finite sensor reads, " +
+      "location once/last, Wi-Fi connection/last-scan information, infrared frequency discovery, " +
+      "and TTS engine discovery. Approved actions include infrared transmission and bounded speech. " +
+      "Existing comparison operations include battery/volume reads and volume/flashlight changes. " +
+      "This is not arbitrary shell access."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
