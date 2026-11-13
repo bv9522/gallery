@@ -94,10 +94,12 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "status to inspect the Termux:API companion and fixed command availability; permission state " +
       "remains unknown until an operation reports otherwise. Use sensor_list before sensor_read; " +
       "sensor_read accepts only names from that current listing and performs at most 10 finite samples " +
-      "with a 100–5000 ms delay. Use location only with request once or last and provider gps, network, " +
-      "or passive. Never request sensor streams or location updates; those long-running modes are not " +
-      "exposed. Use wifi_connection_info for current connection data and wifi_last_scan for the last " +
-      "scan only; it does not trigger a new scan and may be stale. Treat permission errors distinctly " +
+      "with a 100–5000 ms delay. Location and Wi-Fi reads require the user's scoped approval because " +
+      "they can reveal sensitive location or network details. Use location only with request once or " +
+      "last and provider gps, network, or passive. Never request sensor streams or location updates; " +
+      "those long-running modes are not exposed. Use wifi_connection_info for current connection data " +
+      "and wifi_last_scan for the last scan only; it does not trigger a new scan and may be stale. " +
+      "Treat permission errors distinctly " +
       "and never claim a command is available merely because its binary exists. Use android_control " +
       "for native operations unless the user explicitly requests Termux:API or is comparing providers. " +
       "Never invent Termux:API commands or use this tool as arbitrary shell access. Its mutations " +
