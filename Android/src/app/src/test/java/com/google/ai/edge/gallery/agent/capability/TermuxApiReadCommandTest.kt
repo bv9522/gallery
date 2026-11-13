@@ -137,6 +137,12 @@ class TermuxApiReadCommandTest {
   }
 
   @Test
+  fun cameraInfoAndSpeechRecognitionUseFixedCommands() {
+    assertEquals("termux-camera-info", TermuxApiReadCommand.cameraInfo())
+    assertEquals("termux-speech-to-text", TermuxApiReadCommand.speechToText())
+  }
+
+  @Test
   fun nfcCommandsAreFixedAndWriteTextIsBoundedAndQuoted() {
     assertEquals("termux-nfc -r full", TermuxApiReadCommand.nfcRead())
     assertEquals("termux-nfc -w -t 'Hello NFC'\\''s tag'", TermuxApiReadCommand.nfcWrite("Hello NFC's tag"))
