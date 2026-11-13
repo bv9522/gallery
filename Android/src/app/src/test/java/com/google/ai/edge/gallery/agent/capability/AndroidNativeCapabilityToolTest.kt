@@ -16,7 +16,11 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
+import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.JsonObject
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -24,6 +28,26 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
+  @Test
+  fun runtimePermissionRequesterReturnsOnlyTheSystemPermissionResult() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val requester = ChannelNativeRuntimePermissionRequester(actions, timeoutMs = 1_000L)
+    val responder = launch {
+      val action = actions.receive() as RequestPermissionToolAction
+      assertEquals("android.permission.BLUETOOTH_SCAN", action.permission)
+      action.result.complete(true)
+    }
+    assertTrue(requester.request("android.permission.BLUETOOTH_SCAN"))
+    responder.join()
+  }
+
+  @Test
+  fun runtimePermissionRequesterFailsClosedWhenActionChannelIsClosed() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED).apply { close() }
+    val requester = ChannelNativeRuntimePermissionRequester(actions, timeoutMs = 1_000L)
+    assertFalse(requester.request("android.permission.BLUETOOTH_CONNECT"))
+  }
+
   @Test
   fun mutationOperationsReachTheirMatchingNativeAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
@@ -54,6 +78,9 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(bleScan.isSuccessful)
     assertTrue(usb.isSuccessful)
     assertEquals(listOf("bluetooth_bonded_devices", "bluetooth_le_scan:5000", "usb_devices"), adapter.discoveryCalls)
+    val invalidScan = tool.execute(arguments("bluetooth_le_scan").apply { addProperty("duration_ms", 10_001) })
+    assertFalse(invalidScan.isSuccessful)
+    assertEquals(3, adapter.discoveryCalls.size)
     assertEquals(
       listOf(
         "set_volume:MUSIC:7",
