@@ -543,8 +543,9 @@ class AndroidNativeCapabilityAdapter(
 
     var activeGatt: BluetoothGatt? = null
     try {
-      val connected = withTimeout(timeoutMs) {
-        suspendCancellableCoroutine<Pair<BluetoothGatt, NativeBluetoothGattInspection>> { continuation ->
+      val connected = try {
+        withTimeout(timeoutMs) {
+          suspendCancellableCoroutine<Pair<BluetoothGatt, NativeBluetoothGattInspection>> { continuation ->
           var callbackGatt: BluetoothGatt? = null
           fun fail(gatt: BluetoothGatt, error: Throwable) {
             if (continuation.isActive) continuation.resumeWithException(error)
@@ -623,7 +624,10 @@ class AndroidNativeCapabilityAdapter(
             runCatching { callbackGatt?.disconnect() }
             runCatching { callbackGatt?.close() }
           }
+          }
         }
+      } catch (timeout: TimeoutCancellationException) {
+        throw IllegalStateException("Bluetooth GATT service inspection timed out after $timeoutMs milliseconds.", timeout)
       }
       activeGatt = connected.first
       return connected.second
