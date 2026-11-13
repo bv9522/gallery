@@ -12,13 +12,6 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
-/**
- * Typed operations consumed by [AndroidNativeCapabilityTool].
- *
- * Keeping the tool behind this contract makes operation dispatch and provider gating testable
- * without Android framework services. Implementations remain responsible for enforcing the
- * injected authorization boundary before every mutation and privacy-sensitive discovery operation.
- */
 data class NativeBluetoothGattCharacteristic(
   val uuid: String,
   val properties: Int,
@@ -43,6 +36,13 @@ data class NativeBluetoothGattInspection(
   val truncated: Boolean,
 )
 
+/**
+ * Typed operations consumed by [AndroidNativeCapabilityTool].
+ *
+ * Keeping the tool behind this contract makes operation dispatch and provider gating testable
+ * without Android framework services. Implementations remain responsible for enforcing the
+ * injected authorization boundary before every mutation and privacy-sensitive discovery operation.
+ */
 interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun getDeviceInfo(): NativeDeviceInfo
   fun getBatteryStatus(): NativeBatteryStatus
