@@ -83,6 +83,15 @@ internal object AndroidControlArguments {
         ". Retry the same operation with those arguments."
     }
 
+    if (operation == "bluetooth_gatt_services") {
+      val address = arguments.get("device_address")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (!address.matches(Regex("(?i)^[0-9a-f]{2}(:[0-9a-f]{2}){5}$"))) {
+        return "device_address must be a valid Bluetooth MAC address, preferably copied from a prior Bluetooth discovery result."
+      }
+    }
+
     return null
   }
 }
