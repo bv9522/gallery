@@ -603,6 +603,9 @@ class AndroidNativeCapabilityAdapter(
     valueBase64: String,
     timeoutMs: Long,
   ): NativeCapabilityActionResult {
+    require(valueBase64.length <= MAX_GATT_BASE64_CHARS) {
+      "GATT Base64 payload exceeds the $MAX_GATT_VALUE_BYTES-byte input limit."
+    }
     val value = try {
       Base64.decode(valueBase64, Base64.NO_WRAP)
     } catch (error: IllegalArgumentException) {
@@ -1426,6 +1429,7 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_GATT_CHARACTERISTICS = 128
     const val MAX_GATT_DESCRIPTORS_PER_CHARACTERISTIC = 16
     const val MAX_GATT_VALUE_BYTES = 512
+    const val MAX_GATT_BASE64_CHARS = 684
     const val MAX_USB_DEVICES = 32
     const val MAX_USB_INTERFACES = 16
   }
