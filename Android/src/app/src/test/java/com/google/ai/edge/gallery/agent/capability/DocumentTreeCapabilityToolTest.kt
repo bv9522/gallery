@@ -114,11 +114,42 @@ class DocumentTreeCapabilityToolTest {
   }
 
   @Test
-  fun copyMoveSearchAndMetadataWriteAreNotExposed() = runBlocking {
+  fun copyMoveAndNameSearchDispatchWithinTheSelectedTree() = runBlocking {
+    val operations = FakeOperations()
+    val tool = DocumentTreeCapabilityTool(operations)
+    val copied = tool.execute(arguments("copy").apply {
+      addProperty("tree_uri", treeUri)
+      addProperty("document_id", "primary:Documents/a.txt")
+      addProperty("target_parent_document_id", "primary:Documents/Backup")
+    })
+    val moved = tool.execute(arguments("move").apply {
+      addProperty("tree_uri", treeUri)
+      addProperty("document_id", "primary:Documents/b.txt")
+      addProperty("source_parent_document_id", "primary:Documents")
+      addProperty("target_parent_document_id", "primary:Documents/Archive")
+    })
+    val searched = tool.execute(arguments("search").apply {
+      addProperty("tree_uri", treeUri)
+      addProperty("query", "readme")
+    })
+    assertTrue(copied.isSuccessful)
+    assertTrue(moved.isSuccessful)
+    assertTrue(searched.isSuccessful)
+    assertTrue(searched.content.contains("visitedCount"))
+    assertEquals(
+      listOf(
+        "copy:" + treeUri + ":primary:Documents/a.txt:primary:Documents/Backup",
+        "move:" + treeUri + ":primary:Documents/b.txt:primary:Documents:primary:Documents/Archive",
+        "search:" + treeUri + ":readme:root",
+      ),
+      operations.calls,
+    )
+  }
+
+  @Test
+  fun generalMetadataWriteRemainsUnsupported() = runBlocking {
     val tool = DocumentTreeCapabilityTool(FakeOperations())
-    listOf("copy", "move", "search", "metadata_write").forEach { operation ->
-      assertFalse(tool.execute(arguments(operation)).isSuccessful)
-    }
+    assertFalse(tool.execute(arguments("metadata_write")).isSuccessful)
   }
 
   @Test
@@ -222,6 +253,30 @@ class DocumentTreeCapabilityToolTest {
     override suspend fun delete(treeUri: String, documentId: String): Boolean {
       calls += "delete:" + treeUri + ":" + documentId
       return true
+    }
+
+    override suspend fun copy(treeUri: String, documentId: String, targetParentDocumentId: String): String {
+      calls += "copy:" + treeUri + ":" + documentId + ":" + targetParentDocumentId
+      return "content://copied"
+    }
+
+    override suspend fun move(
+      treeUri: String,
+      documentId: String,
+      sourceParentDocumentId: String,
+      targetParentDocumentId: String,
+    ): String {
+      calls += "move:" + treeUri + ":" + documentId + ":" + sourceParentDocumentId + ":" + targetParentDocumentId
+      return "content://moved"
+    }
+
+    override suspend fun search(treeUri: String, query: String, parentDocumentId: String?): DocumentSearchResult {
+      calls += "search:" + treeUri + ":" + query + ":" + (parentDocumentId ?: "root")
+      return DocumentSearchResult(
+        listOf(DocumentEntry("primary:Documents/readme.txt", "readme.txt", "text/plain", 10, 1, 0)),
+        12,
+        true,
+      )
     }
   }
 }
