@@ -979,7 +979,7 @@ class AndroidNativeCapabilityAdapter(
     var foundText = false
     var truncated = clip.itemCount > MAX_CLIPBOARD_ITEMS
     for (index in 0 until minOf(clip.itemCount, MAX_CLIPBOARD_ITEMS)) {
-      val itemText = clip.getItemAt(index).text?.toString() ?: continue
+      val itemText = clip.getItemAt(index).text ?: continue
       foundText = true
       if (output.isNotEmpty()) output.append('\n')
       val remaining = MAX_CLIPBOARD_CHARS - output.length
@@ -987,12 +987,12 @@ class AndroidNativeCapabilityAdapter(
         truncated = true
         break
       }
-      if (itemText.length > remaining) {
-        output.append(itemText.take(remaining))
+      val take = minOf(itemText.length, remaining)
+      output.append(itemText.subSequence(0, take))
+      if (take < itemText.length) {
         truncated = true
         break
       }
-      output.append(itemText)
     }
     return NativeClipboardContent(
       text = output.toString(),
