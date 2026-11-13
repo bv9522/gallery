@@ -19,7 +19,6 @@ package com.google.ai.edge.gallery.agent.capability
 import android.content.Context
 import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
-import com.google.gson.Gson
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.Gson
