@@ -105,7 +105,9 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "reported frequency and a numeric pulse pattern shorter than two seconds, and always requires " +
       "one-time approval. Use tts_engines to inspect installed speech engines; tts_speak is limited to " +
       "500 characters and requires approval because it speaks aloud. Never use these operations as " +
-      "a substitute for arbitrary shell commands. NFC reads and writes require one-time approval; " +
+      "a substitute for arbitrary shell commands. speech_to_text starts one interactive recognition " +
+      "session and requires approval; tell the user that audio may be processed by the configured " +
+      "recognition service. NFC reads and writes require one-time approval; " +
       "NFC write accepts text-only NDEF payloads up to 512 characters and may replace existing tag " +
       "content. Present the intended tag when the Termux NFC interaction opens. These are bounded " +
       "single interactions, not background NFC sessions. Use android_control " +
