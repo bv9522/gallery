@@ -26,10 +26,10 @@ Android capability provider, the other is a general shell execution transport.
 | TEXT_TO_SPEECH | termux-tts-engines, termux-tts-speak | Ordinary speech synthesis; native only if Gallery needs richer playback/session control |
 | WALLPAPER_CONTROL | termux-wallpaper | Basic image-file wallpaper setting; explicit approval |
 
-These are selected owners in the catalog. The Phase 5A first slice now has fixed handlers for
-sensor listing/finite reads, location once/last, and Wi-Fi connection/last-scan reads. The
-remaining command families are still planned. The implemented first slice is not yet accepted:
-local tests/build and target-device checks must pass before production readiness is claimed.
+These are selected owners in the catalog. The Phase 5A draft contains fixed handlers for sensor
+listing/finite reads, location once/last, and Wi-Fi connection/last-scan reads, but all four
+capabilities remain **Planned and not production-available** until current-head unit tests, the
+debug build, and target-device acceptance pass. The remaining command families are also planned.
 
 ## Keep these capabilities native
 
@@ -117,8 +117,8 @@ implementation reference, not evidence of Gallery integration or device availabi
    `-n`; streams are not exposed.
 5. Brian's first local unit-test run passed before the latest fake-client tests and strict
    argument-validation changes. Rerun the unit tests on this head; the debug build and target-device
-   acceptance remain pending. Keep the new capabilities unavailable in production provider
-   observations until all gates pass.
+   acceptance remain pending. Keep the Phase 5A capabilities **Planned and unavailable** in
+   production provider observations until every gate passes.
 
 Upstream wrapper references:
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-sensor.in
