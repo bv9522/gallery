@@ -26,8 +26,10 @@ Android capability provider, the other is a general shell execution transport.
 | TEXT_TO_SPEECH | termux-tts-engines, termux-tts-speak | Ordinary speech synthesis; native only if Gallery needs richer playback/session control |
 | WALLPAPER_CONTROL | termux-wallpaper | Basic image-file wallpaper setting; explicit approval |
 
-These are selected owners in the catalog but remain planned until fixed handlers, probes,
-validation, cancellation/cleanup, tests, and device acceptance are implemented.
+These are selected owners in the catalog. The Phase 5A first slice now has fixed handlers for
+sensor listing/finite reads, location once/last, and Wi-Fi connection/last-scan reads. The
+remaining command families are still planned. The implemented first slice is not yet accepted:
+local tests/build and target-device checks must pass before production readiness is claimed.
 
 ## Keep these capabilities native
 
@@ -53,8 +55,11 @@ validation, cancellation/cleanup, tests, and device acceptance are implemented.
 - Fixed command allowlist. Never interpolate model-generated shell source or command names.
 - Validate every argument before command construction; quote path and text arguments safely.
 - Use existing Termux RUN_COMMAND supervision, timeout, bounded stdout/stderr, and cancellation.
-- Read operations never trigger permission prompts automatically. Report PERMISSION_REQUIRED,
-  NOT_INSTALLED, UNSUPPORTED, or UNKNOWN distinctly.
+- Discovery never triggers permission prompts. The status operation independently reports
+  companion-app presence and command-binary presence; permission state remains UNKNOWN until a
+  real operation establishes otherwise. Location and Wi-Fi reads require scoped user approval.
+  Report PERMISSION_REQUIRED, COMMAND_NOT_INSTALLED, TIMEOUT, PROCESS_CLEANUP_UNCONFIRMED, or
+  OPERATION_FAILED distinctly.
 - Mutations and privacy-sensitive capture require the existing explicit approval boundary.
 - Sensor/location/microphone streams must have explicit maximum duration, cancellation, and cleanup.
 - Do not implement automatic fallback to Native Kotlin when the selected Termux owner is unavailable.
@@ -93,21 +98,22 @@ implementation reference, not evidence of Gallery integration or device availabi
 
 ### First-slice sequencing and readiness
 
-1. Implement read-only sensor listing and finite sensor samples, location `once`/`last`, Wi-Fi
-   connection information, and last-scan information using fixed command builders.
-2. Add per-command observational probes for companion-app presence and command availability.
-   Command presence is only a transport prerequisite, not proof that permissions or the operation
-   are usable. Report permission/availability as unknown when it cannot be observed without
-   prompting; never launch a permission prompt during discovery.
+1. [x] Implement read-only sensor listing and finite sensor samples, location `once`/`last`, Wi-Fi
+   connection information, and last-scan information using fixed command builders (Phase 5A).
+2. [x] Extend the status diagnostic to report companion-app presence and fixed command-binary
+   presence independently. Command presence is only a transport prerequisite, not proof that
+   permissions or the operation are usable. Permission state remains unknown until an operation
+   runs; discovery never launches a permission prompt.
 3. Keep sensor streaming and location `updates` unavailable until bounded-session semantics,
    cancellation, cleanup, and device behavior have dedicated tests. Their catalog ownership does
    not make them callable or available.
-4. Test malformed/extra arguments, denied or missing permissions, output truncation, timeout,
-   cancellation, process cleanup, and no-fallback behavior. For finite operations, test that the
-   exact fixed command is dispatched; for streaming tests, verify the supervised process group
-   exits and sensor cleanup is attempted.
-5. Only after local unit tests/build and target-device acceptance should implemented capabilities
-   be reflected in provider observations. Until then, retain **Planned** status.
+4. [x] Add pure unit coverage for malformed/extra sensor and location arguments, exact fixed
+   command construction, permission/command-not-installed/timeout/cleanup error classification,
+   and truncated/empty output handling. [ ] Complete end-to-end fake-client tests for dispatch,
+   approval denial, timeout/cancellation cleanup, and no-fallback before declaring the slice
+   locally validated. Finite sensor reads use `-n`; streams are not exposed.
+5. Local unit tests/build and target-device acceptance remain pending. Keep the new capabilities
+   unavailable in production provider observations until those gates pass.
 
 Upstream wrapper references:
 - https://github.com/termux/termux-api-package/blob/master/scripts/termux-sensor.in
