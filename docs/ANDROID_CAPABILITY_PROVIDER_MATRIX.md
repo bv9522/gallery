@@ -10,15 +10,16 @@ Every model-independent capability has exactly one selected owner in the capabil
 
 | Scope | Owner | Boundary |
 |---|---|---|
-| Typed Android device/framework operations | Native Android Kotlin | Gallery app UID; typed Android APIs; explicit permissions and approvals |
+| Typed/app-owned Android operations | Native Android Kotlin | Gallery app UID; typed APIs; richer lifecycle, app-owned state, and explicit approvals |
+| Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
 | Screen capture and semantic UI interaction | Android AccessibilityService | Explicitly enabled service; bounded screen/tree/gesture operations |
 
-Termux, Shizuku, and Rish are execution transports, not separate capability owners. Termux:API is
-a command wrapper around Android capabilities; its Phase 4A overlapping operations are retained
-only as transitional explicit-comparison code while native ownership is completed. It is not
-registered as a second automatic owner.
+Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
+Termux:API is a distinct capability owner only for the bounded command families assigned in the
+canonical plan. Phase 4A battery/volume/flashlight overlap operations remain diagnostic only;
+native remains their selected owner. No capability has both owners.
 
 ## Implemented native capabilities
 
@@ -35,10 +36,11 @@ registered as a second automatic owner.
 
 ## Remaining capability groups
 
-The canonical ownership document enumerates the remaining planned scope, including sensors, location,
-Wi-Fi, Bluetooth, NFC, infrared, USB, telephony, contacts, call logs, SMS composition, clipboard,
-notifications, camera, microphone, speech, TTS, biometrics, keystore, downloads, media, sharing,
-wallpaper, scheduling, file operations, SAF document trees, screen capture, and accessibility.
+Termux:API is selected for basic sensors, location requests/updates, Wi-Fi information and last-scan
+results, NFC NDEF read/write, infrared, still-photo capture, file-based microphone recording,
+speech-to-text, ordinary TTS, and basic wallpaper setting. Native Kotlin retains Bluetooth/BLE,
+USB host sessions, app-owned/security-sensitive integrations, advanced camera/audio sessions,
+and user-mediated controls. The canonical plan lists the complete mapping and constraints.
 
 ## Security and implementation rules
 
