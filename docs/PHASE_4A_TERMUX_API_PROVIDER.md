@@ -27,8 +27,10 @@ location `once`/`last`, `wifi_connection_info`, and `wifi_last_scan` operations.
 limited to 1–10 samples, 100–5000 ms delay, and 8 KiB output. Location and Wi-Fi reads require
 scoped user approval. Sensor streams and location updates are deliberately not exposed. The
 status operation checks companion-app and command-binary presence separately but leaves permission
-state unknown until a real operation runs. The Phase 5A implementation still requires local
-unit/build validation and target-device acceptance; do not mark these capabilities production-ready.
+state unknown until a real operation runs. Brian's first Phase 5A unit-test run passed on the
+pre-hardening head. The latest head adds fake-client dispatch/approval/cancellation tests and
+strict per-operation argument validation, so the unit suite must be rerun. The debug build and
+target-device acceptance remain pending; do not mark these capabilities production-ready.
 
 See [ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md](ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md)
 for the complete Termux:API command inventory, selected owners, and implementation constraints.
@@ -66,6 +68,8 @@ underlying command output was corrupt. Do not use Gemma's narration as raw comma
 
 ## Acceptance status
 
-Phase 4A unit tests and the Shizuku debug build succeeded locally. Phase 5A's new handlers and
-unit tests are awaiting local validation and target-device acceptance. Device acceptance of all
-mutations and result integrity is not complete. No PR has been merged.
+Phase 4A unit tests and the Shizuku debug build succeeded locally. Brian confirmed that the
+initial Phase 5A unit-test run passed; the current head's additional fake-client tests and argument
+validation require a fresh run. The Phase 5A debug build and target-device acceptance remain
+pending. Device acceptance of all mutations and result integrity is not complete. No PR has been
+merged.
