@@ -297,7 +297,7 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(createChannel.isSuccessful)
     assertEquals(
       listOf(
-        "post_notification:Test:A test notification",
+        "post_notification:Test:A test notification:agent_skill_tasks_channel",
         "list_posted_notifications",
         "cancel_posted_notification:42",
         "schedule_notification:Reminder:19:30:2030:5:6:false",
@@ -613,8 +613,9 @@ class AndroidNativeCapabilityToolTest {
     override suspend fun postNotification(
       title: String,
       message: String,
+      channelId: String,
     ): NativeCapabilityActionResult {
-      discoveryCalls += "post_notification:$title:$message"
+      discoveryCalls += "post_notification:$title:$message:$channelId"
       return NativeCapabilityActionResult(true, "Notification posted with ID 42.")
     }
 
