@@ -195,7 +195,7 @@ internal object AndroidControlArguments {
       val present = dateKeys.count { arguments.has(it) }
       if (present != 0 && present != 3) return "year, month, and day must either all be supplied or all be omitted."
       for (name in dateKeys.filter { arguments.has(it) }) {
-        val value = arguments.get(name)?.takeIf { it.isJsonPrimitive && it.isNumber }?.asString?.toIntOrNull()
+        val value = arguments.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber() }?.asString?.toIntOrNull()
           ?: return "$name must be an integer."
         if (name == "year" && value !in 2000..2200) return "year must be from 2000 to 2200."
         if (name == "month" && value !in 1..12) return "month must be from 1 to 12."
