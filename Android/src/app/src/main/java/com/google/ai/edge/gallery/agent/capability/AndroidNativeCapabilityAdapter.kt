@@ -1120,14 +1120,11 @@ class AndroidNativeCapabilityAdapter(
   override suspend fun postNotification(
     title: String,
     message: String,
-    channelId: String,
-    channelName: String,
   ): NativeCapabilityActionResult {
     validateNotificationText(title, message)
-    validateChannel(channelId, channelName)
     if (!authorizer.authorize(
         AndroidCapability.NOTIFICATION_POST,
-        "Post a notification on this device. Channel: $channelName ($channelId). Title: $title. Message: $message",
+        "Post a notification on this device using the Gallery task channel. Title: $title. Message: $message",
       )
     ) {
       throw SecurityException("Notification posting was not approved.")
@@ -1135,11 +1132,11 @@ class AndroidNativeCapabilityAdapter(
     ensureNotificationsAllowed()
     val manager = appContext.getSystemService(NotificationManager::class.java)
       ?: throw IllegalStateException("NotificationManager is unavailable.")
-    ensureChannel(manager, channelId, channelName)
-    if (manager.getNotificationChannel(channelId)?.importance == NotificationManager.IMPORTANCE_NONE) {
-      throw IllegalStateException("Notification channel '$channelName' is blocked in Android settings.")
+    ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
+    if (manager.getNotificationChannel(DEFAULT_NOTIFICATION_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
+      throw IllegalStateException("The Gallery task notification channel is blocked in Android settings.")
     }
-    val notification = NotificationCompat.Builder(appContext, channelId)
+    val notification = NotificationCompat.Builder(appContext, DEFAULT_NOTIFICATION_CHANNEL_ID)
       .setSmallIcon(android.R.drawable.ic_dialog_info)
       .setContentTitle(title)
       .setContentText(message)
