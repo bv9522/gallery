@@ -258,6 +258,10 @@ class AndroidNativeCapabilityToolTest {
       addProperty("title", "Test")
       addProperty("message", "A test notification")
     })
+    val posted = tool.execute(arguments("list_posted_notifications"))
+    val dismiss = tool.execute(arguments("cancel_posted_notification").apply {
+      addProperty("notification_id", "42")
+    })
     val schedule = tool.execute(arguments("schedule_notification").apply {
       addProperty("title", "Reminder")
       addProperty("message", "Check the oven")
@@ -280,6 +284,10 @@ class AndroidNativeCapabilityToolTest {
     })
 
     assertTrue(post.isSuccessful)
+    assertTrue(post.content.contains("ID"))
+    assertTrue(posted.isSuccessful)
+    assertTrue(posted.content.contains("42"))
+    assertTrue(dismiss.isSuccessful)
     assertTrue(schedule.isSuccessful)
     assertTrue(list.isSuccessful)
     assertTrue(list.content.contains("test-id"))
@@ -290,6 +298,8 @@ class AndroidNativeCapabilityToolTest {
     assertEquals(
       listOf(
         "post_notification:Test:A test notification:agent_skill_tasks_channel:Agent Skill Task",
+        "list_posted_notifications",
+        "cancel_posted_notification:42",
         "schedule_notification:Reminder:19:30:2030:5:6:false",
         "list_scheduled_notifications",
         "cancel_scheduled_notification:test-id",
@@ -607,6 +617,16 @@ class AndroidNativeCapabilityToolTest {
       channelName: String,
     ): NativeCapabilityActionResult {
       discoveryCalls += "post_notification:$title:$message:$channelId:$channelName"
+      return actionResult
+    }
+
+    override fun listPostedNotifications(): List<NativePostedNotification> {
+      discoveryCalls += "list_posted_notifications"
+      return listOf(NativePostedNotification("42", "Test", "A test notification", 1_800_000_000_000L))
+    }
+
+    override suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult {
+      discoveryCalls += "cancel_posted_notification:$id"
       return actionResult
     }
 
