@@ -27,6 +27,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.app.AlarmManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.WallpaperManager
@@ -1145,8 +1146,46 @@ class AndroidNativeCapabilityAdapter(
       .setStyle(NotificationCompat.BigTextStyle().bigText(message))
       .setAutoCancel(true)
       .build()
-    manager.notify(UUID.randomUUID().toString().hashCode(), notification)
-    return NativeCapabilityActionResult(true, "Notification posted.")
+    val notificationId = UUID.randomUUID().toString().hashCode()
+    manager.notify(notificationId, notification)
+    return NativeCapabilityActionResult(true, "Notification posted with ID $notificationId.")
+  }
+
+  override fun listPostedNotifications(): List<NativePostedNotification> {
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: return emptyList()
+    return manager.activeNotifications
+      .take(MAX_ACTIVE_NOTIFICATIONS)
+      .map { active ->
+        val extras = active.notification.extras
+        NativePostedNotification(
+          id = active.id.toString(),
+          title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty().take(MAX_NOTIFICATION_TITLE_CHARS),
+          message = (
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+              ?: extras.getCharSequence(Notification.EXTRA_TEXT)
+          )?.toString().orEmpty().take(MAX_NOTIFICATION_MESSAGE_CHARS),
+          postedAtMs = active.postTime,
+        )
+      }
+  }
+
+  override suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult {
+    val numericId = id.toIntOrNull()
+      ?: throw IllegalArgumentException("notification_id must be the numeric ID returned by list_posted_notifications.")
+    val existing = listPostedNotifications().firstOrNull { it.id == id }
+      ?: return NativeCapabilityActionResult(false, "No active Gallery notification exists with ID '$id'.")
+    if (!authorizer.authorize(
+        AndroidCapability.NOTIFICATION_POST,
+        "Dismiss the active Gallery notification '${existing.title}' with ID $id.",
+      )
+    ) {
+      throw SecurityException("Notification dismissal was not approved.")
+    }
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: throw IllegalStateException("NotificationManager is unavailable.")
+    manager.cancel(numericId)
+    return NativeCapabilityActionResult(true, "Active notification '$id' dismissed.")
   }
 
   override suspend fun scheduleNotification(
@@ -1957,6 +1996,7 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_NOTIFICATION_MESSAGE_CHARS = 1_000
     const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
     const val MAX_NOTIFICATION_CHANNELS = 20
+    const val MAX_ACTIVE_NOTIFICATIONS = 50
     const val DEFAULT_NOTIFICATION_CHANNEL_ID = "agent_skill_tasks_channel"
     const val DEFAULT_NOTIFICATION_CHANNEL_NAME = "Agent Skill Task"
     const val MAX_USB_DEVICES = 32
