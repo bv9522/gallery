@@ -542,8 +542,6 @@ class AndroidNativeCapabilityTool internal constructor(
     const val MAX_NOTIFICATION_TITLE_CHARS = 100
     const val MAX_NOTIFICATION_MESSAGE_CHARS = 1_000
     const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
-    const val DEFAULT_NOTIFICATION_CHANNEL_ID = "agent_skill_tasks_channel"
-    const val DEFAULT_NOTIFICATION_CHANNEL_NAME = "Agent Skill Task"
     const val MIN_GATT_TIMEOUT_MS = 5_000L
     const val MAX_GATT_TIMEOUT_MS = 20_000L
     const val MIN_AUDIO_RECORD_MS = 1_000L
