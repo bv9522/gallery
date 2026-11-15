@@ -61,6 +61,7 @@ constructor(@ApplicationContext private val context: Context) {
       produceFile = { File(context.filesDir, "scheduled_notifications.pb") },
     )
   private val tag = "NotificationScheduleManager"
+  private val maxScheduledNotifications = 50
   private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val mutationMutex = Mutex()
 
@@ -98,6 +99,10 @@ constructor(@ApplicationContext private val context: Context) {
     mutationMutex.withLock {
       val previous = dataStore.data.first()
       val existing = previous.notificationList.firstOrNull { it.id == notification.id }
+      if (existing == null && previous.notificationCount >= maxScheduledNotifications) {
+        Log.w(tag, "Scheduled notification limit reached ($MAX_SCHEDULED_NOTIFICATIONS).")
+        return@withLock false
+      }
       val updated = previous.toBuilder()
         .clearNotification()
         .addAllNotification(previous.notificationList.filterNot { it.id == notification.id })
