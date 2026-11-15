@@ -47,6 +47,12 @@ internal object AndroidControlArguments {
     "contacts_search" to setOf("operation", "query", "limit"),
     "clipboard_read" to setOf("operation"),
     "clipboard_write" to setOf("operation", "text"),
+    "post_notification" to setOf("operation", "title", "message", "channel_id", "channel_name"),
+    "schedule_notification" to setOf("operation", "title", "message", "hour", "minute", "year", "month", "day", "repeat_daily"),
+    "list_scheduled_notifications" to setOf("operation"),
+    "cancel_scheduled_notification" to setOf("operation", "notification_id"),
+    "list_notification_channels" to setOf("operation"),
+    "create_notification_channel" to setOf("operation", "channel_id", "channel_name", "importance"),
     "usb_devices" to setOf("operation"),
     "record_audio" to setOf("operation", "duration_ms"),
     "capture_photo" to setOf("operation"),
@@ -67,6 +73,10 @@ internal object AndroidControlArguments {
     "bluetooth_gatt_write" to setOf("device_address", "service_uuid", "characteristic_uuid", "value_base64"),
     "contacts_search" to setOf("query"),
     "clipboard_write" to setOf("text"),
+    "post_notification" to setOf("title", "message"),
+    "schedule_notification" to setOf("title", "message", "hour", "minute"),
+    "cancel_scheduled_notification" to setOf("notification_id"),
+    "create_notification_channel" to setOf("channel_id", "channel_name", "importance"),
   )
 
   fun validate(arguments: JsonObject): String? {
@@ -152,6 +162,58 @@ internal object AndroidControlArguments {
       if (text.length > 2_048) {
         return "clipboard_write text must not exceed 2048 characters."
       }
+    }
+
+    if (operation in setOf("post_notification", "schedule_notification")) {
+      val title = arguments.get("title")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
+      val message = arguments.get("message")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
+      if (title.isBlank() || title.length > 100) return "Notification title must contain 1–100 characters."
+      if (message.isBlank() || message.length > 1_000) return "Notification message must contain 1–1000 characters."
+    }
+
+    if (operation == "post_notification") {
+      val id = arguments.get("channel_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: "agent_skill_tasks_channel"
+      val name = arguments.get("channel_name")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: "Agent Skill Task"
+      if (!id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$")) || name.isBlank() || name.length > 80) {
+        return "channel_id must be a safe 1–64 character ID and channel_name must contain 1–80 characters."
+      }
+    }
+
+    if (operation == "schedule_notification") {
+      for (name in listOf("hour", "minute")) {
+        val value = arguments.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asString?.toIntOrNull()
+          ?: return "$name must be an integer."
+        if (name == "hour" && value !in 0..23) return "hour must be from 0 to 23."
+        if (name == "minute" && value !in 0..59) return "minute must be from 0 to 59."
+      }
+      val dateKeys = listOf("year", "month", "day")
+      val present = dateKeys.count { arguments.has(it) }
+      if (present != 0 && present != 3) return "year, month, and day must either all be supplied or all be omitted."
+      for (name in dateKeys.filter { arguments.has(it) }) {
+        val value = arguments.get(name)?.takeIf { it.isJsonPrimitive && it.isNumber }?.asString?.toIntOrNull()
+          ?: return "$name must be an integer."
+        if (name == "year" && value !in 2000..2200) return "year must be from 2000 to 2200."
+        if (name == "month" && value !in 1..12) return "month must be from 1 to 12."
+        if (name == "day" && value !in 1..31) return "day must be from 1 to 31."
+      }
+      if (arguments.has("repeat_daily") &&
+        !(arguments.get("repeat_daily")?.isJsonPrimitive == true &&
+          arguments.get("repeat_daily")?.asJsonPrimitive?.isBoolean == true)
+      ) return "repeat_daily must be a boolean."
+    }
+
+    if (operation == "cancel_scheduled_notification") {
+      val id = arguments.get("notification_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
+      if (id.isBlank() || id.length > 64) return "notification_id must contain 1–64 characters."
+    }
+
+    if (operation == "create_notification_channel") {
+      val id = arguments.get("channel_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
+      val name = arguments.get("channel_name")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
+      val importance = arguments.get("importance")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asString?.toIntOrNull()
+      if (!id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$"))) return "channel_id must contain 1–64 letters, digits, dots, underscores, or hyphens."
+      if (name.isBlank() || name.length > 80) return "channel_name must contain 1–80 characters."
+      if (importance == null || importance !in 2..4) return "importance must be 2 (LOW), 3 (DEFAULT), or 4 (HIGH)."
     }
 
     return null
