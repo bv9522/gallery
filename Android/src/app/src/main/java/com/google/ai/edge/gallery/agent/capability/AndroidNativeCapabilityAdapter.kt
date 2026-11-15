@@ -1170,8 +1170,12 @@ class AndroidNativeCapabilityAdapter(
       }.getOrElse { throw IllegalArgumentException("The requested notification date or time is invalid.") }
       require(target > System.currentTimeMillis()) { "The requested notification date and time must be in the future." }
     }
-    val whenText = if (year != null) "$year-$month-$day at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}" else
-      "daily at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+    val clockTime = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+    val whenText = when {
+      year != null -> "$year-$month-$day at $clockTime"
+      repeatDaily -> "daily at $clockTime"
+      else -> "the next occurrence at $clockTime"
+    }
     if (!authorizer.authorize(
         AndroidCapability.BACKGROUND_SCHEDULE,
         "Schedule ${if (repeatDaily) "a repeating notification" else "one notification"} $whenText. Title: $title. Message: $message",
