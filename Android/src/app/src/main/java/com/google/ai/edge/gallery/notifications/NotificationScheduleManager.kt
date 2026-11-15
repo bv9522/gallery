@@ -34,14 +34,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
-// Manages the scheduled notifications in the agent chat skill, including loading and saving
-// notifications to the disk, and canceling/updating scheduled notifications when they are removed.
-// This is a global singleton object, and is thread-safe.
+/**
+ * Owns Gallery's persisted scheduled-notification records and their AlarmManager registrations.
+ *
+ * All reads and writes go through DataStore. The mutex serializes record changes with alarm
+ * replacement/cancellation so concurrent model operations cannot overwrite one another.
+ */
 @Singleton
 class NotificationScheduleManager
 @Inject
@@ -51,104 +57,79 @@ constructor(@ApplicationContext private val context: Context) {
       serializer = ScheduledNotificationsSerializer,
       produceFile = { File(context.filesDir, "scheduled_notifications.pb") },
     )
-  private val TAG = "NotificationScheduleManager"
-
-  // Use a coroutine scope for IO operations to avoid blocking the calling thread.
-  private val coroutineScope = CoroutineScope(Dispatchers.IO)
+  private val tag = "NotificationScheduleManager"
+  private val coroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+  private val mutationMutex = Mutex()
 
   private val _scheduledNotifications = MutableStateFlow<List<ScheduledNotification>>(emptyList())
   val scheduledNotifications = _scheduledNotifications.asStateFlow()
 
-  init {
-    loadNotifications()
-  }
-
   fun initialize() = Unit
 
-  /** Loads the scheduled notifications from the disk. */
-  private fun loadNotifications() {
-    coroutineScope.launch {
+  /** Returns the persisted list, waiting for DataStore initialization instead of racing it. */
+  suspend fun getScheduledNotifications(): List<ScheduledNotification> = mutationMutex.withLock {
+    dataStore.data.first().notificationList.also { _scheduledNotifications.value = it }
+  }
+
+  /**
+   * Persists and schedules a notification. A failed alarm registration rolls the stored record
+   * back, so a success result always means both the record and its alarm were accepted.
+   */
+  suspend fun scheduleNotification(notification: ScheduledNotification): Boolean =
+    mutationMutex.withLock {
+      val previous = dataStore.data.first()
+      val existing = previous.notificationList.firstOrNull { it.id == notification.id }
+      val updated = previous.toBuilder()
+        .clearNotification()
+        .addAllNotification(previous.notificationList.filterNot { it.id == notification.id })
+        .addNotification(notification)
+        .build()
+
+      dataStore.updateData { updated }
+      _scheduledNotifications.value = updated.notificationList
       try {
-        val file = File(context.filesDir, "scheduled_notifications.pb")
-        if (file.exists()) {
-          val data = file.inputStream().use { ScheduledNotificationsSerializer.readFrom(it) }
-          _scheduledNotifications.value = data.notificationList
-        }
-      } catch (e: Exception) {
-        // Ignore on read fault
+        existing?.let(::cancelAlarmForNotification)
+        setAlarmForNotification(notification)
+        true
+      } catch (error: Exception) {
+        Log.e(tag, "Failed to schedule notification; restoring persisted state", error)
+        dataStore.updateData { previous }
+        _scheduledNotifications.value = previous.notificationList
+        existing?.let { old -> runCatching { setAlarmForNotification(old) } }
+        false
       }
     }
-  }
-
-  /** Saves the scheduled notifications to the disk. */
-  private fun saveNotifications() {
-    coroutineScope.launch {
-      dataStore.updateData {
-        ScheduledNotifications.newBuilder()
-          .addAllNotification(_scheduledNotifications.value)
-          .build()
-      }
-    }
-  }
 
   /**
-   * Schedules a notification and returns true if the notification was scheduled successfully,
-   * otherwise returns false.
-   */
-  fun scheduleNotification(notification: ScheduledNotification): Boolean {
-    if (!setAlarmForNotification(notification)) {
-      return false
-    }
-    _scheduledNotifications.update { it + notification }
-    saveNotifications()
-    return true
-  }
-
-  /**
-   * Sets an alarm for a notification. If the notification has a date, the alarm is set for the
-   * specified date and time. Otherwise, the alarm is set for the specified time on the current day.
-   * If the specified time is in the past, the alarm is set for the specified time on the next day.
-   * If repeatDaily is true, the alarm is set to repeat daily.
+   * Sets a one-shot or daily alarm for a validated notification.
    *
-   * @param notification The notification to schedule.
-   * @return True if the notification was scheduled successfully, otherwise false.
+   * One-shot alarms use setAndAllowWhileIdle rather than exact-alarm APIs, avoiding the special
+   * exact-alarm access requirement. Repeating alarms use Android's inexact repeating scheduler.
    */
-  private fun setAlarmForNotification(notification: ScheduledNotification): Boolean {
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val pendingIntent =
-      NotificationPendingIntentHelper.buildNotificationPendingIntent(
-        context,
-        notification.id,
-        notification.title,
-        notification.message,
-        notification.deeplink,
-        notification.repeatDaily,
-        notification.hour,
-        notification.minute,
-        notification.channelId,
-        notification.channelName,
-      )
-
-    val calendar =
-      Calendar.getInstance().apply {
-        timeInMillis = System.currentTimeMillis()
-        if (notification.hasYear() && notification.hasMonth() && notification.hasDay()) {
-          set(Calendar.YEAR, notification.year)
-          set(Calendar.MONTH, notification.month - 1)
-          set(Calendar.DAY_OF_MONTH, notification.day)
-        }
-        set(Calendar.HOUR_OF_DAY, notification.hour)
-        set(Calendar.MINUTE, notification.minute)
-        set(Calendar.SECOND, 0)
-        if (before(Calendar.getInstance())) {
-          if (
-            notification.repeatDaily ||
-              (!notification.hasYear() && !notification.hasMonth() && !notification.hasDay())
-          ) {
-            add(Calendar.DATE, 1)
-          }
+  private fun setAlarmForNotification(notification: ScheduledNotification) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+      ?: throw IllegalStateException("AlarmManager is unavailable.")
+    val pendingIntent = buildPendingIntent(notification)
+    val calendar = Calendar.getInstance().apply {
+      timeInMillis = System.currentTimeMillis()
+      if (notification.hasYear() && notification.hasMonth() && notification.hasDay()) {
+        set(Calendar.YEAR, notification.year)
+        set(Calendar.MONTH, notification.month - 1)
+        set(Calendar.DAY_OF_MONTH, notification.day)
+      }
+      set(Calendar.HOUR_OF_DAY, notification.hour)
+      set(Calendar.MINUTE, notification.minute)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+      if (before(Calendar.getInstance())) {
+        if (
+          notification.repeatDaily ||
+            (!notification.hasYear() && !notification.hasMonth() && !notification.hasDay())
+        ) {
+          add(Calendar.DATE, 1)
         }
       }
+    }
 
     if (notification.repeatDaily) {
       alarmManager.setRepeating(
@@ -164,48 +145,66 @@ constructor(@ApplicationContext private val context: Context) {
         pendingIntent,
       )
     }
-    return true
   }
 
-  /** Reschedules all loaded notifications. Typically called after device boot. */
+  private fun buildPendingIntent(notification: ScheduledNotification) =
+    NotificationPendingIntentHelper.buildNotificationPendingIntent(
+      context,
+      notification.id,
+      notification.title,
+      notification.message,
+      notification.deeplink,
+      notification.repeatDaily,
+      notification.hour,
+      notification.minute,
+      notification.channelId,
+      notification.channelName,
+    )
+
+  private fun cancelAlarmForNotification(notification: ScheduledNotification) {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+      ?: throw IllegalStateException("AlarmManager is unavailable.")
+    alarmManager.cancel(buildPendingIntent(notification))
+  }
+
+  /** Reschedules the authoritative DataStore contents after boot; never reads the backing file directly. */
   fun rescheduleAllNotifications() {
     coroutineScope.launch {
-      try {
-        val file = File(context.filesDir, "scheduled_notifications.pb")
-        if (file.exists()) {
-          val data = file.inputStream().use { ScheduledNotificationsSerializer.readFrom(it) }
-          for (notification in data.notificationList) {
-            val unused = setAlarmForNotification(notification)
-          }
+      mutationMutex.withLock {
+        try {
+          val notifications = dataStore.data.first().notificationList
+          _scheduledNotifications.value = notifications
+          notifications.forEach(::setAlarmForNotification)
+        } catch (error: Exception) {
+          Log.e(tag, "Failed to reschedule notifications", error)
         }
-      } catch (e: Exception) {
-        Log.e(TAG, "Failed to reschedule notifications", e)
       }
     }
   }
 
-  /** Removes a notification from the schedule and cancels the alarm for the notification. */
+  /** Cancels a scheduled reminder and removes its persisted record. */
+  suspend fun cancelScheduledNotification(id: String): Boolean = mutationMutex.withLock {
+    val previous = dataStore.data.first()
+    val notification = previous.notificationList.firstOrNull { it.id == id } ?: return@withLock false
+    cancelAlarmForNotification(notification)
+    val updated = previous.toBuilder()
+      .clearNotification()
+      .addAllNotification(previous.notificationList.filterNot { it.id == id })
+      .build()
+    dataStore.updateData { updated }
+    _scheduledNotifications.value = updated.notificationList
+    true
+  }
+
+  /** Compatibility entry point used by the existing BroadcastReceiver after a one-shot fires. */
   fun removeNotification(id: String) {
-    val removed = _scheduledNotifications.value.find { it.id == id }
-    removed?.let {
-      val pendingIntent =
-        NotificationPendingIntentHelper.buildNotificationPendingIntent(
-          context,
-          it.id,
-          it.title,
-          it.message,
-          it.deeplink,
-          it.repeatDaily,
-          it.hour,
-          it.minute,
-          it.channelId,
-          it.channelName,
-        )
-      val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-      alarmManager.cancel(pendingIntent)
+    coroutineScope.launch {
+      try {
+        cancelScheduledNotification(id)
+      } catch (error: Exception) {
+        Log.e(tag, "Failed to remove completed notification $id", error)
+      }
     }
-    _scheduledNotifications.update { list -> list.filter { it.id != id } }
-    saveNotifications()
   }
 }
 
