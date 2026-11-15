@@ -151,7 +151,7 @@ internal object AndroidControlArguments {
       }
       if (arguments.has("limit")) {
         val limit = arguments.get("limit")
-          ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+          ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber() }
           ?.asString?.toIntOrNull()
         if (limit == null || limit !in 1..20) {
           return "contacts_search limit must be an integer from 1 to 20."
@@ -186,7 +186,7 @@ internal object AndroidControlArguments {
 
     if (operation == "schedule_notification") {
       for (name in listOf("hour", "minute")) {
-        val value = arguments.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asString?.toIntOrNull()
+        val value = arguments.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber() }?.asString?.toIntOrNull()
           ?: return "$name must be an integer."
         if (name == "hour" && value !in 0..23) return "hour must be from 0 to 23."
         if (name == "minute" && value !in 0..59) return "minute must be from 0 to 59."
@@ -204,7 +204,7 @@ internal object AndroidControlArguments {
       val year = arguments.get("year")?.asInt
       val month = arguments.get("month")?.asInt
       val day = arguments.get("day")?.asInt
-      if (runCatching { LocalDate.of(year!!, month!!, day!!) }.isFailure) {
+      if (present == 3 && runCatching { LocalDate.of(year!!, month!!, day!!) }.isFailure) {
         return "year, month, and day must form a valid calendar date."
       }
       if (arguments.has("repeat_daily") &&
@@ -226,7 +226,7 @@ internal object AndroidControlArguments {
     if (operation == "create_notification_channel") {
       val id = arguments.get("channel_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
       val name = arguments.get("channel_name")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
-      val importance = arguments.get("importance")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asString?.toIntOrNull()
+      val importance = arguments.get("importance")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber() }?.asString?.toIntOrNull()
       if (!id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$"))) return "channel_id must contain 1–64 letters, digits, dots, underscores, or hyphens."
       if (name.isBlank() || name.length > 80) return "channel_name must contain 1–80 characters."
       if (importance == null || importance !in 2..4) return "importance must be 2 (LOW), 3 (DEFAULT), or 4 (HIGH)."
