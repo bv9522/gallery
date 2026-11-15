@@ -1132,6 +1132,9 @@ class AndroidNativeCapabilityAdapter(
       throw IllegalArgumentException("Notification channel '$channelId' does not exist. Create it first with create_notification_channel.")
     }
     val channelName = existingChannel?.name?.toString() ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
+    if (existingChannel?.importance == NotificationManager.IMPORTANCE_NONE) {
+      throw IllegalStateException("Notification channel '$channelId' is blocked in Android settings.")
+    }
     if (!authorizer.authorize(
         AndroidCapability.NOTIFICATION_POST,
         "Post a notification on this device using channel '$channelName' ($channelId). Title: $title. Message: $message",
