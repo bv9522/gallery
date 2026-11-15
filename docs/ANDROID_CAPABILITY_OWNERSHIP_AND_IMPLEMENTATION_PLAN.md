@@ -81,9 +81,9 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Planned; user-mediated send, no silent bulk sending |
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Planned; user confirms call in dialer |
 | Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
-| Notifications created by this app | Native Kotlin (NotificationManager) | Existing app notification receiver/scheduler infrastructure; agent-facing post/list/cancel integration is not yet exposed and is planned for Phase 9B |
+| Notifications created by this app | Native Kotlin (NotificationManager) | Phase 9B draft: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; current-head validation and device acceptance pending |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
-| Notification channel management | Native Kotlin (NotificationManager) | Existing receiver creates channels; agent-facing channel inspection/management is not exposed and remains planned for Phase 9B |
+| Notification channel management | Native Kotlin (NotificationManager) | Phase 9B draft: bounded channel listing and approval-gated channel creation; channel settings remain user-controlled in Android settings |
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
