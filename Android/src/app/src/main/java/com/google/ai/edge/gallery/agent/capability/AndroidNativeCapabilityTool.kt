@@ -219,7 +219,7 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("channel_id", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Channel ID for create_notification_channel.")
+          addProperty("description", "Existing channel ID from list_notification_channels or create_notification_channel; defaults to the Gallery task channel.")
           addProperty("maxLength", 64)
         })
         add("channel_name", JsonObject().apply {
@@ -390,7 +390,8 @@ class AndroidNativeCapabilityTool internal constructor(
         "post_notification" -> {
           val title = arguments.string("title") ?: return failure("post_notification requires title.")
           val message = arguments.string("message") ?: return failure("post_notification requires message.")
-          val result = adapter.postNotification(title, message)
+          val channelId = arguments.string("channel_id") ?: DEFAULT_NOTIFICATION_CHANNEL_ID
+          val result = adapter.postNotification(title, message, channelId)
           AgentToolResult(result.message, result.success)
         }
         "list_posted_notifications" ->
@@ -542,6 +543,7 @@ class AndroidNativeCapabilityTool internal constructor(
     const val MAX_NOTIFICATION_TITLE_CHARS = 100
     const val MAX_NOTIFICATION_MESSAGE_CHARS = 1_000
     const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
+    const val DEFAULT_NOTIFICATION_CHANNEL_ID = "agent_skill_tasks_channel"
     const val MIN_GATT_TIMEOUT_MS = 5_000L
     const val MAX_GATT_TIMEOUT_MS = 20_000L
     const val MIN_AUDIO_RECORD_MS = 1_000L
