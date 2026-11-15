@@ -19,6 +19,6 @@ description: Schedule a notification for a specific local date and time or repea
 4. The native capability requests explicit one-time approval and, when needed, Android notification permission. Do not claim success unless the tool returns success and a notification ID. The app uses inexact alarms to avoid special exact-alarm access; Android may delay delivery because of Doze or battery optimization.
 5. Report the exact scheduled local date/time and the returned notification ID. If approval or permission is denied, report that scheduling did not occur.
 
-Use `android_control` operation `list_scheduled_notifications` to review reminders. Use `cancel_scheduled_notification` with the exact returned `notification_id` to cancel one after explicit user approval.
+Use `android_control` operation `list_scheduled_notifications` to review reminders. Use `cancel_scheduled_notification` with the exact returned `notification_id` to cancel a future reminder after explicit user approval. Use `list_posted_notifications` to review active Gallery notifications and `cancel_posted_notification` with the numeric ID returned there to dismiss one; dismissing a posted notification does not cancel its repeating schedule.
 
 Do not use the legacy `run_intent` schedule_notification action. Do not invent a deeplink, channel ID, or permission state. Reading notifications posted by other apps is not supported by this skill.
