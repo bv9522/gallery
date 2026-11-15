@@ -67,6 +67,22 @@ constructor(@ApplicationContext private val context: Context) {
   private val _scheduledNotifications = MutableStateFlow<List<ScheduledNotification>>(emptyList())
   val scheduledNotifications = _scheduledNotifications.asStateFlow()
 
+  init {
+    // Preserve the existing Notifications screen's startup population while serializing with
+    // mutations so a late load can never overwrite a newly scheduled reminder.
+    coroutineScope.launch {
+      mutationMutex.withLock {
+        try {
+          _scheduledNotifications.value = dataStore.data.first().notificationList
+        } catch (cancelled: CancellationException) {
+          throw cancelled
+        } catch (error: Exception) {
+          Log.e(tag, "Failed to load scheduled notifications", error)
+        }
+      }
+    }
+  }
+
   fun initialize() = Unit
 
   /** Returns the persisted list, waiting for DataStore initialization instead of racing it. */
