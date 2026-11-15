@@ -283,6 +283,12 @@ class AndroidNativeCapabilityToolTest {
       addProperty("importance", 3)
     })
 
+    val customPost = tool.execute(arguments("post_notification").apply {
+      addProperty("title", "Custom")
+      addProperty("message", "Use the custom channel")
+      addProperty("channel_id", "custom_reminders")
+    })
+
     assertTrue(post.isSuccessful)
     assertTrue(post.content.contains("ID"))
     assertTrue(posted.isSuccessful)
@@ -295,6 +301,7 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(channels.isSuccessful)
     assertTrue(channels.content.contains("Test"))
     assertTrue(createChannel.isSuccessful)
+    assertTrue(customPost.isSuccessful)
     assertEquals(
       listOf(
         "post_notification:Test:A test notification:agent_skill_tasks_channel",
@@ -305,6 +312,7 @@ class AndroidNativeCapabilityToolTest {
         "cancel_scheduled_notification:test-id",
         "list_notification_channels",
         "create_notification_channel:custom_reminders:Custom reminders:3",
+        "post_notification:Custom:Use the custom channel:custom_reminders",
       ),
       adapter.discoveryCalls,
     )
