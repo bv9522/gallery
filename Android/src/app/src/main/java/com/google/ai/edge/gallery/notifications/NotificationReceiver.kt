@@ -45,6 +45,7 @@ class NotificationReceiver : BroadcastReceiver() {
     val channelName =
       intent.getStringExtra(NotificationPendingIntentHelper.EXTRA_CHANNEL_NAME)
         ?: DEFAULT_CHANNEL_NAME
+    val repeatDaily = intent.getBooleanExtra(NotificationPendingIntentHelper.EXTRA_REPEAT_DAILY, false)
 
     try {
       // Create the intent for when tapping the notification
@@ -83,21 +84,24 @@ class NotificationReceiver : BroadcastReceiver() {
           .setPriority(NotificationCompat.PRIORITY_HIGH)
 
       notificationManager.notify(if (id.isNotEmpty()) id.hashCode() else System.currentTimeMillis().toInt(), notificationBuilder.build())
-      // If the notification is not repeating, remove it from the schedule after it is sent.
-      if (
-        !intent.getBooleanExtra(NotificationPendingIntentHelper.EXTRA_REPEAT_DAILY, false) &&
-          id.isNotEmpty()
-      ) {
-        val entryPoint =
-          EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            NotificationScheduleManagerEntryPoint::class.java,
-          )
-        entryPoint.notificationScheduleManager().removeNotification(id)
-      }
+      updateSchedule(context, id, repeatDaily)
     } catch (e: Exception) {
       Log.e(TAG, "Failed to send notification", e)
+      // A failed post (for example, revoked notification permission) must not silently stop a
+      // daily reminder. The next local-time occurrence is still armed.
+      if (repeatDaily) runCatching { updateSchedule(context, id, true) }
     }
+  }
+
+  private fun updateSchedule(context: Context, id: String, repeatDaily: Boolean) {
+    if (id.isEmpty()) return
+    val entryPoint =
+      EntryPointAccessors.fromApplication(
+        context.applicationContext,
+        NotificationScheduleManagerEntryPoint::class.java,
+      )
+    val manager = entryPoint.notificationScheduleManager()
+    if (repeatDaily) manager.rescheduleDailyNotification(id) else manager.removeNotification(id)
   }
 
   companion object {
