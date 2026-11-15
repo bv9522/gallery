@@ -216,33 +216,29 @@ constructor(@ApplicationContext private val context: Context) {
    * Recomputing from Calendar each day keeps the reminder at the requested wall-clock time across
    * daylight-saving transitions instead of drifting with a fixed 24-hour interval.
    */
-  fun rescheduleDailyNotification(id: String) {
-    coroutineScope.launch {
-      mutationMutex.withLock {
-        try {
-          val notification = dataStore.data.first().notificationList.firstOrNull { it.id == id }
-            ?: return@withLock
-          if (!notification.repeatDaily) return@withLock
-          val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-            ?: throw IllegalStateException("AlarmManager is unavailable.")
-          val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, notification.hour)
-            set(Calendar.MINUTE, notification.minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-            if (!after(Calendar.getInstance())) add(Calendar.DATE, 1)
-          }
-          alarmManager.setAndAllowWhileIdle(
-            AlarmManager.RTC_WAKEUP,
-            calendar.timeInMillis,
-            buildPendingIntent(notification),
-          )
-        } catch (cancelled: CancellationException) {
-          throw cancelled
-        } catch (error: Exception) {
-          Log.e(tag, "Failed to re-arm daily notification $id", error)
-        }
+  suspend fun rescheduleDailyNotification(id: String) = mutationMutex.withLock {
+    try {
+      val notification = dataStore.data.first().notificationList.firstOrNull { it.id == id }
+        ?: return@withLock
+      if (!notification.repeatDaily) return@withLock
+      val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+        ?: throw IllegalStateException("AlarmManager is unavailable.")
+      val calendar = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, notification.hour)
+        set(Calendar.MINUTE, notification.minute)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        if (!after(Calendar.getInstance())) add(Calendar.DATE, 1)
       }
+      alarmManager.setAndAllowWhileIdle(
+        AlarmManager.RTC_WAKEUP,
+        calendar.timeInMillis,
+        buildPendingIntent(notification),
+      )
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      Log.e(tag, "Failed to re-arm daily notification $id", error)
     }
   }
 
