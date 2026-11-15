@@ -38,9 +38,14 @@ impact; it must not silently change ownership without updating this document.
 
 ## Capability ownership matrix
 
-Status values: **Implemented** means present in the current implementation branch; **Planned** means
-identified but not yet implemented as an MCP capability. Shell commands that can perform an
-operation do not count as a dedicated native capability implementation.
+Status values used in this plan:
+- **Existing app feature**: Gallery already has the underlying user-facing service, but it is not necessarily exposed as an agent capability.
+- **Draft in PR**: code exists on an open draft PR; it is not merged or device-accepted.
+- **Planned**: not yet implemented as an agent capability.
+- **Locally validated**: current head passed the documented local tests/build.
+- **Device accepted**: verified on the target S21 during the consolidated acceptance pass.
+
+A catalog owner is an architecture decision, not a readiness claim. Shell commands that can perform an operation do not count as a dedicated native capability implementation.
 
 | Capability | Single selected owner | Status / notes |
 |---|---|---|
@@ -59,26 +64,26 @@ operation do not count as a dedicated native capability implementation.
 | Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Planned; draft handler in PR #16 uses a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Planned; draft handler in PR #16 reads only the last scan with a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
-| Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Phase 6A draft; scoped approval and CONNECT runtime permission request |
-| Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN + CONNECT) | Phase 6A draft; separate capability ID, 1–10 second low-power scan, bounded results, cancellation-safe stop |
-| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Phase 8A–8B draft: short-lived connection, bounded service/characteristic discovery, one-shot characteristic read/write by full UUID, 512-byte value cap, explicit approval and cancellation-safe close |
+| Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Draft implementation in the preceding onboarding branch; current-head local validation and S21 acceptance pending |
+| Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN + CONNECT) | Draft implementation in the preceding onboarding branch; separate capability ID, 1–10 second low-power scan, bounded results, cancellation-safe stop; validation pending |
+| Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Draft in PRs #26–27: short-lived connection, bounded service/characteristic discovery, one-shot characteristic read/write by full UUID, 512-byte value cap, explicit approval and cancellation-safe close; local validation and device acceptance pending |
 
 | NFC read/write | Termux:API (termux-nfc) | Planned; basic NDEF read/write; foreground/tag interaction requires device verification |
 | Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | Planned; bounded carrier frequency and pulse pattern |
-| USB host device discovery / permission / I/O | Native Kotlin (UsbManager) | Planned |
+| USB host device discovery / permission / I/O | Native Kotlin (UsbManager) | USB device/interface enumeration is draft code in the preceding onboarding branch; raw USB device I/O is not exposed. Removable-storage file operations are separately implemented through SAF in PRs #23–25; validation and device acceptance pending |
 | App discovery | Native Kotlin (PackageManager launcher queries) | Implemented |
 | App launch | Native Kotlin (launch intents) | Implemented |
 | URL open | Native Kotlin (ACTION_VIEW) | Implemented |
-| Contacts read | Native Kotlin (ContactsContract) | Phase 9A draft: scoped name/text search, READ_CONTACTS requested only after approval, maximum 20 results with at most 3 phone numbers and 3 email addresses each |
+| Contacts read | Native Kotlin (ContactsContract) | Draft in PR #28: scoped name/text search, READ_CONTACTS requested only after approval, maximum 20 results with at most 3 phone numbers and 3 email addresses each; local validation and device acceptance pending |
 | Call-log read | Native Kotlin (CallLog provider) | Planned; restricted permission and privacy review |
 | Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Planned; return only permitted, non-secret metadata |
 | SMS inbox/list | Native Kotlin (Telephony provider where permitted) | Planned; permission/role restrictions may make this unavailable |
 | SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Planned; user-mediated send, no silent bulk sending |
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Planned; user confirms call in dialer |
-| Clipboard read/write | Native Kotlin (ClipboardManager) | Phase 9A draft: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval |
-| Notifications created by this app | Native Kotlin (NotificationManager) | Planned |
+| Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
+| Notifications created by this app | Native Kotlin (NotificationManager) | Existing app notification receiver/scheduler infrastructure; agent-facing post/list/cancel integration is not yet exposed and is planned for Phase 9B |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
-| Notification channel management | Native Kotlin (NotificationManager) | Planned |
+| Notification channel management | Native Kotlin (NotificationManager) | Existing receiver creates channels; agent-facing channel inspection/management is not exposed and remains planned for Phase 9B |
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
@@ -92,7 +97,7 @@ operation do not count as a dedicated native capability implementation.
 | Active media-session control | Native Kotlin (MediaSessionManager) | Planned; notification-listener access may be required |
 | Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
 | Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
-| Background scheduled work | Native Kotlin (WorkManager) | Planned; bounded, user-visible scheduling |
+| App-owned notification scheduling | Native Kotlin (AlarmManager + existing NotificationScheduleManager / DataStore) | Existing Gallery scheduling feature; agent-facing schedule/list/cancel integration is planned for Phase 9B. WorkManager remains appropriate for deferrable background work, not exact-time notification alarms |
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Planned; do not treat UsbManager as a mass-storage filesystem |
@@ -114,7 +119,7 @@ started with only three commands.
 | battery-status | Native Kotlin BatteryManager |
 | brightness | Native Kotlin display/settings adapter |
 | call-log | Native Kotlin CallLog provider, subject to permission |
-| camera-info, camera-photo | Termux:API for basic still-photo capture; native Camera2 reserved for richer sessions |
+| camera-info | Termux:API for read-only camera metadata; native Kotlin owns photo capture through Gallery MediaStore and the system camera intent |
 | clipboard-get, clipboard-set | Native Kotlin ClipboardManager |
 | contact-list | Native Kotlin ContactsContract |
 | dialog | Existing Agent Chat/UI interaction; not a device capability tool |
@@ -138,7 +143,7 @@ started with only three commands.
 | tts-engines, tts-speak | Native Gallery TtsServiceProvider; Termux commands are not exposed as Gallery model operations |
 | usb | Native Kotlin UsbManager |
 | vibrate | Native Kotlin Vibrator / VibratorManager |
-| wallpaper | Termux:API for basic file-based wallpaper setting |
+| wallpaper | Native Kotlin WallpaperManager; Gallery-readable image content URI only |
 | wifi-connectioninfo, wifi-scaninfo | Termux:API for connection info and last-scan results |
 | wifi-enable | Native Kotlin user-mediated settings panel; do not rely on legacy direct toggle behavior |
 | api-start, api-stop, api-broadcast, callback | Termux:API transport internals; not model-facing capabilities |
@@ -190,7 +195,7 @@ version compatibility must be verified on-device before an operation is marked i
   scoped approval; bonded-device listing and BLE scanning have separate capability IDs and
   permission states. BLE scans stop in a cancellation-safe finally block. GATT sessions and USB
   I/O remain deferred to dedicated lifecycle/permission phases.
-- [ ] Implement native Bluetooth GATT sessions and USB host permission/open/read/write sessions;
+- [x] Add bounded native Bluetooth GATT inspection and one-shot characteristic I/O in draft PRs #26–27; local validation and S21 acceptance remain pending. [ ] Implement native USB host permission/open/read/write sessions;
   keep Wi-Fi changes user-mediated through Android Settings.
 - [ ] Add per-command companion/package/permission probes without prompting.
 - Bound stream duration, output, and process lifetime; sensor and microphone operations need
@@ -364,7 +369,7 @@ version compatibility must be verified on-device before an operation is marked i
   speech recognition is handled by Gallery's native user-initiated ASR flow.
 
 
-### Wave 4A — SAF document-tree core (draft code; acceptance pending)
+### Wave 4A — SAF document-tree core (draft code in PRs #23–25; local validation and S21 acceptance pending)
 
 - Adds a dedicated `document_tree` tool backed by Android's Storage Access Framework. The user
   explicitly chooses a folder or attached USB drive through the system picker; Gallery persists

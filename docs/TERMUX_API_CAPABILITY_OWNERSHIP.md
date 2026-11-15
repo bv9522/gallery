@@ -23,10 +23,7 @@ Android capability provider, the other is a general shell execution transport.
 | CAMERA_INFO | termux-camera-info | Read-only camera metadata; Gallery camera capture is native |
 
 
-These are selected owners in the catalog. Speech recognition, text-to-speech, camera capture, microphone recording, and wallpaper are intentionally excluded from this Termux list and assigned to Gallery's native services. The Phase 5A draft contains fixed handlers for sensor
-listing/finite reads, location once/last, and Wi-Fi connection/last-scan reads, but all four
-capabilities remain **Planned and not production-available** until current-head unit tests, the
-debug build, and target-device acceptance pass. The remaining command families are also planned.
+These are selected owners in the catalog. Speech recognition, text-to-speech, camera capture, microphone recording, and wallpaper are intentionally excluded from this Termux list and assigned to Gallery's native services. The Phase 5A handlers exist in the onboarding branch, but current-head local validation and consolidated S21 device acceptance are not yet confirmed. NFC and infrared have draft handlers; camera metadata is a fixed read-only query. Sensor streaming and location updates remain unavailable until bounded-session cancellation and cleanup are verified. Command presence never establishes operation availability.
 
 ## Keep these capabilities native
 
@@ -55,6 +52,12 @@ debug build, and target-device acceptance pass. The remaining command families a
 | Downloads, media sessions, sharing, scheduling | Gallery-owned lifecycle, content URIs, media sessions, user-visible work, and app callbacks favor native integration |
 | SAF document trees / removable storage files | Persisted SAF grants are application-identity scoped; Termux's grants do not become Gallery's grants |
 | Accessibility / semantic UI | No equivalent Termux:API command family |
+
+## Ownership/readiness reconciliation
+
+The catalog selects Termux:API for sensor reads, location once/last, Wi-Fi connection/last-scan information, NFC NDEF read/write, infrared, and read-only camera metadata. It does **not** select Termux for camera capture, microphone recording, speech recognition, text-to-speech, or wallpaper; those belong to Gallery-native services. The command inventory in the canonical plan is a reference to upstream command families, not a list of Termux-owned capabilities.
+
+Termux:API capabilities remain unaccepted until current-head local validation and the consolidated target-device pass. Continuous sensor/location operations are reserved in the vocabulary but are not callable until lifecycle and cleanup guarantees are tested.
 
 ## Implementation contract
 

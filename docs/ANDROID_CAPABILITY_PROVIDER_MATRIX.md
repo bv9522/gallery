@@ -21,7 +21,9 @@ Termux:API is a distinct capability owner only for the bounded command families 
 canonical plan. Phase 4A battery/volume/flashlight overlap operations remain diagnostic only;
 native remains their selected owner. No capability has both owners.
 
-## Implemented native capabilities
+## Existing native capability implementations
+
+The list below reflects previously integrated Gallery-native operations; it is not a claim that every later onboarding PR has passed current-head validation or device acceptance.
 
 - Device/build information
 - Battery status
@@ -34,13 +36,21 @@ native remains their selected owner. No capability has both owners.
 - Launcher-visible app discovery and app launch
 - HTTP(S) URL opening
 
+## Onboarding readiness
+
+The current capability onboarding chain through Phase 9A consists of open draft PRs #23–#28. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28. These changes remain unmerged. Current-head Gradle validation and the consolidated S21 device-acceptance pass are still pending.
+
+The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
+
 ## Remaining capability groups
 
 Termux:API is selected for basic sensors, location requests/updates, Wi-Fi information and last-scan
 results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Kotlin owns Bluetooth/BLE,
 USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/security-sensitive
 integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
-provider owns removable-storage files; the canonical plan lists the complete mapping and constraints.
+provider owns removable-storage files. USB host enumeration is draft code; raw USB device I/O remains
+planned. Gallery-owned notification posting/scheduling is the next native integration phase; the
+existing notification scheduler is not yet registered as an agent capability.
 
 ## Security and implementation rules
 
