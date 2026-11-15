@@ -47,7 +47,7 @@ These are selected owners in the catalog. Speech recognition, text-to-speech, ca
 | USB host I/O | Termux USB exposes file descriptors through a Termux callback process; native USB keeps discovery, permission, and session lifecycle inside Gallery |
 | Contacts, call logs, telephony, SMS | Keep privacy-sensitive reads and user-mediated dialer/SMS flows within Gallery's permission and approval model |
 | Clipboard | Foreground and Android clipboard privacy rules favor Gallery's own foreground-aware adapter |
-| Notifications | Gallery-owned notification channels and notification-listener access are app-identity-specific |
+| Notifications | Gallery-owned posting, channels, and scheduled reminders use native NotificationManager/AlarmManager; reading other apps' notifications is a separate user-enabled NotificationListenerService capability |
 | Biometrics and Keystore | Authentication and keys must be owned by Gallery; Termux app identity is not interchangeable |
 | Downloads, media sessions, sharing, scheduling | Gallery-owned lifecycle, content URIs, media sessions, user-visible work, and app callbacks favor native integration |
 | SAF document trees / removable storage files | Persisted SAF grants are application-identity scoped; Termux's grants do not become Gallery's grants |
@@ -58,6 +58,8 @@ These are selected owners in the catalog. Speech recognition, text-to-speech, ca
 The catalog selects Termux:API for sensor reads, location once/last, Wi-Fi connection/last-scan information, NFC NDEF read/write, infrared, and read-only camera metadata. It does **not** select Termux for camera capture, microphone recording, speech recognition, text-to-speech, or wallpaper; those belong to Gallery-native services. The command inventory in the canonical plan is a reference to upstream command families, not a list of Termux-owned capabilities.
 
 Termux:API capabilities remain unaccepted until current-head local validation and the consolidated target-device pass. Continuous sensor/location operations are reserved in the vocabulary but are not callable until lifecycle and cleanup guarantees are tested.
+
+Termux:API has no selected notification owner or model-facing notification route in this project. Phase 9B integrates Gallery-owned notification operations through the native provider; notification-listener access remains a separate future capability.
 
 ## Implementation contract
 
