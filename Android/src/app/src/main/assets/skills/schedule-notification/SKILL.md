@@ -1,29 +1,24 @@
 ---
 name: schedule-notification
-description: Schedule a notification for a specific date or repeating daily.
+description: Schedule a notification for a specific local date and time or repeat it daily.
 ---
 
 # Schedule Notification
 
 ## Instructions
 
-To schedule a notification, you must follow these exact steps:
-1. First, if the notification doesn't need to repeat daily, call the `run_intent` tool with `intent` as `get_current_date_and_time` and `parameters` as `{}` to get the user's local date and time. Then explicitly calculate the scheduling date and time in your response. Write out:
-- Today's exact date.
-- The target day or relative time requested by the user (e.g., "tomorrow", "this Friday").
-- The exact number of days you need to add to today's date.
-- The final calculated dates, ensuring you correctly roll over to the next month or year if the added days exceed the days in the current month.
-2. Call the `run_intent` tool with the following exact parameters:
-- intent: schedule_notification
-- parameters: A JSON string with the following fields:
-   - title: the title of the notification. String.
-   - message: the message content of the notification. String.
-   - hour: the hour of the day (0-23) for the notification. Integer.
-   - minute: the minute of the hour (0-59) for the notification. Integer.
-   - task_id: (optional) the task ID for the target page (e.g., "llm_agent_chat"). String.
-   - model_name: (optional) the model name for the target page (e.g., "Gemma-4-E4B-it"). String.
-   - deeplink: (optional) the full deeplink URI to open when the notification is tapped. String.
-   - year: (optional) the year for the notification. Integer.
-   - month: (optional) the month (1-12) for the notification. Integer.
-   - day: (optional) the day of the month (1-31) for the notification. Integer.
-   - repeat_daily: (optional) true if the notification should repeat daily at this time. Boolean.
+1. Resolve the user's intended local date and time. If the request uses a relative date or an ambiguous time, first call `run_intent` with intent `get_current_date_and_time` and parameters `{}` to obtain the device's local date and time.
+2. Calculate the exact local target date and time. Check month/year rollover and do not silently guess an ambiguous time. For a dated reminder, provide all three date fields: `year`, `month`, and `day`.
+3. Call `android_control` with operation `schedule_notification`. Supply:
+   - `title`: concise notification title (1–100 characters).
+   - `message`: notification body (1–1000 characters).
+   - `hour`: local 24-hour clock hour (0–23).
+   - `minute`: local minute (0–59).
+   - `year`, `month`, `day`: all three for a specific date; omit all three for the next occurrence of that local time.
+   - `repeat_daily`: true only when the user requested a daily repeating reminder; otherwise false or omit.
+4. The native capability requests explicit one-time approval and, when needed, Android notification permission. Do not claim success unless the tool returns success and a notification ID.
+5. Report the exact scheduled local date/time and the returned notification ID. If approval or permission is denied, report that scheduling did not occur.
+
+Use `android_control` operation `list_scheduled_notifications` to review reminders. Use `cancel_scheduled_notification` with the exact returned `notification_id` to cancel one after explicit user approval.
+
+Do not use the legacy `run_intent` schedule_notification action. Do not invent a deeplink, channel ID, or permission state. Reading notifications posted by other apps is not supported by this skill.
