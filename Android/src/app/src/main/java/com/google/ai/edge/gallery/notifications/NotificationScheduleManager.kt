@@ -111,11 +111,11 @@ constructor(@ApplicationContext private val context: Context) {
         setAlarmForNotification(notification)
         true
       } catch (cancelled: CancellationException) {
-        restoreSchedule(previous, existing)
+        restoreSchedule(previous, existing, notification)
         throw cancelled
       } catch (error: Exception) {
         Log.e(tag, "Failed to schedule notification; restoring persisted state", error)
-        restoreSchedule(previous, existing)
+        restoreSchedule(previous, existing, notification)
         false
       }
     }
@@ -123,7 +123,9 @@ constructor(@ApplicationContext private val context: Context) {
   private suspend fun restoreSchedule(
     previous: ScheduledNotifications,
     previousNotification: ScheduledNotification?,
+    attemptedNotification: ScheduledNotification,
   ) = withContext(NonCancellable) {
+    runCatching { cancelAlarmForNotification(attemptedNotification) }
     dataStore.updateData { previous }
     _scheduledNotifications.value = previous.notificationList
     previousNotification?.let { old -> runCatching { setAlarmForNotification(old) } }
