@@ -172,8 +172,16 @@ internal object AndroidControlArguments {
     }
 
     if (operation == "post_notification") {
-      val id = arguments.get("channel_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: "agent_skill_tasks_channel"
-      val name = arguments.get("channel_name")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: "Agent Skill Task"
+      if (arguments.has("channel_id") &&
+        !(arguments.get("channel_id")?.isJsonPrimitive == true &&
+          arguments.get("channel_id")?.asJsonPrimitive?.isString == true)
+      ) return "channel_id must be a string."
+      if (arguments.has("channel_name") &&
+        !(arguments.get("channel_name")?.isJsonPrimitive == true &&
+          arguments.get("channel_name")?.asJsonPrimitive?.isString == true)
+      ) return "channel_name must be a string."
+      val id = arguments.get("channel_id")?.asString ?: "agent_skill_tasks_channel"
+      val name = arguments.get("channel_name")?.asString ?: "Agent Skill Task"
       if (!id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$")) || name.isBlank() || name.length > 80) {
         return "channel_id must be a safe 1–64 character ID and channel_name must contain 1–80 characters."
       }
