@@ -285,7 +285,7 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(list.content.contains("test-id"))
     assertTrue(cancel.isSuccessful)
     assertTrue(channels.isSuccessful)
-    assertTrue(channels.content.contains("custom"))
+    assertTrue(channels.content.contains("Test"))
     assertTrue(createChannel.isSuccessful)
     assertEquals(
       listOf(
