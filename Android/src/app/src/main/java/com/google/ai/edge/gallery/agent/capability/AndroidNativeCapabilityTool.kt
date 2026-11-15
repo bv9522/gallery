@@ -85,7 +85,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
-      "record_audio, capture_photo, set_wallpaper, post_notification, schedule_notification, list_scheduled_notifications, " +
+      "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
       "cancel_scheduled_notification, list_notification_channels, create_notification_channel. Notifications " +
       "are posted/scheduled only after scoped approval and POST_NOTIFICATIONS permission; reading other apps' " +
       "notifications is not supported. Device discovery, GATT connections, GATT reads/writes, " +
@@ -106,7 +106,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
         })
@@ -229,7 +229,7 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("notification_id", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Exact ID returned by schedule_notification or list_scheduled_notifications.")
+          addProperty("description", "Numeric ID returned by list_posted_notifications, or UUID returned by schedule_notification/list_scheduled_notifications.")
           addProperty("maxLength", 64)
         })
         add("importance", JsonObject().apply {
@@ -393,6 +393,14 @@ class AndroidNativeCapabilityTool internal constructor(
           val channelId = arguments.string("channel_id") ?: DEFAULT_NOTIFICATION_CHANNEL_ID
           val channelName = arguments.string("channel_name") ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
           val result = adapter.postNotification(title, message, channelId, channelName)
+          AgentToolResult(result.message, result.success)
+        }
+        "list_posted_notifications" ->
+          AgentToolResult(Gson().toJson(adapter.listPostedNotifications()))
+        "cancel_posted_notification" -> {
+          val id = arguments.string("notification_id")
+            ?: return failure("cancel_posted_notification requires notification_id from list_posted_notifications.")
+          val result = adapter.cancelPostedNotification(id)
           AgentToolResult(result.message, result.success)
         }
         "schedule_notification" -> {
