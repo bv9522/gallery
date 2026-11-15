@@ -219,12 +219,12 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("channel_id", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Optional safe channel ID; defaults to the Gallery task channel.")
+          addProperty("description", "Channel ID for create_notification_channel.")
           addProperty("maxLength", 64)
         })
         add("channel_name", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Optional channel display name; defaults to Agent Skill Task.")
+          addProperty("description", "Channel display name for create_notification_channel.")
           addProperty("maxLength", MAX_NOTIFICATION_CHANNEL_NAME_CHARS)
         })
         add("notification_id", JsonObject().apply {
@@ -390,9 +390,7 @@ class AndroidNativeCapabilityTool internal constructor(
         "post_notification" -> {
           val title = arguments.string("title") ?: return failure("post_notification requires title.")
           val message = arguments.string("message") ?: return failure("post_notification requires message.")
-          val channelId = arguments.string("channel_id") ?: DEFAULT_NOTIFICATION_CHANNEL_ID
-          val channelName = arguments.string("channel_name") ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
-          val result = adapter.postNotification(title, message, channelId, channelName)
+          val result = adapter.postNotification(title, message)
           AgentToolResult(result.message, result.success)
         }
         "list_posted_notifications" ->
