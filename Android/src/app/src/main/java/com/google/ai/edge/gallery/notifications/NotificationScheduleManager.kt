@@ -152,11 +152,16 @@ constructor(@ApplicationContext private val context: Context) {
       set(Calendar.MINUTE, notification.minute)
       set(Calendar.SECOND, 0)
       set(Calendar.MILLISECOND, 0)
-      if (before(Calendar.getInstance())) {
-        if (
-          notification.repeatDaily ||
-            (!notification.hasYear() && !notification.hasMonth() && !notification.hasDay())
-        ) {
+      val now = Calendar.getInstance()
+      if (before(now)) {
+        if (notification.repeatDaily) {
+          // A persisted daily reminder may have an old first-run date after the device was off.
+          // Resume at its next future local-time occurrence rather than firing a stale alarm.
+          set(Calendar.YEAR, now.get(Calendar.YEAR))
+          set(Calendar.MONTH, now.get(Calendar.MONTH))
+          set(Calendar.DAY_OF_MONTH, now.get(Calendar.DAY_OF_MONTH))
+          if (before(now)) add(Calendar.DATE, 1)
+        } else if (!notification.hasYear() && !notification.hasMonth() && !notification.hasDay()) {
           add(Calendar.DATE, 1)
         }
       }
