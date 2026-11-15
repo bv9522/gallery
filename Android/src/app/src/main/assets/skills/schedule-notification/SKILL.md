@@ -16,7 +16,7 @@ description: Schedule a notification for a specific local date and time or repea
    - `minute`: local minute (0–59).
    - `year`, `month`, `day`: all three for a specific date; omit all three for the next occurrence of that local time.
    - `repeat_daily`: true only when the user requested a daily repeating reminder; otherwise false or omit.
-4. The native capability requests explicit one-time approval and, when needed, Android notification permission. Do not claim success unless the tool returns success and a notification ID.
+4. The native capability requests explicit one-time approval and, when needed, Android notification permission. Do not claim success unless the tool returns success and a notification ID. The app uses inexact alarms to avoid special exact-alarm access; Android may delay delivery because of Doze or battery optimization.
 5. Report the exact scheduled local date/time and the returned notification ID. If approval or permission is denied, report that scheduling did not occur.
 
 Use `android_control` operation `list_scheduled_notifications` to review reminders. Use `cancel_scheduled_notification` with the exact returned `notification_id` to cancel one after explicit user approval.
