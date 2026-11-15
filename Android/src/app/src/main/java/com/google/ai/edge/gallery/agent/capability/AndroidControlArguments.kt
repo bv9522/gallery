@@ -13,6 +13,7 @@
 package com.google.ai.edge.gallery.agent.capability
 
 import com.google.gson.JsonObject
+import java.time.LocalDate
 import java.util.Base64
 import java.util.UUID
 
@@ -190,6 +191,12 @@ internal object AndroidControlArguments {
         if (name == "year" && value !in 2000..2200) return "year must be from 2000 to 2200."
         if (name == "month" && value !in 1..12) return "month must be from 1 to 12."
         if (name == "day" && value !in 1..31) return "day must be from 1 to 31."
+      }
+      val year = arguments.get("year")?.asInt
+      val month = arguments.get("month")?.asInt
+      val day = arguments.get("day")?.asInt
+      if (runCatching { LocalDate.of(year!!, month!!, day!!) }.isFailure) {
+        return "year, month, and day must form a valid calendar date."
       }
       if (arguments.has("repeat_daily") &&
         !(arguments.get("repeat_daily")?.isJsonPrimitive == true &&
