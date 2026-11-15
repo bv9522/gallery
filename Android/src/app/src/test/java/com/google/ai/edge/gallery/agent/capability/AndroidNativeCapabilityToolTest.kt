@@ -617,7 +617,7 @@ class AndroidNativeCapabilityToolTest {
       channelName: String,
     ): NativeCapabilityActionResult {
       discoveryCalls += "post_notification:$title:$message:$channelId:$channelName"
-      return actionResult
+      return NativeCapabilityActionResult(true, "Notification posted with ID 42.")
     }
 
     override fun listPostedNotifications(): List<NativePostedNotification> {
