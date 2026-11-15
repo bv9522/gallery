@@ -75,6 +75,13 @@ data class NativeNotificationChannel(
   val importance: Int,
 )
 
+data class NativePostedNotification(
+  val id: String,
+  val title: String,
+  val message: String,
+  val postedAtMs: Long,
+)
+
 /**
  * Typed operations consumed by [AndroidNativeCapabilityTool].
  *
@@ -122,6 +129,8 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
     channelId: String,
     channelName: String,
   ): NativeCapabilityActionResult
+  fun listPostedNotifications(): List<NativePostedNotification>
+  suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult
   suspend fun scheduleNotification(
     title: String,
     message: String,
