@@ -126,8 +126,6 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   suspend fun postNotification(
     title: String,
     message: String,
-    channelId: String,
-    channelName: String,
   ): NativeCapabilityActionResult
   fun listPostedNotifications(): List<NativePostedNotification>
   suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult
