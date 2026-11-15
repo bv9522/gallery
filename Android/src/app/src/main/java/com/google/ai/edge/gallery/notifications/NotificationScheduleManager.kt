@@ -134,8 +134,8 @@ constructor(@ApplicationContext private val context: Context) {
   /**
    * Sets a one-shot or daily alarm for a validated notification.
    *
-   * One-shot alarms use setAndAllowWhileIdle rather than exact-alarm APIs, avoiding the special
-   * exact-alarm access requirement. Repeating alarms use Android's inexact repeating scheduler.
+   * All alarms use setAndAllowWhileIdle rather than exact-alarm APIs, avoiding the special
+   * exact-alarm access requirement. Daily reminders are re-armed after delivery using local time.
    */
   private fun setAlarmForNotification(notification: ScheduledNotification) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
