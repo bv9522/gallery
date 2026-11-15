@@ -673,9 +673,9 @@ class AndroidNativeCapabilityAdapter(
       "The selected GATT characteristic does not advertise read support."
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      val status = session.gatt.readCharacteristic(characteristic)
-      if (status != BluetoothStatusCodes.SUCCESS) {
-        throw IllegalStateException("Android could not start the GATT characteristic read (status $status).")
+      val started = session.gatt.readCharacteristic(characteristic)
+      if (!started) {
+        throw IllegalStateException("Android could not start the GATT characteristic read.")
       }
     } else {
       val started = runCatching {
