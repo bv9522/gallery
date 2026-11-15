@@ -26,6 +26,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class NotificationReceiver : BroadcastReceiver() {
   private val DEFAULT_CHANNEL_ID = "ai_edge_gallery_notification_channel"
@@ -95,13 +100,25 @@ class NotificationReceiver : BroadcastReceiver() {
 
   private fun updateSchedule(context: Context, id: String, repeatDaily: Boolean) {
     if (id.isEmpty()) return
-    val entryPoint =
-      EntryPointAccessors.fromApplication(
-        context.applicationContext,
-        NotificationScheduleManagerEntryPoint::class.java,
-      )
-    val manager = entryPoint.notificationScheduleManager()
-    if (repeatDaily) manager.rescheduleDailyNotification(id) else manager.removeNotification(id)
+    val pendingResult = goAsync()
+    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+      try {
+        val entryPoint =
+          EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            NotificationScheduleManagerEntryPoint::class.java,
+          )
+        val manager = entryPoint.notificationScheduleManager()
+        if (repeatDaily) manager.rescheduleDailyNotification(id)
+        else manager.cancelScheduledNotification(id)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        Log.e(TAG, "Failed to update schedule after notification delivery", error)
+      } finally {
+        pendingResult.finish()
+      }
+    }
   }
 
   companion object {
