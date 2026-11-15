@@ -82,7 +82,7 @@ class NotificationReceiver : BroadcastReceiver() {
           .setContentIntent(pendingIntent)
           .setPriority(NotificationCompat.PRIORITY_HIGH)
 
-      notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
+      notificationManager.notify(if (id.isNotEmpty()) id.hashCode() else System.currentTimeMillis().toInt(), notificationBuilder.build())
       // If the notification is not repeating, remove it from the schedule after it is sent.
       if (
         !intent.getBooleanExtra(NotificationPendingIntentHelper.EXTRA_REPEAT_DAILY, false) &&
