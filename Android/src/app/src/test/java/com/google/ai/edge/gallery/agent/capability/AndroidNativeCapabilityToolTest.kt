@@ -250,6 +250,91 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun notificationOperationsDispatchThroughTheNativeAdapter() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val post = tool.execute(arguments("post_notification").apply {
+      addProperty("title", "Test")
+      addProperty("message", "A test notification")
+    })
+    val schedule = tool.execute(arguments("schedule_notification").apply {
+      addProperty("title", "Reminder")
+      addProperty("message", "Check the oven")
+      addProperty("hour", 19)
+      addProperty("minute", 30)
+      addProperty("year", 2030)
+      addProperty("month", 5)
+      addProperty("day", 6)
+      addProperty("repeat_daily", false)
+    })
+    val list = tool.execute(arguments("list_scheduled_notifications"))
+    val cancel = tool.execute(arguments("cancel_scheduled_notification").apply {
+      addProperty("notification_id", "test-id")
+    })
+    val channels = tool.execute(arguments("list_notification_channels"))
+    val createChannel = tool.execute(arguments("create_notification_channel").apply {
+      addProperty("channel_id", "custom_reminders")
+      addProperty("channel_name", "Custom reminders")
+      addProperty("importance", 3)
+    })
+
+    assertTrue(post.isSuccessful)
+    assertTrue(schedule.isSuccessful)
+    assertTrue(list.isSuccessful)
+    assertTrue(list.content.contains("test-id"))
+    assertTrue(cancel.isSuccessful)
+    assertTrue(channels.isSuccessful)
+    assertTrue(channels.content.contains("custom"))
+    assertTrue(createChannel.isSuccessful)
+    assertEquals(
+      listOf(
+        "post_notification:Test:A test notification:agent_skill_tasks_channel:Agent Skill Task",
+        "schedule_notification:Reminder:19:30:2030:5:6:false",
+        "list_scheduled_notifications",
+        "cancel_scheduled_notification:test-id",
+        "list_notification_channels",
+        "create_notification_channel:custom_reminders:Custom reminders:3",
+      ),
+      adapter.discoveryCalls,
+    )
+  }
+
+  @Test
+  fun notificationOperationsRejectInvalidOrIncompleteArgumentsBeforeDispatch() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val missingMessage = tool.execute(arguments("post_notification").apply {
+      addProperty("title", "Test")
+    })
+    val partialDate = tool.execute(arguments("schedule_notification").apply {
+      addProperty("title", "Reminder")
+      addProperty("message", "Test")
+      addProperty("hour", 9)
+      addProperty("minute", 30)
+      addProperty("year", 2030)
+    })
+    val invalidTime = tool.execute(arguments("schedule_notification").apply {
+      addProperty("title", "Reminder")
+      addProperty("message", "Test")
+      addProperty("hour", 24)
+      addProperty("minute", 30)
+    })
+    val invalidChannel = tool.execute(arguments("create_notification_channel").apply {
+      addProperty("channel_id", "bad/id")
+      addProperty("channel_name", "Invalid")
+      addProperty("importance", 3)
+    })
+
+    assertFalse(missingMessage.isSuccessful)
+    assertFalse(partialDate.isSuccessful)
+    assertFalse(invalidTime.isSuccessful)
+    assertFalse(invalidChannel.isSuccessful)
+    assertTrue(adapter.discoveryCalls.isEmpty())
+  }
+
+  @Test
   fun systemCapabilityOperationsReachTheirMatchingAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
