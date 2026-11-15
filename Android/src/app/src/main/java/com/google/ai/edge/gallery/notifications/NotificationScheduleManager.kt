@@ -100,7 +100,7 @@ constructor(@ApplicationContext private val context: Context) {
       val previous = dataStore.data.first()
       val existing = previous.notificationList.firstOrNull { it.id == notification.id }
       if (existing == null && previous.notificationCount >= maxScheduledNotifications) {
-        Log.w(tag, "Scheduled notification limit reached ($MAX_SCHEDULED_NOTIFICATIONS).")
+        Log.w(tag, "Scheduled notification limit reached ($maxScheduledNotifications).")
         return@withLock false
       }
       val updated = previous.toBuilder()
