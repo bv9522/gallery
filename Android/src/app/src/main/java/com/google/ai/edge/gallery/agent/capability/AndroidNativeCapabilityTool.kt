@@ -85,7 +85,10 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
-      "record_audio, capture_photo, set_wallpaper. Device discovery, GATT connections, GATT reads/writes, " +
+      "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
+      "cancel_scheduled_notification, list_notification_channels, create_notification_channel. Notifications " +
+      "are posted/scheduled only after scoped approval and POST_NOTIFICATIONS permission; reading other apps' " +
+      "notifications is not supported. Device discovery, GATT connections, GATT reads/writes, " +
       "audio recording (1–30 seconds, local MediaStore output), photo capture, and wallpaper changes " +
       "require one-time user approval. Bluetooth permissions are requested only after approval. BLE scans " +
       "are limited to 1–10 seconds; each GATT operation connects to one address for at most 20 seconds, " +
@@ -103,7 +106,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
         })
@@ -184,6 +187,56 @@ class AndroidNativeCapabilityTool internal constructor(
           addProperty("type", "string")
           addProperty("description", "Text to place on the clipboard; maximum 2048 characters.")
           addProperty("maxLength", MAX_CLIPBOARD_WRITE_CHARS)
+        })
+        add("title", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Notification title; 1–100 characters.")
+          addProperty("maxLength", MAX_NOTIFICATION_TITLE_CHARS)
+        })
+        add("message", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Notification body; 1–1000 characters.")
+          addProperty("maxLength", MAX_NOTIFICATION_MESSAGE_CHARS)
+        })
+        add("hour", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Local 24-hour clock hour, 0–23.")
+          addProperty("minimum", 0)
+          addProperty("maximum", 23)
+        })
+        add("minute", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Local minute, 0–59.")
+          addProperty("minimum", 0)
+          addProperty("maximum", 59)
+        })
+        add("year", JsonObject().apply { addProperty("type", "integer") })
+        add("month", JsonObject().apply { addProperty("type", "integer") })
+        add("day", JsonObject().apply { addProperty("type", "integer") })
+        add("repeat_daily", JsonObject().apply {
+          addProperty("type", "boolean")
+          addProperty("description", "Repeat this notification daily at the specified local time.")
+        })
+        add("channel_id", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Existing channel ID from list_notification_channels or create_notification_channel; defaults to the Gallery task channel.")
+          addProperty("maxLength", 64)
+        })
+        add("channel_name", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Channel display name for create_notification_channel.")
+          addProperty("maxLength", MAX_NOTIFICATION_CHANNEL_NAME_CHARS)
+        })
+        add("notification_id", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Numeric ID returned by list_posted_notifications, or UUID returned by schedule_notification/list_scheduled_notifications.")
+          addProperty("maxLength", 64)
+        })
+        add("importance", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("description", "Notification channel importance: 2 LOW, 3 DEFAULT, or 4 HIGH.")
+          addProperty("minimum", 2)
+          addProperty("maximum", 4)
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -334,6 +387,52 @@ class AndroidNativeCapabilityTool internal constructor(
           val result = adapter.writeClipboard(text)
           AgentToolResult(result.message, result.success)
         }
+        "post_notification" -> {
+          val title = arguments.string("title") ?: return failure("post_notification requires title.")
+          val message = arguments.string("message") ?: return failure("post_notification requires message.")
+          val channelId = arguments.string("channel_id") ?: DEFAULT_NOTIFICATION_CHANNEL_ID
+          val result = adapter.postNotification(title, message, channelId)
+          AgentToolResult(result.message, result.success)
+        }
+        "list_posted_notifications" ->
+          AgentToolResult(Gson().toJson(adapter.listPostedNotifications()))
+        "cancel_posted_notification" -> {
+          val id = arguments.string("notification_id")
+            ?: return failure("cancel_posted_notification requires notification_id from list_posted_notifications.")
+          val result = adapter.cancelPostedNotification(id)
+          AgentToolResult(result.message, result.success)
+        }
+        "schedule_notification" -> {
+          val title = arguments.string("title") ?: return failure("schedule_notification requires title.")
+          val message = arguments.string("message") ?: return failure("schedule_notification requires message.")
+          val hour = arguments.int("hour") ?: return failure("schedule_notification requires integer hour.")
+          val minute = arguments.int("minute") ?: return failure("schedule_notification requires integer minute.")
+          val result = adapter.scheduleNotification(
+            title, message, hour, minute,
+            if (arguments.has("year")) arguments.int("year") else null,
+            if (arguments.has("month")) arguments.int("month") else null,
+            if (arguments.has("day")) arguments.int("day") else null,
+            arguments.boolean("repeat_daily") ?: false,
+          )
+          AgentToolResult(result.message, result.success)
+        }
+        "list_scheduled_notifications" ->
+          AgentToolResult(Gson().toJson(adapter.listScheduledNotifications()))
+        "cancel_scheduled_notification" -> {
+          val id = arguments.string("notification_id")
+            ?: return failure("cancel_scheduled_notification requires notification_id.")
+          val result = adapter.cancelScheduledNotification(id)
+          AgentToolResult(result.message, result.success)
+        }
+        "list_notification_channels" ->
+          AgentToolResult(Gson().toJson(adapter.listNotificationChannels()))
+        "create_notification_channel" -> {
+          val id = arguments.string("channel_id") ?: return failure("create_notification_channel requires channel_id.")
+          val name = arguments.string("channel_name") ?: return failure("create_notification_channel requires channel_name.")
+          val importance = arguments.int("importance") ?: return failure("create_notification_channel requires integer importance.")
+          val result = adapter.createNotificationChannel(id, name, importance)
+          AgentToolResult(result.message, result.success)
+        }
         "bluetooth_le_scan" -> {
           val duration = if (arguments.has("duration_ms")) {
             arguments.long("duration_ms") ?: return failure("duration_ms must be an integer.")
@@ -441,6 +540,10 @@ class AndroidNativeCapabilityTool internal constructor(
     const val MIN_CONTACT_LIMIT = 1
     const val MAX_CONTACT_LIMIT = 20
     const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
+    const val MAX_NOTIFICATION_TITLE_CHARS = 100
+    const val MAX_NOTIFICATION_MESSAGE_CHARS = 1_000
+    const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
+    const val DEFAULT_NOTIFICATION_CHANNEL_ID = "agent_skill_tasks_channel"
     const val MIN_GATT_TIMEOUT_MS = 5_000L
     const val MAX_GATT_TIMEOUT_MS = 20_000L
     const val MIN_AUDIO_RECORD_MS = 1_000L

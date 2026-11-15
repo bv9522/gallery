@@ -74,6 +74,49 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun notificationScheduleWithoutExplicitDateIsAccepted() {
+    val arguments = JsonObject().apply {
+      addProperty("operation", "schedule_notification")
+      addProperty("title", "Reminder")
+      addProperty("message", "Time-only reminder")
+      addProperty("hour", 9)
+      addProperty("minute", 30)
+      addProperty("repeat_daily", true)
+    }
+
+    assertNull(AndroidControlArguments.validate(arguments))
+  }
+
+  @Test
+  fun notificationTimeMustBeNumericNotAString() {
+    val arguments = JsonObject().apply {
+      addProperty("operation", "schedule_notification")
+      addProperty("title", "Reminder")
+      addProperty("message", "Test")
+      addProperty("hour", "9")
+      addProperty("minute", 30)
+    }
+
+    assertTrue(AndroidControlArguments.validate(arguments).orEmpty().contains("hour must be an integer"))
+  }
+
+  @Test
+  fun impossibleNotificationCalendarDateIsRejected() {
+    val arguments = JsonObject().apply {
+      addProperty("operation", "schedule_notification")
+      addProperty("title", "Reminder")
+      addProperty("message", "Test")
+      addProperty("hour", 9)
+      addProperty("minute", 30)
+      addProperty("year", 2030)
+      addProperty("month", 2)
+      addProperty("day", 30)
+    }
+
+    assertTrue(AndroidControlArguments.validate(arguments).orEmpty().contains("valid calendar date"))
+  }
+
+  @Test
   fun unknownArgumentIsRejected() {
     val arguments = JsonObject().apply {
       addProperty("operation", "device_info")

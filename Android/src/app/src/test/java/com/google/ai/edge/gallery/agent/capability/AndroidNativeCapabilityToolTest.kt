@@ -250,6 +250,109 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun notificationOperationsDispatchThroughTheNativeAdapter() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val post = tool.execute(arguments("post_notification").apply {
+      addProperty("title", "Test")
+      addProperty("message", "A test notification")
+    })
+    val posted = tool.execute(arguments("list_posted_notifications"))
+    val dismiss = tool.execute(arguments("cancel_posted_notification").apply {
+      addProperty("notification_id", "42")
+    })
+    val schedule = tool.execute(arguments("schedule_notification").apply {
+      addProperty("title", "Reminder")
+      addProperty("message", "Check the oven")
+      addProperty("hour", 19)
+      addProperty("minute", 30)
+      addProperty("year", 2030)
+      addProperty("month", 5)
+      addProperty("day", 6)
+      addProperty("repeat_daily", false)
+    })
+    val list = tool.execute(arguments("list_scheduled_notifications"))
+    val cancel = tool.execute(arguments("cancel_scheduled_notification").apply {
+      addProperty("notification_id", "test-id")
+    })
+    val channels = tool.execute(arguments("list_notification_channels"))
+    val createChannel = tool.execute(arguments("create_notification_channel").apply {
+      addProperty("channel_id", "custom_reminders")
+      addProperty("channel_name", "Custom reminders")
+      addProperty("importance", 3)
+    })
+
+    val customPost = tool.execute(arguments("post_notification").apply {
+      addProperty("title", "Custom")
+      addProperty("message", "Use the custom channel")
+      addProperty("channel_id", "custom_reminders")
+    })
+
+    assertTrue(post.isSuccessful)
+    assertTrue(post.content.contains("ID"))
+    assertTrue(posted.isSuccessful)
+    assertTrue(posted.content.contains("42"))
+    assertTrue(dismiss.isSuccessful)
+    assertTrue(schedule.isSuccessful)
+    assertTrue(list.isSuccessful)
+    assertTrue(list.content.contains("test-id"))
+    assertTrue(cancel.isSuccessful)
+    assertTrue(channels.isSuccessful)
+    assertTrue(channels.content.contains("Test"))
+    assertTrue(createChannel.isSuccessful)
+    assertTrue(customPost.isSuccessful)
+    assertEquals(
+      listOf(
+        "post_notification:Test:A test notification:agent_skill_tasks_channel",
+        "list_posted_notifications",
+        "cancel_posted_notification:42",
+        "schedule_notification:Reminder:19:30:2030:5:6:false",
+        "list_scheduled_notifications",
+        "cancel_scheduled_notification:test-id",
+        "list_notification_channels",
+        "create_notification_channel:custom_reminders:Custom reminders:3",
+        "post_notification:Custom:Use the custom channel:custom_reminders",
+      ),
+      adapter.discoveryCalls,
+    )
+  }
+
+  @Test
+  fun notificationOperationsRejectInvalidOrIncompleteArgumentsBeforeDispatch() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val missingMessage = tool.execute(arguments("post_notification").apply {
+      addProperty("title", "Test")
+    })
+    val partialDate = tool.execute(arguments("schedule_notification").apply {
+      addProperty("title", "Reminder")
+      addProperty("message", "Test")
+      addProperty("hour", 9)
+      addProperty("minute", 30)
+      addProperty("year", 2030)
+    })
+    val invalidTime = tool.execute(arguments("schedule_notification").apply {
+      addProperty("title", "Reminder")
+      addProperty("message", "Test")
+      addProperty("hour", 24)
+      addProperty("minute", 30)
+    })
+    val invalidChannel = tool.execute(arguments("create_notification_channel").apply {
+      addProperty("channel_id", "bad/id")
+      addProperty("channel_name", "Invalid")
+      addProperty("importance", 3)
+    })
+
+    assertFalse(missingMessage.isSuccessful)
+    assertFalse(partialDate.isSuccessful)
+    assertFalse(invalidTime.isSuccessful)
+    assertFalse(invalidChannel.isSuccessful)
+    assertTrue(adapter.discoveryCalls.isEmpty())
+  }
+
+  @Test
   fun systemCapabilityOperationsReachTheirMatchingAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
@@ -513,6 +616,63 @@ class AndroidNativeCapabilityToolTest {
     override suspend fun getUsbDevices(): List<NativeUsbDevice> {
       discoveryCalls += "usb_devices"
       return emptyList()
+    }
+
+    override suspend fun postNotification(
+      title: String,
+      message: String,
+      channelId: String,
+    ): NativeCapabilityActionResult {
+      discoveryCalls += "post_notification:$title:$message:$channelId"
+      return NativeCapabilityActionResult(true, "Notification posted with ID 42.")
+    }
+
+    override fun listPostedNotifications(): List<NativePostedNotification> {
+      discoveryCalls += "list_posted_notifications"
+      return listOf(NativePostedNotification("42", "Test", "A test notification", 1_800_000_000_000L))
+    }
+
+    override suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult {
+      discoveryCalls += "cancel_posted_notification:$id"
+      return actionResult
+    }
+
+    override suspend fun scheduleNotification(
+      title: String,
+      message: String,
+      hour: Int,
+      minute: Int,
+      year: Int?,
+      month: Int?,
+      day: Int?,
+      repeatDaily: Boolean,
+    ): NativeCapabilityActionResult {
+      discoveryCalls += "schedule_notification:$title:$hour:$minute:$year:$month:$day:$repeatDaily"
+      return actionResult
+    }
+
+    override suspend fun listScheduledNotifications(): List<NativeScheduledNotification> {
+      discoveryCalls += "list_scheduled_notifications"
+      return listOf(NativeScheduledNotification("test-id", "Reminder", "Do the thing", 9, 30, null, null, null, false))
+    }
+
+    override suspend fun cancelScheduledNotification(id: String): NativeCapabilityActionResult {
+      discoveryCalls += "cancel_scheduled_notification:$id"
+      return actionResult
+    }
+
+    override fun listNotificationChannels(): List<NativeNotificationChannel> {
+      discoveryCalls += "list_notification_channels"
+      return listOf(NativeNotificationChannel("test", "Test", 3))
+    }
+
+    override suspend fun createNotificationChannel(
+      id: String,
+      name: String,
+      importance: Int,
+    ): NativeCapabilityActionResult {
+      discoveryCalls += "create_notification_channel:$id:$name:$importance"
+      return actionResult
     }
     override suspend fun recordAudio(durationMs: Long): String {
       discoveryCalls += "record_audio:$durationMs"

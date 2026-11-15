@@ -57,6 +57,31 @@ data class NativeClipboardContent(
   val truncated: Boolean,
 )
 
+data class NativeScheduledNotification(
+  val id: String,
+  val title: String,
+  val message: String,
+  val hour: Int,
+  val minute: Int,
+  val year: Int?,
+  val month: Int?,
+  val day: Int?,
+  val repeatDaily: Boolean,
+)
+
+data class NativeNotificationChannel(
+  val id: String,
+  val name: String,
+  val importance: Int,
+)
+
+data class NativePostedNotification(
+  val id: String,
+  val title: String,
+  val message: String,
+  val postedAtMs: Long,
+)
+
 /**
  * Typed operations consumed by [AndroidNativeCapabilityTool].
  *
@@ -98,6 +123,31 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   suspend fun searchContacts(query: String, limit: Int): List<NativeContactSummary>
   suspend fun readClipboard(): NativeClipboardContent
   suspend fun writeClipboard(text: String): NativeCapabilityActionResult
+  suspend fun postNotification(
+    title: String,
+    message: String,
+    channelId: String,
+  ): NativeCapabilityActionResult
+  fun listPostedNotifications(): List<NativePostedNotification>
+  suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult
+  suspend fun scheduleNotification(
+    title: String,
+    message: String,
+    hour: Int,
+    minute: Int,
+    year: Int?,
+    month: Int?,
+    day: Int?,
+    repeatDaily: Boolean,
+  ): NativeCapabilityActionResult
+  suspend fun listScheduledNotifications(): List<NativeScheduledNotification>
+  suspend fun cancelScheduledNotification(id: String): NativeCapabilityActionResult
+  fun listNotificationChannels(): List<NativeNotificationChannel>
+  suspend fun createNotificationChannel(
+    id: String,
+    name: String,
+    importance: Int,
+  ): NativeCapabilityActionResult
   suspend fun getUsbDevices(): List<NativeUsbDevice>
   suspend fun recordAudio(durationMs: Long): String
   suspend fun capturePhoto(): String

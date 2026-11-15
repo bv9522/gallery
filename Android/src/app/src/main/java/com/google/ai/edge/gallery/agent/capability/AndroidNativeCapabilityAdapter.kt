@@ -26,6 +26,10 @@ import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.app.AlarmManager
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.ClipData
@@ -57,6 +61,8 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.provider.Settings
 import android.util.Base64
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.channels.Channel
@@ -64,8 +70,16 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import dagger.hilt.android.EntryPointAccessors
+import com.google.ai.edge.gallery.notifications.NotificationScheduleManagerEntryPoint
+import com.google.ai.edge.gallery.proto.ScheduledNotification
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.UUID
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicInteger
 /** Small, privacy-conscious device facts suitable for a local agent. */
@@ -450,6 +464,38 @@ class AndroidNativeCapabilityAdapter(
         ProviderAvailability.PERMISSION_REQUIRED
       }
 
+    val notificationManager = appContext.getSystemService(NotificationManager::class.java)
+    val notificationsEnabled = NotificationManagerCompat.from(appContext).areNotificationsEnabled()
+    val notificationPermissionGranted =
+      Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        hasRuntimePermission(Manifest.permission.POST_NOTIFICATIONS)
+    val notificationAvailability = when {
+      notificationManager == null -> ProviderAvailability.UNSUPPORTED
+      !notificationPermissionGranted -> ProviderAvailability.PERMISSION_REQUIRED
+      !notificationsEnabled -> ProviderAvailability.SERVICE_STOPPED
+      else -> ProviderAvailability.AVAILABLE
+    }
+    capabilities[AndroidCapability.NOTIFICATION_POST] = notificationAvailability
+    capabilities[AndroidCapability.BACKGROUND_SCHEDULE] = when {
+      notificationManager == null || appContext.getSystemService(AlarmManager::class.java) == null ->
+        ProviderAvailability.UNSUPPORTED
+      else -> notificationAvailability
+    }
+    if (notificationAvailability != ProviderAvailability.AVAILABLE) {
+      val reason = when (notificationAvailability) {
+        ProviderAvailability.PERMISSION_REQUIRED -> "POST_NOTIFICATIONS permission is required; discovery did not request it."
+        ProviderAvailability.SERVICE_STOPPED -> "Notifications are disabled for Gallery in Android settings."
+        else -> "Android NotificationManager is unavailable."
+      }
+      details[AndroidCapability.NOTIFICATION_POST] = reason
+      details[AndroidCapability.BACKGROUND_SCHEDULE] = reason
+    }
+    capabilities[AndroidCapability.NOTIFICATION_CHANNEL_MANAGEMENT] =
+      if (notificationManager != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED
+    capabilities[AndroidCapability.NOTIFICATION_READ] = ProviderAvailability.UNSUPPORTED
+    details[AndroidCapability.NOTIFICATION_READ] =
+      "Reading notifications from other apps requires a separately user-enabled NotificationListenerService; it is not implemented."
+
     val textToSpeechAvailable = runCatching {
       appContext.packageManager.queryIntentServices(
         Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),
@@ -627,9 +673,9 @@ class AndroidNativeCapabilityAdapter(
       "The selected GATT characteristic does not advertise read support."
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      val status = session.gatt.readCharacteristic(characteristic)
-      if (status != BluetoothStatusCodes.SUCCESS) {
-        throw IllegalStateException("Android could not start the GATT characteristic read (status $status).")
+      val started = session.gatt.readCharacteristic(characteristic)
+      if (!started) {
+        throw IllegalStateException("Android could not start the GATT characteristic read.")
       }
     } else {
       val started = runCatching {
@@ -1064,6 +1110,275 @@ class AndroidNativeCapabilityAdapter(
       true,
       if (text.isEmpty()) "Clipboard cleared." else "Copied ${text.length} characters to the clipboard.",
     )
+  }
+
+  private val notificationScheduleManager by lazy {
+    EntryPointAccessors.fromApplication(
+      appContext,
+      NotificationScheduleManagerEntryPoint::class.java,
+    ).notificationScheduleManager()
+  }
+
+  override suspend fun postNotification(
+    title: String,
+    message: String,
+    channelId: String,
+  ): NativeCapabilityActionResult {
+    validateNotificationText(title, message)
+    validateChannelId(channelId)
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: throw IllegalStateException("NotificationManager is unavailable.")
+    val existingChannel = manager.getNotificationChannel(channelId)
+    if (existingChannel == null && channelId != DEFAULT_NOTIFICATION_CHANNEL_ID) {
+      throw IllegalArgumentException("Notification channel '$channelId' does not exist. Create it first with create_notification_channel.")
+    }
+    val channelName = existingChannel?.name?.toString() ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
+    if (existingChannel?.importance == NotificationManager.IMPORTANCE_NONE) {
+      throw IllegalStateException("Notification channel '$channelId' is blocked in Android settings.")
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.NOTIFICATION_POST,
+        "Post a notification on this device using channel '$channelName' ($channelId). Title: $title. Message: $message",
+      )
+    ) {
+      throw SecurityException("Notification posting was not approved.")
+    }
+    ensureNotificationsAllowed()
+    if (existingChannel == null) {
+      ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
+    }
+    if (manager.getNotificationChannel(channelId)?.importance == NotificationManager.IMPORTANCE_NONE) {
+      throw IllegalStateException("Notification channel '$channelId' is blocked in Android settings.")
+    }
+    val notification = NotificationCompat.Builder(appContext, channelId)
+      .setSmallIcon(android.R.drawable.ic_dialog_info)
+      .setContentTitle(title)
+      .setContentText(message)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+      .setAutoCancel(true)
+      .build()
+    val notificationId = UUID.randomUUID().toString().hashCode()
+    manager.notify(notificationId, notification)
+    return NativeCapabilityActionResult(true, "Notification posted with ID $notificationId.")
+  }
+
+  override fun listPostedNotifications(): List<NativePostedNotification> {
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: return emptyList()
+    return manager.activeNotifications
+      .take(MAX_ACTIVE_NOTIFICATIONS)
+      .map { active ->
+        val extras = active.notification.extras
+        NativePostedNotification(
+          id = active.id.toString(),
+          title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty().take(MAX_NOTIFICATION_TITLE_CHARS),
+          message = (
+            extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+              ?: extras.getCharSequence(Notification.EXTRA_TEXT)
+          )?.toString().orEmpty().take(MAX_NOTIFICATION_MESSAGE_CHARS),
+          postedAtMs = active.postTime,
+        )
+      }
+  }
+
+  override suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult {
+    val numericId = id.toIntOrNull()
+      ?: throw IllegalArgumentException("notification_id must be the numeric ID returned by list_posted_notifications.")
+    val existing = listPostedNotifications().firstOrNull { it.id == id }
+      ?: return NativeCapabilityActionResult(false, "No active Gallery notification exists with ID '$id'.")
+    if (!authorizer.authorize(
+        AndroidCapability.NOTIFICATION_POST,
+        "Dismiss the active Gallery notification '${existing.title}' with ID $id.",
+      )
+    ) {
+      throw SecurityException("Notification dismissal was not approved.")
+    }
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: throw IllegalStateException("NotificationManager is unavailable.")
+    manager.cancel(numericId)
+    return NativeCapabilityActionResult(true, "Active notification '$id' dismissed.")
+  }
+
+  override suspend fun scheduleNotification(
+    title: String,
+    message: String,
+    hour: Int,
+    minute: Int,
+    year: Int?,
+    month: Int?,
+    day: Int?,
+    repeatDaily: Boolean,
+  ): NativeCapabilityActionResult {
+    validateNotificationText(title, message)
+    require(hour in 0..23 && minute in 0..59) { "Notification time must use hour 0–23 and minute 0–59." }
+    val dateParts = listOf(year, month, day)
+    require(dateParts.all { it == null } || dateParts.all { it != null }) {
+      "year, month, and day must either all be supplied or all be omitted."
+    }
+    val zone = ZoneId.systemDefault()
+    val now = LocalDateTime.now(zone)
+    val scheduledDate = if (year != null && month != null && day != null) {
+      runCatching { LocalDate.of(year, month, day) }
+        .getOrElse { throw IllegalArgumentException("The requested notification date is invalid.") }
+    } else {
+      val todayAtRequestedTime = now.toLocalDate().atTime(hour, minute)
+      if (todayAtRequestedTime.isAfter(now)) now.toLocalDate() else now.toLocalDate().plusDays(1)
+    }
+    val target = LocalDateTime.of(scheduledDate, java.time.LocalTime.of(hour, minute))
+      .atZone(zone).toInstant().toEpochMilli()
+    require(target > System.currentTimeMillis()) { "The requested notification date and time must be in the future." }
+    val clockTime = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+    val dateText = scheduledDate.toString()
+    val whenText = if (repeatDaily) "daily starting $dateText at $clockTime" else "$dateText at $clockTime"
+    if (!authorizer.authorize(
+        AndroidCapability.BACKGROUND_SCHEDULE,
+        "Schedule ${if (repeatDaily) "a repeating notification" else "one notification"} $whenText. Title: $title. Message: $message",
+      )
+    ) {
+      throw SecurityException("Notification scheduling was not approved.")
+    }
+    ensureNotificationsAllowed()
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: throw IllegalStateException("NotificationManager is unavailable.")
+    ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
+    if (manager.getNotificationChannel(DEFAULT_NOTIFICATION_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
+      throw IllegalStateException("The Agent Skill Task notification channel is blocked in Android settings.")
+    }
+    val deeplink = Uri.Builder()
+      .scheme("com.google.ai.edge.gallery")
+      .authority("llm_agent_chat")
+      .appendQueryParameter("query", message)
+      .build()
+      .toString()
+    val notification = ScheduledNotification.newBuilder()
+      .setId(UUID.randomUUID().toString())
+      .setTitle(title)
+      .setMessage(message)
+      .setHour(hour)
+      .setMinute(minute)
+      .setChannelId(DEFAULT_NOTIFICATION_CHANNEL_ID)
+      .setChannelName(DEFAULT_NOTIFICATION_CHANNEL_NAME)
+      .setDeeplink(deeplink)
+      .setRepeatDaily(repeatDaily)
+      .setYear(scheduledDate.year)
+      .setMonth(scheduledDate.monthValue)
+      .setDay(scheduledDate.dayOfMonth)
+      .build()
+    if (!notificationScheduleManager.scheduleNotification(notification)) {
+      throw IllegalStateException("Android could not register the notification alarm; the 50-reminder limit may have been reached.")
+    }
+    return NativeCapabilityActionResult(
+      true,
+      "Notification scheduled with ID ${notification.id} for $whenText. Android may delay delivery because these alarms are not exact.",
+    )
+  }
+
+  override suspend fun listScheduledNotifications(): List<NativeScheduledNotification> =
+    notificationScheduleManager.getScheduledNotifications().map { item ->
+      NativeScheduledNotification(
+        id = item.id,
+        title = item.title,
+        message = item.message,
+        hour = item.hour,
+        minute = item.minute,
+        year = if (item.hasYear()) item.year else null,
+        month = if (item.hasMonth()) item.month else null,
+        day = if (item.hasDay()) item.day else null,
+        repeatDaily = item.repeatDaily,
+      )
+    }
+
+  override suspend fun cancelScheduledNotification(id: String): NativeCapabilityActionResult {
+    require(id.isNotBlank() && id.length <= 64) { "A valid scheduled notification ID is required." }
+    val existing = notificationScheduleManager.getScheduledNotifications().firstOrNull { it.id == id }
+      ?: return NativeCapabilityActionResult(false, "No scheduled notification exists with ID '$id'.")
+    if (!authorizer.authorize(
+        AndroidCapability.BACKGROUND_SCHEDULE,
+        "Cancel scheduled notification '${existing.title}' with ID $id.",
+      )
+    ) {
+      throw SecurityException("Notification cancellation was not approved.")
+    }
+    val removed = notificationScheduleManager.cancelScheduledNotification(id)
+    return NativeCapabilityActionResult(
+      removed,
+      if (removed) "Scheduled notification '$id' cancelled." else "Scheduled notification '$id' was not found.",
+    )
+  }
+
+  override fun listNotificationChannels(): List<NativeNotificationChannel> {
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: return emptyList()
+    return manager.notificationChannels
+      .take(MAX_NOTIFICATION_CHANNELS)
+      .map { NativeNotificationChannel(it.id, it.name.toString(), it.importance) }
+  }
+
+  override suspend fun createNotificationChannel(
+    id: String,
+    name: String,
+    importance: Int,
+  ): NativeCapabilityActionResult {
+    validateChannel(id, name)
+    require(importance in NotificationManager.IMPORTANCE_LOW..NotificationManager.IMPORTANCE_HIGH) {
+      "Channel importance must be LOW (2), DEFAULT (3), or HIGH (4)."
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.NOTIFICATION_CHANNEL_MANAGEMENT,
+        "Create notification channel '$name' with ID '$id' and importance $importance.",
+      )
+    ) {
+      throw SecurityException("Notification channel creation was not approved.")
+    }
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: throw IllegalStateException("NotificationManager is unavailable.")
+    val existing = manager.getNotificationChannel(id)
+    if (existing != null) {
+      return NativeCapabilityActionResult(false, "Notification channel '$id' already exists; Android channel settings cannot be overwritten by the app.")
+    }
+    manager.createNotificationChannel(NotificationChannel(id, name, importance))
+    return NativeCapabilityActionResult(true, "Notification channel '$name' created.")
+  }
+
+  private suspend fun ensureNotificationsAllowed() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+      ensureRuntimePermission(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    if (!NotificationManagerCompat.from(appContext).areNotificationsEnabled()) {
+      throw SecurityException("Notifications are disabled for Gallery in Android settings.")
+    }
+  }
+
+  private fun ensureChannel(manager: NotificationManager, id: String, name: String) {
+    if (manager.getNotificationChannel(id) == null) {
+      manager.createNotificationChannel(
+        NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH),
+      )
+    }
+  }
+
+  private fun validateNotificationText(title: String, message: String) {
+    require(title.isNotBlank() && title.length <= MAX_NOTIFICATION_TITLE_CHARS) {
+      "Notification title must contain 1–$MAX_NOTIFICATION_TITLE_CHARS characters."
+    }
+    require(message.isNotBlank() && message.length <= MAX_NOTIFICATION_MESSAGE_CHARS) {
+      "Notification message must contain 1–$MAX_NOTIFICATION_MESSAGE_CHARS characters."
+    }
+  }
+
+  private fun validateChannelId(id: String) {
+    require(id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$"))) {
+      "Notification channel ID must contain 1–64 letters, digits, dots, underscores, or hyphens."
+    }
+  }
+
+  private fun validateChannel(id: String, name: String) {
+    require(id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$"))) {
+      "Notification channel ID must contain 1–64 letters, digits, dots, underscores, or hyphens."
+    }
+    require(name.isNotBlank() && name.length <= MAX_NOTIFICATION_CHANNEL_NAME_CHARS) {
+      "Notification channel name must contain 1–$MAX_NOTIFICATION_CHANNEL_NAME_CHARS characters."
+    }
   }
 
   private fun isAppForeground(): Boolean =
@@ -1693,6 +2008,13 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_CLIPBOARD_ITEMS = 5
     const val MAX_CLIPBOARD_CHARS = 8_192
     const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
+    const val MAX_NOTIFICATION_TITLE_CHARS = 100
+    const val MAX_NOTIFICATION_MESSAGE_CHARS = 1_000
+    const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
+    const val MAX_NOTIFICATION_CHANNELS = 20
+    const val MAX_ACTIVE_NOTIFICATIONS = 50
+    const val DEFAULT_NOTIFICATION_CHANNEL_ID = "agent_skill_tasks_channel"
+    const val DEFAULT_NOTIFICATION_CHANNEL_NAME = "Agent Skill Task"
     const val MAX_USB_DEVICES = 32
     const val MAX_USB_INTERFACES = 16
   }

@@ -42,6 +42,13 @@ The current capability onboarding chain through Phase 9A consists of open draft 
 
 The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
 
+## Native notifications and scheduling — Phase 9B draft
+
+- Reuses Gallery's existing AlarmManager/DataStore scheduler, scheduled-notification receiver (which re-arms daily reminders at local wall-clock time), boot recovery receiver, and PendingIntent helper; no second scheduling subsystem is introduced.
+- `android_control` exposes approved immediate notification posting, bounded active-notification listing/dismissal, scheduled reminder creation/listing/cancellation, and bounded channel listing/creation. Mutations require scoped approval; Android 13+ notification permission is requested only after approval.
+- Provider discovery reports permission/global-notification state without prompting. Blocked channels and globally disabled notifications are explicit failures. Active notification and channel listings are bounded; at most 50 reminders are persisted. Schedule persistence and alarm updates are serialized, and boot recovery reads authoritative DataStore state.
+- Reading notifications from other apps remains unsupported and separate; it requires NotificationListenerService special access and is not silently enabled by this phase.
+
 ## Remaining capability groups
 
 Termux:API is selected for basic sensors, location requests/updates, Wi-Fi information and last-scan
@@ -50,7 +57,7 @@ USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/s
 integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
 provider owns removable-storage files. USB host enumeration is draft code; raw USB device I/O remains
 planned. Gallery-owned notification posting/scheduling is the next native integration phase; the
-existing notification scheduler is not yet registered as an agent capability.
+existing notification scheduler is now being integrated through Phase 9B draft code; it is not yet locally validated or device-accepted.
 
 ## Security and implementation rules
 

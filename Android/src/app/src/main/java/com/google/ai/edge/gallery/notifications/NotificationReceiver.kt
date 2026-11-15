@@ -26,6 +26,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class NotificationReceiver : BroadcastReceiver() {
   private val DEFAULT_CHANNEL_ID = "ai_edge_gallery_notification_channel"
@@ -45,6 +50,7 @@ class NotificationReceiver : BroadcastReceiver() {
     val channelName =
       intent.getStringExtra(NotificationPendingIntentHelper.EXTRA_CHANNEL_NAME)
         ?: DEFAULT_CHANNEL_NAME
+    val repeatDaily = intent.getBooleanExtra(NotificationPendingIntentHelper.EXTRA_REPEAT_DAILY, false)
 
     try {
       // Create the intent for when tapping the notification
@@ -59,7 +65,7 @@ class NotificationReceiver : BroadcastReceiver() {
       val pendingIntent =
         PendingIntent.getActivity(
           context,
-          0,
+          if (id.isNotEmpty()) id.hashCode() else System.currentTimeMillis().toInt(),
           contentIntent,
           PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
@@ -82,21 +88,36 @@ class NotificationReceiver : BroadcastReceiver() {
           .setContentIntent(pendingIntent)
           .setPriority(NotificationCompat.PRIORITY_HIGH)
 
-      notificationManager.notify(System.currentTimeMillis().toInt(), notificationBuilder.build())
-      // If the notification is not repeating, remove it from the schedule after it is sent.
-      if (
-        !intent.getBooleanExtra(NotificationPendingIntentHelper.EXTRA_REPEAT_DAILY, false) &&
-          id.isNotEmpty()
-      ) {
+      notificationManager.notify(if (id.isNotEmpty()) id.hashCode() else System.currentTimeMillis().toInt(), notificationBuilder.build())
+      updateSchedule(context, id, repeatDaily)
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to send notification", e)
+      // A failed post must not leave a consumed one-shot as a stale reminder or silently
+      // stop a daily reminder. Remove one-shots and re-arm daily reminders at local wall time.
+      runCatching { updateSchedule(context, id, repeatDaily) }
+    }
+  }
+
+  private fun updateSchedule(context: Context, id: String, repeatDaily: Boolean) {
+    if (id.isEmpty()) return
+    val pendingResult = goAsync()
+    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+      try {
         val entryPoint =
           EntryPointAccessors.fromApplication(
             context.applicationContext,
             NotificationScheduleManagerEntryPoint::class.java,
           )
-        entryPoint.notificationScheduleManager().removeNotification(id)
+        val manager = entryPoint.notificationScheduleManager()
+        if (repeatDaily) manager.rescheduleDailyNotification(id)
+        else manager.cancelScheduledNotification(id)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        Log.e(TAG, "Failed to update schedule after notification delivery", error)
+      } finally {
+        pendingResult.finish()
       }
-    } catch (e: Exception) {
-      Log.e(TAG, "Failed to send notification", e)
     }
   }
 

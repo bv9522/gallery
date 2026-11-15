@@ -81,9 +81,9 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Planned; user-mediated send, no silent bulk sending |
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Planned; user confirms call in dialer |
 | Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
-| Notifications created by this app | Native Kotlin (NotificationManager) | Existing app notification receiver/scheduler infrastructure; agent-facing post/list/cancel integration is not yet exposed and is planned for Phase 9B |
+| Notifications created by this app | Native Kotlin (NotificationManager) | Phase 9B draft: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; current-head validation and device acceptance pending |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
-| Notification channel management | Native Kotlin (NotificationManager) | Existing receiver creates channels; agent-facing channel inspection/management is not exposed and remains planned for Phase 9B |
+| Notification channel management | Native Kotlin (NotificationManager) | Phase 9B draft: bounded channel listing and approval-gated channel creation; channel settings remain user-controlled in Android settings |
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
@@ -97,7 +97,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Active media-session control | Native Kotlin (MediaSessionManager) | Planned; notification-listener access may be required |
 | Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
 | Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
-| App-owned notification scheduling | Native Kotlin (AlarmManager + existing NotificationScheduleManager / DataStore) | Existing Gallery scheduling feature; agent-facing schedule/list/cancel integration is planned for Phase 9B. WorkManager remains appropriate for deferrable background work, not exact-time notification alarms |
+| App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Phase 9B draft: approved schedule/list/cancel operations reuse Gallery's existing scheduler; WorkManager remains for deferrable jobs, not exact-time notification alarms |
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Planned; do not treat UsbManager as a mass-storage filesystem |
@@ -132,7 +132,7 @@ started with only three commands.
 | media-player, media-scan | Native Kotlin media APIs |
 | microphone-record | Native Kotlin MediaRecorder + MediaStore for bounded Gallery-owned file recording |
 | nfc | Termux:API for basic NDEF read/write; native for foreground reader-mode integration |
-| notification, notification-channel, notification-list, notification-remove | Native Kotlin NotificationManager / NotificationListenerService |
+| notification, notification-channel, notification-list, notification-remove | Native Kotlin NotificationManager for Gallery-owned posting, active notification listing/dismissal, channels, and scheduled reminders; reading other apps' notifications requires a separate future NotificationListenerService |
 | sensor | Termux:API for bounded reads/streams with explicit cleanup |
 | share | Native Kotlin Android share intents |
 | sms-inbox, sms-list, sms-send | Native Kotlin telephony/content APIs; sending remains user-mediated |
@@ -241,6 +241,15 @@ version compatibility must be verified on-device before an operation is marked i
 - Advanced camera/live audio sessions only if Termux commands prove insufficient.
 - Downloads, media scan/playback, sharing, app-owned scheduling.
 - Keep native user-mediated SMS/call/share flows; never expose silent send/call behavior.
+
+### Wave 3B — Native notifications and scheduling (Phase 9B draft; validation pending)
+
+- Reuses Gallery's existing `NotificationScheduleManager`, `NotificationReceiver`, `BootReceiver`, `NotificationPendingIntentHelper`, and `scheduled_notification.proto`; does not add a competing scheduler.
+- Exposes immediate app-owned notification posting, bounded listing/dismissal of active Gallery notifications, scheduled reminder creation/listing/cancellation, and bounded notification-channel listing/creation through `android_control`.
+- Posting/scheduling requires exact one-time scoped approval. On Android 13+, `POST_NOTIFICATIONS` is requested only after approval; global notification disablement and blocked channels return explicit failures. Provider discovery never prompts.
+- Schedule arguments are bounded to 100-character titles and 1,000-character messages, at most 50 persisted reminders, and all-or-none date components. Invalid dates and past dated reminders fail closed; the resolved local date is persisted for accurate listing and reboot recovery. One-shot alarms use `setAndAllowWhileIdle`; daily reminders are re-armed as one-shot alarms at the requested local wall-clock time after each delivery, avoiding DST drift without requesting exact-alarm special access.
+- Fixes the existing scheduler's asynchronous load/save race by making DataStore the authoritative source and serializing schedule/cancel operations. Failed alarm registration rolls persisted state back; boot recovery reads through DataStore. Repeating notifications reuse a stable notification ID.
+- `NOTIFICATION_READ` remains unavailable. Reading notifications from other apps requires a separate, explicitly user-enabled NotificationListenerService and is not included in this phase.
 
 ### Wave 4 — Files and removable storage
 - SAF document-tree picker and persisted URI grants.
