@@ -49,6 +49,8 @@ internal object AndroidControlArguments {
     "clipboard_write" to setOf("operation", "text"),
     "post_notification" to setOf("operation", "title", "message", "channel_id", "channel_name"),
     "schedule_notification" to setOf("operation", "title", "message", "hour", "minute", "year", "month", "day", "repeat_daily"),
+    "list_posted_notifications" to setOf("operation"),
+    "cancel_posted_notification" to setOf("operation", "notification_id"),
     "list_scheduled_notifications" to setOf("operation"),
     "cancel_scheduled_notification" to setOf("operation", "notification_id"),
     "list_notification_channels" to setOf("operation"),
@@ -75,6 +77,7 @@ internal object AndroidControlArguments {
     "clipboard_write" to setOf("text"),
     "post_notification" to setOf("title", "message"),
     "schedule_notification" to setOf("title", "message", "hour", "minute"),
+    "cancel_posted_notification" to setOf("notification_id"),
     "cancel_scheduled_notification" to setOf("notification_id"),
     "create_notification_channel" to setOf("channel_id", "channel_name", "importance"),
   )
@@ -213,6 +216,11 @@ internal object AndroidControlArguments {
     if (operation == "cancel_scheduled_notification") {
       val id = arguments.get("notification_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
       if (id.isBlank() || id.length > 64) return "notification_id must contain 1–64 characters."
+    }
+
+    if (operation == "cancel_posted_notification") {
+      val id = arguments.get("notification_id")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
+      if (id.toIntOrNull() == null) return "notification_id must be the numeric ID returned by list_posted_notifications."
     }
 
     if (operation == "create_notification_channel") {
