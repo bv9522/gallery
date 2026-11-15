@@ -32,6 +32,7 @@ import java.io.OutputStream
 import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -91,6 +92,11 @@ constructor(@ApplicationContext private val context: Context) {
         existing?.let(::cancelAlarmForNotification)
         setAlarmForNotification(notification)
         true
+      } catch (cancelled: CancellationException) {
+        dataStore.updateData { previous }
+        _scheduledNotifications.value = previous.notificationList
+        existing?.let { old -> runCatching { setAlarmForNotification(old) } }
+        throw cancelled
       } catch (error: Exception) {
         Log.e(tag, "Failed to schedule notification; restoring persisted state", error)
         dataStore.updateData { previous }
@@ -175,6 +181,8 @@ constructor(@ApplicationContext private val context: Context) {
           val notifications = dataStore.data.first().notificationList
           _scheduledNotifications.value = notifications
           notifications.forEach(::setAlarmForNotification)
+        } catch (cancelled: CancellationException) {
+          throw cancelled
         } catch (error: Exception) {
           Log.e(tag, "Failed to reschedule notifications", error)
         }
@@ -186,14 +194,20 @@ constructor(@ApplicationContext private val context: Context) {
   suspend fun cancelScheduledNotification(id: String): Boolean = mutationMutex.withLock {
     val previous = dataStore.data.first()
     val notification = previous.notificationList.firstOrNull { it.id == id } ?: return@withLock false
-    cancelAlarmForNotification(notification)
     val updated = previous.toBuilder()
       .clearNotification()
       .addAllNotification(previous.notificationList.filterNot { it.id == id })
       .build()
     dataStore.updateData { updated }
     _scheduledNotifications.value = updated.notificationList
-    true
+    try {
+      cancelAlarmForNotification(notification)
+      true
+    } catch (error: Exception) {
+      dataStore.updateData { previous }
+      _scheduledNotifications.value = previous.notificationList
+      throw error
+    }
   }
 
   /** Compatibility entry point used by the existing BroadcastReceiver after a one-shot fires. */
