@@ -1188,6 +1188,9 @@ class AndroidNativeCapabilityAdapter(
     val manager = appContext.getSystemService(NotificationManager::class.java)
       ?: throw IllegalStateException("NotificationManager is unavailable.")
     ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
+    if (manager.getNotificationChannel(DEFAULT_NOTIFICATION_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
+      throw IllegalStateException("The Agent Skill Task notification channel is blocked in Android settings.")
+    }
     val deeplink = Uri.Builder()
       .scheme("com.google.ai.edge.gallery")
       .authority("llm_agent_chat")
@@ -1217,7 +1220,7 @@ class AndroidNativeCapabilityAdapter(
     }
     return NativeCapabilityActionResult(
       true,
-      "Notification scheduled with ID ${notification.id} for $whenText.",
+      "Notification scheduled with ID ${notification.id} for $whenText. Android may delay delivery because these alarms are not exact.",
     )
   }
 
