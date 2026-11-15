@@ -48,7 +48,7 @@ internal object AndroidControlArguments {
     "contacts_search" to setOf("operation", "query", "limit"),
     "clipboard_read" to setOf("operation"),
     "clipboard_write" to setOf("operation", "text"),
-    "post_notification" to setOf("operation", "title", "message"),
+    "post_notification" to setOf("operation", "title", "message", "channel_id"),
     "schedule_notification" to setOf("operation", "title", "message", "hour", "minute", "year", "month", "day", "repeat_daily"),
     "list_posted_notifications" to setOf("operation"),
     "cancel_posted_notification" to setOf("operation", "notification_id"),
@@ -173,6 +173,15 @@ internal object AndroidControlArguments {
       val message = arguments.get("message")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
       if (title.isBlank() || title.length > 100) return "Notification title must contain 1–100 characters."
       if (message.isBlank() || message.length > 1_000) return "Notification message must contain 1–1000 characters."
+    }
+
+    if (operation == "post_notification" && arguments.has("channel_id")) {
+      val id = arguments.get("channel_id")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (!id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$"))) {
+        return "channel_id must be a safe 1–64 character ID from list_notification_channels or create_notification_channel."
+      }
     }
 
     if (operation == "schedule_notification") {
