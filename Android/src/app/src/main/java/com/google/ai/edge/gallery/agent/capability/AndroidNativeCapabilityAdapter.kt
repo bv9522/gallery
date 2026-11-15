@@ -1127,20 +1127,23 @@ class AndroidNativeCapabilityAdapter(
     validateChannelId(channelId)
     val manager = appContext.getSystemService(NotificationManager::class.java)
       ?: throw IllegalStateException("NotificationManager is unavailable.")
-    if (channelId == DEFAULT_NOTIFICATION_CHANNEL_ID) {
-      ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
+    val existingChannel = manager.getNotificationChannel(channelId)
+    if (existingChannel == null && channelId != DEFAULT_NOTIFICATION_CHANNEL_ID) {
+      throw IllegalArgumentException("Notification channel '$channelId' does not exist. Create it first with create_notification_channel.")
     }
-    val channel = manager.getNotificationChannel(channelId)
-      ?: throw IllegalArgumentException("Notification channel '$channelId' does not exist. Create it first with create_notification_channel.")
+    val channelName = existingChannel?.name?.toString() ?: DEFAULT_NOTIFICATION_CHANNEL_NAME
     if (!authorizer.authorize(
         AndroidCapability.NOTIFICATION_POST,
-        "Post a notification on this device using channel '${channel.name}' ($channelId). Title: $title. Message: $message",
+        "Post a notification on this device using channel '$channelName' ($channelId). Title: $title. Message: $message",
       )
     ) {
       throw SecurityException("Notification posting was not approved.")
     }
     ensureNotificationsAllowed()
-    if (channel.importance == NotificationManager.IMPORTANCE_NONE) {
+    if (existingChannel == null) {
+      ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
+    }
+    if (manager.getNotificationChannel(channelId)?.importance == NotificationManager.IMPORTANCE_NONE) {
       throw IllegalStateException("Notification channel '$channelId' is blocked in Android settings.")
     }
     val notification = NotificationCompat.Builder(appContext, channelId)
