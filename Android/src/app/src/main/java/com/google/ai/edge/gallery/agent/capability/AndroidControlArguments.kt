@@ -47,7 +47,7 @@ internal object AndroidControlArguments {
     "contacts_search" to setOf("operation", "query", "limit"),
     "clipboard_read" to setOf("operation"),
     "clipboard_write" to setOf("operation", "text"),
-    "post_notification" to setOf("operation", "title", "message", "channel_id", "channel_name"),
+    "post_notification" to setOf("operation", "title", "message"),
     "schedule_notification" to setOf("operation", "title", "message", "hour", "minute", "year", "month", "day", "repeat_daily"),
     "list_posted_notifications" to setOf("operation"),
     "cancel_posted_notification" to setOf("operation", "notification_id"),
@@ -172,22 +172,6 @@ internal object AndroidControlArguments {
       val message = arguments.get("message")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
       if (title.isBlank() || title.length > 100) return "Notification title must contain 1–100 characters."
       if (message.isBlank() || message.length > 1_000) return "Notification message must contain 1–1000 characters."
-    }
-
-    if (operation == "post_notification") {
-      if (arguments.has("channel_id") &&
-        !(arguments.get("channel_id")?.isJsonPrimitive == true &&
-          arguments.get("channel_id")?.asJsonPrimitive?.isString == true)
-      ) return "channel_id must be a string."
-      if (arguments.has("channel_name") &&
-        !(arguments.get("channel_name")?.isJsonPrimitive == true &&
-          arguments.get("channel_name")?.asJsonPrimitive?.isString == true)
-      ) return "channel_name must be a string."
-      val id = arguments.get("channel_id")?.asString ?: "agent_skill_tasks_channel"
-      val name = arguments.get("channel_name")?.asString ?: "Agent Skill Task"
-      if (!id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$")) || name.isBlank() || name.length > 80) {
-        return "channel_id must be a safe 1–64 character ID and channel_name must contain 1–80 characters."
-      }
     }
 
     if (operation == "schedule_notification") {
