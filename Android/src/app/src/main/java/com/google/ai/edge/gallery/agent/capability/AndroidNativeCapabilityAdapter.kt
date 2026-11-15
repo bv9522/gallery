@@ -75,6 +75,7 @@ import kotlinx.coroutines.withContext
 import dagger.hilt.android.EntryPointAccessors
 import com.google.ai.edge.gallery.notifications.NotificationScheduleManagerEntryPoint
 import com.google.ai.edge.gallery.proto.ScheduledNotification
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
@@ -1201,18 +1202,21 @@ class AndroidNativeCapabilityAdapter(
     require(dateParts.all { it == null } || dateParts.all { it != null }) {
       "year, month, and day must either all be supplied or all be omitted."
     }
-    if (year != null && month != null && day != null) {
-      val target = runCatching {
-        LocalDateTime.of(year, month, day, hour, minute).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-      }.getOrElse { throw IllegalArgumentException("The requested notification date or time is invalid.") }
-      require(target > System.currentTimeMillis()) { "The requested notification date and time must be in the future." }
+    val zone = ZoneId.systemDefault()
+    val now = LocalDateTime.now(zone)
+    val scheduledDate = if (year != null && month != null && day != null) {
+      runCatching { LocalDate.of(year, month, day) }
+        .getOrElse { throw IllegalArgumentException("The requested notification date is invalid.") }
+    } else {
+      val todayAtRequestedTime = now.toLocalDate().atTime(hour, minute)
+      if (todayAtRequestedTime.isAfter(now)) now.toLocalDate() else now.toLocalDate().plusDays(1)
     }
+    val target = LocalDateTime.of(scheduledDate, java.time.LocalTime.of(hour, minute))
+      .atZone(zone).toInstant().toEpochMilli()
+    require(target > System.currentTimeMillis()) { "The requested notification date and time must be in the future." }
     val clockTime = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
-    val whenText = when {
-      year != null -> "$year-$month-$day at $clockTime"
-      repeatDaily -> "daily at $clockTime"
-      else -> "the next occurrence at $clockTime"
-    }
+    val dateText = scheduledDate.toString()
+    val whenText = if (repeatDaily) "daily starting $dateText at $clockTime" else "$dateText at $clockTime"
     if (!authorizer.authorize(
         AndroidCapability.BACKGROUND_SCHEDULE,
         "Schedule ${if (repeatDaily) "a repeating notification" else "one notification"} $whenText. Title: $title. Message: $message",
@@ -1243,13 +1247,9 @@ class AndroidNativeCapabilityAdapter(
       .setChannelName(DEFAULT_NOTIFICATION_CHANNEL_NAME)
       .setDeeplink(deeplink)
       .setRepeatDaily(repeatDaily)
-      .apply {
-        if (year != null && month != null && day != null) {
-          setYear(year)
-          setMonth(month)
-          setDay(day)
-        }
-      }
+      .setYear(scheduledDate.year)
+      .setMonth(scheduledDate.monthValue)
+      .setDay(scheduledDate.dayOfMonth)
       .build()
     if (!notificationScheduleManager.scheduleNotification(notification)) {
       throw IllegalStateException("Android could not register the notification alarm; the 50-reminder limit may have been reached.")
