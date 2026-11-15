@@ -1121,23 +1121,29 @@ class AndroidNativeCapabilityAdapter(
   override suspend fun postNotification(
     title: String,
     message: String,
+    channelId: String,
   ): NativeCapabilityActionResult {
     validateNotificationText(title, message)
+    validateChannelId(channelId)
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: throw IllegalStateException("NotificationManager is unavailable.")
+    if (channelId == DEFAULT_NOTIFICATION_CHANNEL_ID) {
+      ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
+    }
+    val channel = manager.getNotificationChannel(channelId)
+      ?: throw IllegalArgumentException("Notification channel '$channelId' does not exist. Create it first with create_notification_channel.")
     if (!authorizer.authorize(
         AndroidCapability.NOTIFICATION_POST,
-        "Post a notification on this device using the Gallery task channel. Title: $title. Message: $message",
+        "Post a notification on this device using channel '${channel.name}' ($channelId). Title: $title. Message: $message",
       )
     ) {
       throw SecurityException("Notification posting was not approved.")
     }
     ensureNotificationsAllowed()
-    val manager = appContext.getSystemService(NotificationManager::class.java)
-      ?: throw IllegalStateException("NotificationManager is unavailable.")
-    ensureChannel(manager, DEFAULT_NOTIFICATION_CHANNEL_ID, DEFAULT_NOTIFICATION_CHANNEL_NAME)
-    if (manager.getNotificationChannel(DEFAULT_NOTIFICATION_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) {
-      throw IllegalStateException("The Gallery task notification channel is blocked in Android settings.")
+    if (channel.importance == NotificationManager.IMPORTANCE_NONE) {
+      throw IllegalStateException("Notification channel '$channelId' is blocked in Android settings.")
     }
-    val notification = NotificationCompat.Builder(appContext, DEFAULT_NOTIFICATION_CHANNEL_ID)
+    val notification = NotificationCompat.Builder(appContext, channelId)
       .setSmallIcon(android.R.drawable.ic_dialog_info)
       .setContentTitle(title)
       .setContentText(message)
@@ -1350,6 +1356,12 @@ class AndroidNativeCapabilityAdapter(
     }
     require(message.isNotBlank() && message.length <= MAX_NOTIFICATION_MESSAGE_CHARS) {
       "Notification message must contain 1–$MAX_NOTIFICATION_MESSAGE_CHARS characters."
+    }
+  }
+
+  private fun validateChannelId(id: String) {
+    require(id.matches(Regex("^[A-Za-z0-9_.-]{1,64}$"))) {
+      "Notification channel ID must contain 1–64 letters, digits, dots, underscores, or hyphens."
     }
   }
 
