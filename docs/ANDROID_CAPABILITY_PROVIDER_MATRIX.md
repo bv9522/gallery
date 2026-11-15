@@ -46,7 +46,7 @@ The capability catalog assigns exactly one owner to every declared capability. T
 
 - Reuses Gallery's existing AlarmManager/DataStore scheduler, scheduled-notification receiver (which re-arms daily reminders at local wall-clock time), boot recovery receiver, and PendingIntent helper; no second scheduling subsystem is introduced.
 - `android_control` exposes approved immediate notification posting, bounded active-notification listing/dismissal, scheduled reminder creation/listing/cancellation, and bounded channel listing/creation. Mutations require scoped approval; Android 13+ notification permission is requested only after approval.
-- Provider discovery reports permission/global-notification state without prompting. Blocked channels and globally disabled notifications are explicit failures. Schedule persistence and alarm updates are serialized, and boot recovery reads authoritative DataStore state.
+- Provider discovery reports permission/global-notification state without prompting. Blocked channels and globally disabled notifications are explicit failures. Active notification and channel listings are bounded; at most 50 reminders are persisted. Schedule persistence and alarm updates are serialized, and boot recovery reads authoritative DataStore state.
 - Reading notifications from other apps remains unsupported and separate; it requires NotificationListenerService special access and is not silently enabled by this phase.
 
 ## Remaining capability groups
