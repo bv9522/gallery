@@ -132,7 +132,7 @@ started with only three commands.
 | media-player, media-scan | Native Kotlin media APIs |
 | microphone-record | Native Kotlin MediaRecorder + MediaStore for bounded Gallery-owned file recording |
 | nfc | Termux:API for basic NDEF read/write; native for foreground reader-mode integration |
-| notification, notification-channel, notification-list, notification-remove | Native Kotlin NotificationManager for Gallery-owned posting/channels/scheduled reminders; reading other apps' notifications requires a separate future NotificationListenerService |
+| notification, notification-channel, notification-list, notification-remove | Native Kotlin NotificationManager for Gallery-owned posting, active notification listing/dismissal, channels, and scheduled reminders; reading other apps' notifications requires a separate future NotificationListenerService |
 | sensor | Termux:API for bounded reads/streams with explicit cleanup |
 | share | Native Kotlin Android share intents |
 | sms-inbox, sms-list, sms-send | Native Kotlin telephony/content APIs; sending remains user-mediated |
@@ -245,7 +245,7 @@ version compatibility must be verified on-device before an operation is marked i
 ### Wave 3B — Native notifications and scheduling (Phase 9B draft; validation pending)
 
 - Reuses Gallery's existing `NotificationScheduleManager`, `NotificationReceiver`, `BootReceiver`, `NotificationPendingIntentHelper`, and `scheduled_notification.proto`; does not add a competing scheduler.
-- Exposes immediate app-owned notification posting, scheduled notification creation, listing/cancellation, and bounded notification-channel listing/creation through `android_control`.
+- Exposes immediate app-owned notification posting, bounded listing/dismissal of active Gallery notifications, scheduled reminder creation/listing/cancellation, and bounded notification-channel listing/creation through `android_control`.
 - Posting/scheduling requires exact one-time scoped approval. On Android 13+, `POST_NOTIFICATIONS` is requested only after approval; global notification disablement and blocked channels return explicit failures. Provider discovery never prompts.
 - Schedule arguments are bounded; date components are all-or-none, invalid dates and past dated reminders fail closed, and local time is used. One-shot alarms use `setAndAllowWhileIdle`; daily reminders use inexact repeating alarms without requesting exact-alarm special access.
 - Fixes the existing scheduler's asynchronous load/save race by making DataStore the authoritative source and serializing schedule/cancel operations. Failed alarm registration rolls persisted state back; boot recovery reads through DataStore. Repeating notifications reuse a stable notification ID.
