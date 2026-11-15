@@ -60,7 +60,7 @@ class NotificationReceiver : BroadcastReceiver() {
       val pendingIntent =
         PendingIntent.getActivity(
           context,
-          0,
+          if (id.isNotEmpty()) id.hashCode() else System.currentTimeMillis().toInt(),
           contentIntent,
           PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
