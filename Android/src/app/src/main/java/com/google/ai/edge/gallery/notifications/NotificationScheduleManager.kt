@@ -36,12 +36,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Owns Gallery's persisted scheduled-notification records and their AlarmManager registrations.
@@ -86,25 +88,30 @@ constructor(@ApplicationContext private val context: Context) {
         .addNotification(notification)
         .build()
 
-      dataStore.updateData { updated }
-      _scheduledNotifications.value = updated.notificationList
       try {
+        dataStore.updateData { updated }
+        _scheduledNotifications.value = updated.notificationList
         existing?.let(::cancelAlarmForNotification)
         setAlarmForNotification(notification)
         true
       } catch (cancelled: CancellationException) {
-        dataStore.updateData { previous }
-        _scheduledNotifications.value = previous.notificationList
-        existing?.let { old -> runCatching { setAlarmForNotification(old) } }
+        restoreSchedule(previous, existing)
         throw cancelled
       } catch (error: Exception) {
         Log.e(tag, "Failed to schedule notification; restoring persisted state", error)
-        dataStore.updateData { previous }
-        _scheduledNotifications.value = previous.notificationList
-        existing?.let { old -> runCatching { setAlarmForNotification(old) } }
+        restoreSchedule(previous, existing)
         false
       }
     }
+
+  private suspend fun restoreSchedule(
+    previous: ScheduledNotifications,
+    previousNotification: ScheduledNotification?,
+  ) = withContext(NonCancellable) {
+    dataStore.updateData { previous }
+    _scheduledNotifications.value = previous.notificationList
+    previousNotification?.let { old -> runCatching { setAlarmForNotification(old) } }
+  }
 
   /**
    * Sets a one-shot or daily alarm for a validated notification.
@@ -180,7 +187,10 @@ constructor(@ApplicationContext private val context: Context) {
         try {
           val notifications = dataStore.data.first().notificationList
           _scheduledNotifications.value = notifications
-          notifications.forEach(::setAlarmForNotification)
+          notifications.forEach { notification ->
+            runCatching { setAlarmForNotification(notification) }
+              .onFailure { error -> Log.e(tag, "Failed to restore notification ${notification.id}", error) }
+          }
         } catch (cancelled: CancellationException) {
           throw cancelled
         } catch (error: Exception) {
@@ -198,14 +208,22 @@ constructor(@ApplicationContext private val context: Context) {
       .clearNotification()
       .addAllNotification(previous.notificationList.filterNot { it.id == id })
       .build()
-    dataStore.updateData { updated }
-    _scheduledNotifications.value = updated.notificationList
     try {
+      dataStore.updateData { updated }
+      _scheduledNotifications.value = updated.notificationList
       cancelAlarmForNotification(notification)
       true
+    } catch (cancelled: CancellationException) {
+      withContext(NonCancellable) {
+        dataStore.updateData { previous }
+        _scheduledNotifications.value = previous.notificationList
+        runCatching { setAlarmForNotification(notification) }
+      }
+      throw cancelled
     } catch (error: Exception) {
       dataStore.updateData { previous }
       _scheduledNotifications.value = previous.notificationList
+      runCatching { setAlarmForNotification(notification) }
       throw error
     }
   }
@@ -215,6 +233,8 @@ constructor(@ApplicationContext private val context: Context) {
     coroutineScope.launch {
       try {
         cancelScheduledNotification(id)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
       } catch (error: Exception) {
         Log.e(tag, "Failed to remove completed notification $id", error)
       }
