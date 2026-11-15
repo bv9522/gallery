@@ -87,9 +87,9 @@ class NotificationReceiver : BroadcastReceiver() {
       updateSchedule(context, id, repeatDaily)
     } catch (e: Exception) {
       Log.e(TAG, "Failed to send notification", e)
-      // A failed post (for example, revoked notification permission) must not silently stop a
-      // daily reminder. The next local-time occurrence is still armed.
-      if (repeatDaily) runCatching { updateSchedule(context, id, true) }
+      // A failed post must not leave a consumed one-shot as a stale reminder or silently
+      // stop a daily reminder. Remove one-shots and re-arm daily reminders at local wall time.
+      runCatching { updateSchedule(context, id, repeatDaily) }
     }
   }
 
