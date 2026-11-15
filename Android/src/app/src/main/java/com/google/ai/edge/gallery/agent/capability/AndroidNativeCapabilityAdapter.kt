@@ -1252,7 +1252,7 @@ class AndroidNativeCapabilityAdapter(
       }
       .build()
     if (!notificationScheduleManager.scheduleNotification(notification)) {
-      throw IllegalStateException("Android could not register the notification alarm.")
+      throw IllegalStateException("Android could not register the notification alarm; the 50-reminder limit may have been reached.")
     }
     return NativeCapabilityActionResult(
       true,
