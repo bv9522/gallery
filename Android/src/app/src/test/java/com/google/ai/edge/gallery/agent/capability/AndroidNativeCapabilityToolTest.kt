@@ -514,6 +514,54 @@ class AndroidNativeCapabilityToolTest {
       discoveryCalls += "usb_devices"
       return emptyList()
     }
+
+    override suspend fun postNotification(
+      title: String,
+      message: String,
+      channelId: String,
+      channelName: String,
+    ): NativeCapabilityActionResult {
+      discoveryCalls += "post_notification:$title:$message:$channelId:$channelName"
+      return actionResult
+    }
+
+    override suspend fun scheduleNotification(
+      title: String,
+      message: String,
+      hour: Int,
+      minute: Int,
+      year: Int?,
+      month: Int?,
+      day: Int?,
+      repeatDaily: Boolean,
+    ): NativeCapabilityActionResult {
+      discoveryCalls += "schedule_notification:$title:$hour:$minute:$year:$month:$day:$repeatDaily"
+      return actionResult
+    }
+
+    override suspend fun listScheduledNotifications(): List<NativeScheduledNotification> {
+      discoveryCalls += "list_scheduled_notifications"
+      return listOf(NativeScheduledNotification("test-id", "Reminder", "Do the thing", 9, 30, null, null, null, false))
+    }
+
+    override suspend fun cancelScheduledNotification(id: String): NativeCapabilityActionResult {
+      discoveryCalls += "cancel_scheduled_notification:$id"
+      return actionResult
+    }
+
+    override fun listNotificationChannels(): List<NativeNotificationChannel> {
+      discoveryCalls += "list_notification_channels"
+      return listOf(NativeNotificationChannel("test", "Test", 3))
+    }
+
+    override suspend fun createNotificationChannel(
+      id: String,
+      name: String,
+      importance: Int,
+    ): NativeCapabilityActionResult {
+      discoveryCalls += "create_notification_channel:$id:$name:$importance"
+      return actionResult
+    }
     override suspend fun recordAudio(durationMs: Long): String {
       discoveryCalls += "record_audio:$durationMs"
       return "content://media/external/audio/media/84"
