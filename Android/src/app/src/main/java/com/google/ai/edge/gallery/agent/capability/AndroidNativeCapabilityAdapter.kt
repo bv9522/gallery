@@ -2131,8 +2131,10 @@ class AndroidNativeCapabilityAdapter(
   }
 
   override suspend fun listKeystoreKeys(): List<String> {
-    if (!authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
-        "List Gallery Agent Keystore key aliases. Key material and encrypted contents will not be read.")) return emptyList()
+    check(authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
+      "List Gallery Agent Keystore key aliases. Key material and encrypted contents will not be read.")) {
+      "Keystore key listing was not approved."
+    }
     return androidKeyStore().aliases().toList()
       .filter { it.startsWith(KEYSTORE_ALIAS_PREFIX) }
       .map { it.removePrefix(KEYSTORE_ALIAS_PREFIX) }
@@ -2162,6 +2164,7 @@ class AndroidNativeCapabilityAdapter(
 
   override suspend fun encryptKeystoreData(alias: String, plaintext: String): NativeKeystoreCiphertext {
     val safeAlias = normalizeKeystoreAlias(alias) ?: error("Invalid Keystore alias.")
+    requireStrongBiometricAvailable()
     require(plaintext.isNotEmpty() && plaintext.length <= MAX_KEYSTORE_PLAINTEXT_CHARS) {
       "plaintext must contain 1–$MAX_KEYSTORE_PLAINTEXT_CHARS characters."
     }
@@ -2186,6 +2189,7 @@ class AndroidNativeCapabilityAdapter(
 
   override suspend fun decryptKeystoreData(alias: String, ivBase64: String, ciphertextBase64: String): String {
     val safeAlias = normalizeKeystoreAlias(alias) ?: error("Invalid Keystore alias.")
+    requireStrongBiometricAvailable()
     val iv = decodeKeystoreBase64(ivBase64, "iv_base64", MIN_GCM_IV_BYTES, MAX_GCM_IV_BYTES)
     val ciphertext = decodeKeystoreBase64(ciphertextBase64, "ciphertext_base64", GCM_TAG_BYTES, MAX_KEYSTORE_CIPHERTEXT_BYTES)
     check(authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
@@ -2199,6 +2203,13 @@ class AndroidNativeCapabilityAdapter(
     ) ?: error("Strong biometric authentication was cancelled or failed.")
     val authenticatedCipher = authentication.cryptoObject?.cipher ?: error("Biometric authentication did not return the Keystore cipher.")
     return authenticatedCipher.doFinal(ciphertext).toString(Charsets.UTF_8)
+  }
+
+  private fun requireStrongBiometricAvailable() {
+    check(
+      BiometricManager.from(appContext).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+        BiometricManager.BIOMETRIC_SUCCESS
+    ) { "Enroll a strong biometric and make sure it is available before using this Keystore key." }
   }
 
   private fun androidKeyStore(): KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
