@@ -61,7 +61,11 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.telephony.TelephonyManager
 import android.provider.Settings
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
@@ -77,6 +81,11 @@ import kotlinx.coroutines.withContext
 import dagger.hilt.android.EntryPointAccessors
 import com.google.ai.edge.gallery.notifications.NotificationScheduleManagerEntryPoint
 import com.google.ai.edge.gallery.proto.ScheduledNotification
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -259,6 +268,7 @@ class AndroidNativeCapabilityAdapter(
   private val authorizer: NativeCapabilityAuthorizer,
   private val permissionRequester: NativeRuntimePermissionRequester = NativeRuntimePermissionRequester { false },
   private val photoCaptureRequester: NativePhotoCaptureRequester = NativePhotoCaptureRequester { false },
+  private val biometricAuthenticator: NativeBiometricAuthenticator = NativeBiometricAuthenticator { _, _, _ -> null },
 ) : NativeCapabilityOperations {
   private val appContext = context.applicationContext
   private val wakeLockGuard = Any()
@@ -485,6 +495,28 @@ class AndroidNativeCapabilityAdapter(
         details[AndroidCapability.SMS_COMPOSE] = "No SMS composer can handle smsto links."
         ProviderAvailability.UNSUPPORTED
       }
+    val biometricStatus = BiometricManager.from(appContext)
+      .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+    capabilities[AndroidCapability.BIOMETRIC_AUTH] =
+      if (biometricStatus == BiometricManager.BIOMETRIC_SUCCESS) ProviderAvailability.AVAILABLE
+      else {
+        details[AndroidCapability.BIOMETRIC_AUTH] = when (biometricStatus) {
+          BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No strong biometric is enrolled. Enroll a fingerprint or other strong biometric in Android settings."
+          BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "This device has no strong biometric hardware."
+          BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Strong biometric hardware is temporarily unavailable."
+          else -> "Strong biometric authentication is unavailable (status $biometricStatus)."
+        }
+        if (biometricStatus == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED) ProviderAvailability.PERMISSION_REQUIRED
+        else ProviderAvailability.UNSUPPORTED
+      }
+    capabilities[AndroidCapability.KEYSTORE_OPERATION] =
+      if (runCatching { KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) } }.isSuccess) {
+        ProviderAvailability.AVAILABLE
+      } else {
+        details[AndroidCapability.KEYSTORE_OPERATION] = "Android Keystore is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+
     capabilities[AndroidCapability.CALL_LOG_READ] = ProviderAvailability.UNSUPPORTED
     details[AndroidCapability.CALL_LOG_READ] =
       "Call-log access is not implemented; it requires separate sensitive-permission and policy review."
@@ -2121,6 +2153,17 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_CONTACT_VALUE_CHARS = 120
     const val MAX_PHONE_NUMBER_CHARS = 32
     const val MAX_SMS_MESSAGE_CHARS = 1_600
+    const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    const val KEYSTORE_ALIAS_PREFIX = "gallery_agent_"
+    const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"
+    const val GCM_TAG_BITS = 128
+    const val GCM_TAG_BYTES = GCM_TAG_BITS / 8
+    const val MIN_GCM_IV_BYTES = 12
+    const val MAX_GCM_IV_BYTES = 16
+    const val MAX_KEYSTORE_PLAINTEXT_CHARS = 4_096
+    const val MAX_KEYSTORE_CIPHERTEXT_BYTES = 8_208
+    const val MAX_KEYSTORE_KEYS = 50
+    const val MAX_BIOMETRIC_REASON_CHARS = 160
     const val MAX_CLIPBOARD_ITEMS = 5
     const val MAX_CLIPBOARD_CHARS = 8_192
     const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
