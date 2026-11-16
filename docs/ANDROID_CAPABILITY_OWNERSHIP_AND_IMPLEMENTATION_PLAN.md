@@ -89,8 +89,8 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
 | Basic speech recognition | Native Kotlin (Gallery AsrServiceProvider: Android SpeechRecognizer, ML Kit, MediaPipe) | Phase 9A: existing hold-to-dictate UI already uses native ASR engines; model-initiated recording is intentionally not exposed |
 | Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; model-triggered speech action remains a separate integration task |
-| Biometric authentication | Native Kotlin (BiometricPrompt) | Planned; authentication result only, never expose biometric data |
-| Secure key operations | Native Kotlin (Android Keystore) | Planned; keys remain non-exportable |
+| Biometric authentication | Native Kotlin (BiometricPrompt) | Draft in PR #32: foreground strong-biometric prompt via Gallery action channel; returns only success/failure; no biometric data is exposed; local validation pending |
+| Secure key operations | Native Kotlin (Android Keystore) | Draft in PR #32: non-exportable AES-256-GCM keys; key use requires strong biometric authentication; local validation pending |
 | Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
 | Media scan / index | Native Kotlin (MediaScannerConnection / MediaStore) | Planned |
 | Media playback initiated by the app | Native Kotlin (existing media stack or platform MediaPlayer) | Planned |
@@ -251,13 +251,25 @@ version compatibility must be verified on-device before an operation is marked i
 - Fixes the existing scheduler's asynchronous load/save race by making DataStore the authoritative source and serializing schedule/cancel operations. Failed alarm registration rolls persisted state back; boot recovery reads through DataStore. Repeating notifications reuse a stable notification ID.
 - `NOTIFICATION_READ` remains unavailable. Reading notifications from other apps requires a separate, explicitly user-enabled NotificationListenerService and is not included in this phase.
 
-### Wave 3C — Native telephony metadata and user-mediated actions (draft PR; validation pending)
+### Wave 3C — Native telephony metadata and user-mediated actions (PR #31; local validation passed)
 
-- Adds read-only telephony metadata limited to the device telephony feature, phone type, and SIM state. It does not read phone numbers, subscriber identifiers, IMEI/MEID, carrier identifiers, cell IDs, or location.
+- Adds read-only telephony metadata limited to the device telephony feature, phone type, and SIM state. It does not read phone numbers, subscriber identifiers, IMEI/MEID, carrier identifiers, cell IDs, or location. PR #31 unit tests and debug build passed (user-confirmed); device acceptance remains pending.
 - Adds dial_phone through ACTION_DIAL. The exact destination is shown in scoped approval, then Android opens the dialer; the user must review and place the call. No CALL_PHONE permission or direct call is used.
 - Adds compose_sms through ACTION_SENDTO with an smsto: URI and a bounded prefilled message. Scoped approval displays the exact recipient and message; Android opens the SMS composer and the user must press Send. No SEND_SMS permission or silent send is used.
 - Phone numbers are limited to 3–20 digits, an optional leading plus, and common formatting punctuation. SMS composer text is limited to 1,600 characters. Provider discovery checks whether suitable system activities exist and never launches them.
 - Call-log reads and SMS inbox reads remain Planned pending separate permission, default-role, and policy review. No READ_CALL_LOG or READ_SMS permission is declared by this slice.
+
+
+### Wave 3D — Biometric authentication and Gallery-owned Keystore (draft PR; validation pending)
+
+- Adds a foreground `BiometricPrompt` action handled by the existing Agent Chat Activity/action channel. Provider discovery only checks authenticator availability and never displays a prompt.
+- Standalone biometric authentication returns only a success/failure result. No fingerprint, face image, template, sensor data, or biometric identifier is exposed to the model.
+- Adds app-namespaced Android Keystore AES-256 keys using GCM. Key material is non-exportable; aliases are restricted to 1–32 lowercase letters, digits, underscores, and hyphens under a Gallery-owned prefix.
+- Keys require strong biometric authentication for each encrypt/decrypt operation and are invalidated when biometric enrollment changes. Ciphertext is returned as Base64 IV and ciphertext; plaintext is processed in memory only and is returned to the local agent only on explicit decrypt.
+- Key create/list/delete and each encrypt/decrypt operation require scoped approval. Deleting a key makes its existing ciphertext permanently unrecoverable.
+- Plaintext is bounded to 4,096 characters; ciphertext input and GCM IV sizes are bounded and validated. No key material is exported and no plaintext is persisted by the adapter.
+- Biometric UI behavior, hardware-backed Keystore behavior, and cancellation on the target device remain device-acceptance concerns.
+
 
 ### Wave 4 — Files and removable storage
 - SAF document-tree picker and persisted URI grants.
