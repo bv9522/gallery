@@ -214,7 +214,7 @@ internal object AndroidControlArguments {
       val iv = runCatching { Base64.getDecoder().decode(ivText) }.getOrNull()
       val cipher = runCatching { Base64.getDecoder().decode(cipherText) }.getOrNull()
       if (iv == null || iv.size !in 12..16) return "iv_base64 must decode to 12–16 bytes of unwrapped Base64."
-      if (cipher == null || cipher.size !in 16..8_208) return "ciphertext_base64 must decode to 16–8208 bytes of unwrapped Base64."
+      if (cipher == null || cipher.size !in 16..16_400) return "ciphertext_base64 must decode to 16–16400 bytes of unwrapped Base64."
     }
 
     if (operation == "contacts_search") {
