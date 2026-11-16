@@ -89,8 +89,8 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
 | Basic speech recognition | Native Kotlin (Gallery AsrServiceProvider: Android SpeechRecognizer, ML Kit, MediaPipe) | Phase 9A: existing hold-to-dictate UI already uses native ASR engines; model-initiated recording is intentionally not exposed |
 | Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; model-triggered speech action remains a separate integration task |
-| Biometric authentication | Native Kotlin (BiometricPrompt) | Draft in PR #32: foreground strong-biometric prompt via Gallery action channel; returns only success/failure; no biometric data is exposed; local validation pending |
-| Secure key operations | Native Kotlin (Android Keystore) | Draft in PR #32: non-exportable AES-256-GCM keys; key use requires strong biometric authentication; local validation pending |
+| Biometric authentication | Native Kotlin (BiometricPrompt) | PR #32: foreground strong-biometric prompt via Gallery action channel; returns only success/failure; no biometric data is exposed; user-confirmed local unit tests and debug build passed; device acceptance pending |
+| Secure key operations | Native Kotlin (Android Keystore) | PR #32: non-exportable AES-256-GCM keys; key use requires strong biometric authentication; user-confirmed local unit tests and debug build passed; device acceptance pending |
 | Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
 | Media scan / index | Native Kotlin (MediaScannerConnection / MediaStore) | Planned |
 | Media playback initiated by the app | Native Kotlin (existing media stack or platform MediaPlayer) | Planned |
@@ -260,7 +260,7 @@ version compatibility must be verified on-device before an operation is marked i
 - Call-log reads and SMS inbox reads remain Planned pending separate permission, default-role, and policy review. No READ_CALL_LOG or READ_SMS permission is declared by this slice.
 
 
-### Wave 3D — Biometric authentication and Gallery-owned Keystore (draft PR; validation pending)
+### Wave 3D — Biometric authentication and Gallery-owned Keystore (PR #32; local validation passed)
 
 - Adds a foreground `BiometricPrompt` action handled by the existing Agent Chat Activity/action channel. Provider discovery only checks authenticator availability and never displays a prompt.
 - Standalone biometric authentication returns only a success/failure result. No fingerprint, face image, template, sensor data, or biometric identifier is exposed to the model.
@@ -268,7 +268,16 @@ version compatibility must be verified on-device before an operation is marked i
 - Keys require strong biometric authentication for each encrypt/decrypt operation and are invalidated when biometric enrollment changes. Ciphertext is returned as Base64 IV and ciphertext; plaintext is processed in memory only and is returned to the local agent only on explicit decrypt.
 - Key create/list/delete and each encrypt/decrypt operation require scoped approval. Deleting a key makes its existing ciphertext permanently unrecoverable.
 - Plaintext is bounded to 4,096 characters; ciphertext input and GCM IV sizes are bounded and validated. No key material is exported and no plaintext is persisted by the adapter.
-- Biometric UI behavior, hardware-backed Keystore behavior, and cancellation on the target device remain device-acceptance concerns.
+- Biometric UI behavior, hardware-backed Keystore behavior, and cancellation on the target device remain device-acceptance concerns. User-confirmed local `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host fix. PR #32 remains draft and unmerged.
+
+### Wave 3E — Downloads, media, sharing, and Gallery TTS integration (next)
+- Add bounded, Gallery-owned download management; reuse Android DownloadManager where it provides reliable lifecycle and status semantics, and keep any app-owned transfer implementation narrowly scoped.
+- Add explicit media scanning/index lookup and app-initiated playback using Gallery's existing media stack where available; do not duplicate media infrastructure without a demonstrated gap.
+- Treat active media-session control as a separate capability with explicit access-state reporting. Do not silently request NotificationListenerService special access; unsupported access remains unavailable until the user enables it.
+- Add text/file sharing through Android ACTION_SEND and the system chooser. The user selects the destination and completes the share; no silent cross-app content delivery.
+- Route agent-triggered speech through Gallery's existing TtsServiceProvider and playback/service lifecycle, respecting the user's persisted engine, voice, and language selection. Do not add a parallel TTS engine or Termux TTS route.
+- Discovery remains observational; downloads, playback changes, and sharing use scoped approval and bounded arguments/results. Media URIs must be content URIs with ownership/grant handling, not arbitrary filesystem paths.
+- Local unit tests and debug build validation will be recorded per implementation slice; consolidated S21 device acceptance remains deferred until onboarding is complete.
 
 
 ### Wave 4 — Files and removable storage
