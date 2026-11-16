@@ -174,7 +174,7 @@ class AndroidNativeCapabilityTool internal constructor(
         add("ciphertext_base64", JsonObject().apply {
           addProperty("type", "string")
           addProperty("description", "Ciphertext returned by keystore_encrypt, encoded as unwrapped Base64.")
-          addProperty("maxLength", 10944)
+          addProperty("maxLength", 21868)
         })
         add("stream", JsonObject().apply {
           addProperty("type", "string")
@@ -406,8 +406,11 @@ class AndroidNativeCapabilityTool internal constructor(
           val alias = arguments.string("key_alias") ?: return failure("keystore_create requires key_alias.")
           mutate(AndroidCapability.KEYSTORE_OPERATION) { adapter.createKeystoreKey(alias) }
         }
-        "keystore_list" -> read(AndroidCapability.KEYSTORE_OPERATION) {
-          Gson().toJson(adapter.listKeystoreKeys())
+        "keystore_list" -> {
+          val unavailable = availabilityFailure(AndroidCapability.KEYSTORE_OPERATION)
+          if (unavailable != null) unavailable
+          else runCatching { adapter.listKeystoreKeys() }
+            .fold({ AgentToolResult(Gson().toJson(it)) }, { failure(it.message ?: "Keystore listing failed.") })
         }
         "keystore_delete" -> {
           val alias = arguments.string("key_alias") ?: return failure("keystore_delete requires key_alias.")
