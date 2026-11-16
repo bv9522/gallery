@@ -313,8 +313,8 @@ class AndroidNativeCapabilityToolTest {
     })
     val decrypt = tool.execute(arguments("keystore_decrypt").apply {
       addProperty("key_alias", "test_key")
-      addProperty("iv_base64", "aXZfYmFzZTY0")
-      addProperty("ciphertext_base64", "Y2lwaGVydGV4dA==")
+      addProperty("iv_base64", "AAAAAAAAAAAAAAAA")
+      addProperty("ciphertext_base64", "AAAAAAAAAAAAAAAAAAAAAA==")
     })
     val delete = tool.execute(arguments("keystore_delete").apply {
       addProperty("key_alias", "test_key")
