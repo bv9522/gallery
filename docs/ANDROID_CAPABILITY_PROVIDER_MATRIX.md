@@ -38,7 +38,7 @@ The list below reflects previously integrated Gallery-native operations; it is n
 
 ## Onboarding readiness
 
-The capability onboarding chain through Phase 9B consists of open draft PRs #23–#30. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30. Wave 3 telephony metadata and user-mediated dialer/SMS composition are in draft PR #31. These changes remain unmerged. PR #30 passed the current-head unit-test task and debug build as confirmed by the user; the current telephony PR still requires local validation. Consolidated S21 device acceptance remains deferred until onboarding is complete.
+The capability onboarding chain through Wave 3B consists of open draft PRs #23–#31. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30. Wave 3 telephony metadata and user-mediated dialer/SMS composition are in draft PR #31 and passed the user-confirmed local unit-test task and debug build. The current biometric/Keystore slice is in draft PR #32 and requires local validation. Consolidated S21 device acceptance remains deferred until onboarding is complete.
 
 The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
 
@@ -152,3 +152,15 @@ inbox reads remain planned.
 - ACTION_DIAL opens the system dialer after scoped approval. The user reviews the destination and initiates the call; no CALL_PHONE permission is requested.
 - ACTION_SENDTO with an smsto: URI opens a prefilled SMS composer after scoped approval showing the exact recipient and message. The user presses Send; no SEND_SMS permission is requested and the app does not send directly.
 - Call-log and SMS inbox reads remain unimplemented pending separate sensitive-permission, default-role, and policy review.
+
+
+## Biometric and Android Keystore onboarding — Wave 3 draft
+
+- Biometric authentication is presented by AndroidX BiometricPrompt from the foreground Gallery Activity through the existing Agent Chat action channel. The provider adapter does not attempt to display UI from its application context.
+- Only strong biometric authentication is accepted. The model receives a boolean authentication result only; no biometric image, template, fingerprint/face data, or sensor identifiers are exposed.
+- Android Keystore aliases are app-namespaced and restricted to 1–32 lowercase letters, digits, underscores, and hyphens. Key material is non-exportable.
+- Keys use AES-256/GCM and require strong biometric authentication for each encrypt/decrypt operation. New biometric enrollment invalidates existing keys.
+- Encryption returns an IV and ciphertext as Base64. Plaintext is processed in memory only; decrypt returns plaintext to the local agent and does not persist it.
+- Key creation, listing, deletion, encryption, and decryption require scoped approval. Deleting a key permanently prevents recovery of ciphertext encrypted with it.
+- Plaintext is limited to 4,096 characters. IV and ciphertext lengths are bounded and validated. No CALL_PHONE, SEND_SMS, or additional Android runtime permission is introduced by this slice.
+
