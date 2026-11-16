@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.tools
 
+import androidx.biometric.BiometricPrompt
 import com.squareup.moshi.JsonClass
 import kotlinx.coroutines.CompletableDeferred
 
@@ -28,6 +29,7 @@ enum class ToolActionName() {
   ASK_MCP_TOOL_CALL_PERMISSION,
   ASK_SHELL_COMMAND_PERMISSION,
   ASK_NATIVE_CAPABILITY_PERMISSION,
+  AUTHENTICATE_BIOMETRIC,
   CAPTURE_PHOTO,
   OPEN_DOCUMENT_TREE,
 }
@@ -151,6 +153,16 @@ class AskNativeCapabilityPermissionAction(
   val summary: String,
   val result: CompletableDeferred<Boolean> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.ASK_NATIVE_CAPABILITY_PERMISSION)
+
+/** Requests a foreground system biometric prompt, optionally bound to a Keystore cipher. */
+class AuthenticateBiometricToolAction(
+  val title: String,
+  val subtitle: String,
+  val cryptoObject: BiometricPrompt.CryptoObject? = null,
+  val result: CompletableDeferred<BiometricPrompt.AuthenticationResult?> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.AUTHENTICATE_BIOMETRIC) {
+  @Volatile var cancelPrompt: (() -> Unit)? = null
+}
 
 @JsonClass(generateAdapter = true)
 data class CallJsSkillResult(
