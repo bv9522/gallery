@@ -27,6 +27,9 @@ internal object AndroidControlArguments {
   private val operationArguments = mapOf(
     "status" to setOf("operation"),
     "device_info" to setOf("operation"),
+    "telephony_info" to setOf("operation"),
+    "dial_phone" to setOf("operation", "phone_number"),
+    "compose_sms" to setOf("operation", "phone_number", "sms_message"),
     "battery_status" to setOf("operation"),
     "volume_status" to setOf("operation", "stream"),
     "audio_devices" to setOf("operation"),
@@ -70,6 +73,8 @@ internal object AndroidControlArguments {
     "set_flashlight" to setOf("enabled"),
     "launch_app" to setOf("package_name"),
     "open_url" to setOf("url"),
+    "dial_phone" to setOf("phone_number"),
+    "compose_sms" to setOf("phone_number", "sms_message"),
     "set_wallpaper" to setOf("content_uri"),
     "bluetooth_gatt_services" to setOf("device_address"),
     "bluetooth_gatt_read" to setOf("device_address", "service_uuid", "characteristic_uuid"),
@@ -139,6 +144,27 @@ internal object AndroidControlArguments {
       val decoded = runCatching { Base64.getDecoder().decode(encoded) }.getOrNull()
       if (decoded == null || decoded.isEmpty() || decoded.size > 512) {
         return "value_base64 must encode between 1 and 512 bytes using unwrapped Base64."
+      }
+    }
+
+    if (operation in setOf("dial_phone", "compose_sms")) {
+      val number = arguments.get("phone_number")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty().trim()
+      val validNumber = number.length <= 32 &&
+        number.matches(Regex("^\\+?[0-9][0-9 .()-]*$")) &&
+        number.count { it.isDigit() } in 3..20
+      if (!validNumber) {
+        return "phone_number must contain 3–20 digits and only an optional leading plus, spaces, dots, parentheses, or hyphens."
+      }
+    }
+
+    if (operation == "compose_sms") {
+      val message = arguments.get("sms_message")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (message.isBlank() || message.length > 1_600) {
+        return "sms_message must contain 1–1600 non-whitespace characters."
       }
     }
 
