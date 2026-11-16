@@ -250,6 +250,52 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun telephonyOperationsDispatchThroughTheNativeAdapter() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val info = tool.execute(arguments("telephony_info"))
+    val dial = tool.execute(arguments("dial_phone").apply {
+      addProperty("phone_number", "+1 (555) 010-1234")
+    })
+    val sms = tool.execute(arguments("compose_sms").apply {
+      addProperty("phone_number", "+1 555 010 1234")
+      addProperty("sms_message", "I am running five minutes late.")
+    })
+
+    assertTrue(info.isSuccessful)
+    assertTrue(info.content.contains("GSM"))
+    assertTrue(dial.isSuccessful)
+    assertTrue(sms.isSuccessful)
+    assertEquals(
+      listOf(
+        "dial_phone:+1 (555) 010-1234",
+        "compose_sms:+1 555 010 1234:I am running five minutes late.",
+      ),
+      adapter.mutations,
+    )
+  }
+
+  @Test
+  fun telephonyMutationCapabilitiesFailClosedWhenUnavailable() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations().apply {
+      availability[AndroidCapability.PHONE_CALL_DIAL] = ProviderAvailability.UNSUPPORTED
+      availability[AndroidCapability.SMS_COMPOSE] = ProviderAvailability.UNSUPPORTED
+    }
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val dial = tool.execute(arguments("dial_phone").apply { addProperty("phone_number", "5550101234") })
+    val sms = tool.execute(arguments("compose_sms").apply {
+      addProperty("phone_number", "5550101234")
+      addProperty("sms_message", "Hello")
+    })
+
+    assertFalse(dial.isSuccessful)
+    assertFalse(sms.isSuccessful)
+    assertTrue(adapter.mutations.isEmpty())
+  }
+
+  @Test
   fun notificationOperationsDispatchThroughTheNativeAdapter() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
@@ -493,6 +539,12 @@ class AndroidNativeCapabilityToolTest {
       securityPatch = null,
     )
 
+    override fun getTelephonyInfo() = NativeTelephonyInfo(
+      hasTelephonyFeature = true,
+      phoneType = "GSM",
+      simState = "READY",
+    )
+
     override fun getBatteryStatus() = NativeBatteryStatus(
       percent = 50,
       state = "DISCHARGING",
@@ -554,6 +606,16 @@ class AndroidNativeCapabilityToolTest {
 
     override suspend fun openUrl(url: String): NativeCapabilityActionResult {
       mutations += "open_url:$url"
+      return actionResult
+    }
+
+    override suspend fun dialPhoneNumber(phoneNumber: String): NativeCapabilityActionResult {
+      mutations += "dial_phone:$phoneNumber"
+      return actionResult
+    }
+
+    override suspend fun composeSms(phoneNumber: String, message: String): NativeCapabilityActionResult {
+      mutations += "compose_sms:$phoneNumber:$message"
       return actionResult
     }
     override suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice> {
