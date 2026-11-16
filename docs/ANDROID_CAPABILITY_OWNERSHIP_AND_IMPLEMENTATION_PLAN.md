@@ -76,10 +76,10 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | URL open | Native Kotlin (ACTION_VIEW) | Implemented |
 | Contacts read | Native Kotlin (ContactsContract) | Draft in PR #28: scoped name/text search, READ_CONTACTS requested only after approval, maximum 20 results with at most 3 phone numbers and 3 email addresses each; local validation and device acceptance pending |
 | Call-log read | Native Kotlin (CallLog provider) | Planned; restricted permission and privacy review |
-| Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Planned; return only permitted, non-secret metadata |
-| SMS inbox/list | Native Kotlin (Telephony provider where permitted) | Planned; permission/role restrictions may make this unavailable |
-| SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Planned; user-mediated send, no silent bulk sending |
-| Place a phone call | Native Kotlin (ACTION_DIAL) | Planned; user confirms call in dialer |
+| Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Draft in Wave 3 telephony PR: phone type and SIM state only; excludes subscriber IDs, phone numbers, carrier identifiers, and cell-location data; local validation pending |
+| SMS inbox/list | Native Kotlin (Telephony provider where permitted) | Planned; not implemented; Android restricts READ_SMS to qualifying/default SMS roles |
+| SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Draft in Wave 3 telephony PR: scoped approval opens a prefilled composer; user must press Send; no SEND_SMS permission or silent send |
+| Place a phone call | Native Kotlin (ACTION_DIAL) | Draft in Wave 3 telephony PR: scoped approval opens dialer with number; user must place call; no CALL_PHONE permission |
 | Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
 | Notifications created by this app | Native Kotlin (NotificationManager) | Phase 9B draft: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; current-head validation and device acceptance pending |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
@@ -250,6 +250,14 @@ version compatibility must be verified on-device before an operation is marked i
 - Schedule arguments are bounded to 100-character titles and 1,000-character messages, at most 50 persisted reminders, and all-or-none date components. Invalid dates and past dated reminders fail closed; the resolved local date is persisted for accurate listing and reboot recovery. One-shot alarms use `setAndAllowWhileIdle`; daily reminders are re-armed as one-shot alarms at the requested local wall-clock time after each delivery, avoiding DST drift without requesting exact-alarm special access.
 - Fixes the existing scheduler's asynchronous load/save race by making DataStore the authoritative source and serializing schedule/cancel operations. Failed alarm registration rolls persisted state back; boot recovery reads through DataStore. Repeating notifications reuse a stable notification ID.
 - `NOTIFICATION_READ` remains unavailable. Reading notifications from other apps requires a separate, explicitly user-enabled NotificationListenerService and is not included in this phase.
+
+### Wave 3C — Native telephony metadata and user-mediated actions (draft PR; validation pending)
+
+- Adds read-only telephony metadata limited to the device telephony feature, phone type, and SIM state. It does not read phone numbers, subscriber identifiers, IMEI/MEID, carrier identifiers, cell IDs, or location.
+- Adds dial_phone through ACTION_DIAL. The exact destination is shown in scoped approval, then Android opens the dialer; the user must review and place the call. No CALL_PHONE permission or direct call is used.
+- Adds compose_sms through ACTION_SENDTO with an smsto: URI and a bounded prefilled message. Scoped approval displays the exact recipient and message; Android opens the SMS composer and the user must press Send. No SEND_SMS permission or silent send is used.
+- Phone numbers are limited to 3–20 digits, an optional leading plus, and common formatting punctuation. SMS composer text is limited to 1,600 characters. Provider discovery checks whether suitable system activities exist and never launches them.
+- Call-log reads and SMS inbox reads remain Planned pending separate permission, default-role, and policy review. No READ_CALL_LOG or READ_SMS permission is declared by this slice.
 
 ### Wave 4 — Files and removable storage
 - SAF document-tree picker and persisted URI grants.
