@@ -108,7 +108,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "and launchable apps, or perform an approved native Android action. Use status to inspect " +
       "availability of each native Android " +
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
-      "values: status, device_info, telephony_info, dial_phone, compose_sms, battery_status, volume_status, list_apps, set_volume, " +
+      "values: status, device_info, telephony_info, dial_phone, compose_sms, biometric_auth, keystore_create, keystore_list, keystore_delete, keystore_encrypt, keystore_decrypt, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
@@ -123,8 +123,8 @@ class AndroidNativeCapabilityTool internal constructor(
       "are limited to 512 bytes and require approval showing the exact Base64 payload. No subscriptions or " +
       "persistent connections are retained. Phone calls and SMS use Android's dialer/composer only; " +
       "the user must confirm the call or press Send. No CALL_PHONE or SEND_SMS permission is requested, " +
-      "and biometrics/Keystore use strong biometric authentication for non-exportable AES-256 keys. " +
-      "and no call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers " +
+      "No call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers. " +
+      "Keystore keys are non-exportable AES-256 keys and each encrypt/decrypt operation requires strong biometric authentication. " +
       "and cell-location data. USB I/O is not yet exposed. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
