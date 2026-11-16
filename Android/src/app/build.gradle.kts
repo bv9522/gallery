@@ -108,6 +108,7 @@ dependencies {
   implementation(libs.com.google.code.gson)
   implementation(libs.androidx.lifecycle.process)
   implementation(libs.androidx.security.crypto)
+  implementation(libs.androidx.biometric)
   implementation(libs.androidx.webkit)
   implementation(libs.litertlm)
   implementation(libs.commonmark)

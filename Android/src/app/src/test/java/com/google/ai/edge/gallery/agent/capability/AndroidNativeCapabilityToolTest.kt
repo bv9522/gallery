@@ -296,6 +296,67 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun biometricAndKeystoreOperationsDispatchThroughTheNativeAdapter() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val biometric = tool.execute(arguments("biometric_auth").apply {
+      addProperty("reason", "Unlock my protected data")
+    })
+    val create = tool.execute(arguments("keystore_create").apply {
+      addProperty("key_alias", "test_key")
+    })
+    val list = tool.execute(arguments("keystore_list"))
+    val encrypt = tool.execute(arguments("keystore_encrypt").apply {
+      addProperty("key_alias", "test_key")
+      addProperty("plaintext", "secret")
+    })
+    val decrypt = tool.execute(arguments("keystore_decrypt").apply {
+      addProperty("key_alias", "test_key")
+      addProperty("iv_base64", "AAAAAAAAAAAAAAAA")
+      addProperty("ciphertext_base64", "AAAAAAAAAAAAAAAAAAAAAA==")
+    })
+    val delete = tool.execute(arguments("keystore_delete").apply {
+      addProperty("key_alias", "test_key")
+    })
+
+    assertTrue(biometric.isSuccessful)
+    assertTrue(create.isSuccessful)
+    assertTrue(list.isSuccessful)
+    assertTrue(list.content.contains("test_key"))
+    assertTrue(encrypt.isSuccessful)
+    assertTrue(encrypt.content.contains("ciphertextBase64"))
+    assertTrue(decrypt.isSuccessful)
+    assertEquals("decrypted test data", decrypt.content)
+    assertTrue(delete.isSuccessful)
+    assertEquals(
+      listOf("keystore_create:test_key", "keystore_delete:test_key"),
+      adapter.mutations.filter { it.startsWith("keystore_") },
+    )
+  }
+
+  @Test
+  fun biometricAndKeystoreOperationsFailClosedWhenUnavailable() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations().apply {
+      availability[AndroidCapability.BIOMETRIC_AUTH] = ProviderAvailability.UNSUPPORTED
+      availability[AndroidCapability.KEYSTORE_OPERATION] = ProviderAvailability.UNSUPPORTED
+    }
+    val tool = AndroidNativeCapabilityTool(adapter)
+
+    val biometric = tool.execute(arguments("biometric_auth").apply {
+      addProperty("reason", "Unlock")
+    })
+    val create = tool.execute(arguments("keystore_create").apply {
+      addProperty("key_alias", "test_key")
+    })
+
+    assertFalse(biometric.isSuccessful)
+    assertFalse(create.isSuccessful)
+    assertTrue(adapter.mutations.isEmpty())
+    assertTrue(adapter.discoveryCalls.isEmpty())
+  }
+
+  @Test
   fun notificationOperationsDispatchThroughTheNativeAdapter() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
@@ -618,6 +679,32 @@ class AndroidNativeCapabilityToolTest {
       mutations += "compose_sms:$phoneNumber:$message"
       return actionResult
     }
+
+    override suspend fun authenticateBiometric(reason: String): Boolean {
+      discoveryCalls += "biometric_auth:$reason"
+      return true
+    }
+
+    override suspend fun createKeystoreKey(alias: String): NativeCapabilityActionResult {
+      mutations += "keystore_create:$alias"
+      return actionResult
+    }
+
+    override suspend fun listKeystoreKeys(): List<String> {
+      discoveryCalls += "keystore_list"
+      return listOf("test_key")
+    }
+
+    override suspend fun deleteKeystoreKey(alias: String): NativeCapabilityActionResult {
+      mutations += "keystore_delete:$alias"
+      return actionResult
+    }
+
+    override suspend fun encryptKeystoreData(alias: String, plaintext: String) =
+      NativeKeystoreCiphertext(alias, "aXZfYmFzZTY0", "Y2lwaGVydGV4dA==")
+
+    override suspend fun decryptKeystoreData(alias: String, ivBase64: String, ciphertextBase64: String) =
+      "decrypted test data"
     override suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice> {
       discoveryCalls += "bluetooth_bonded_devices"
       return emptyList()

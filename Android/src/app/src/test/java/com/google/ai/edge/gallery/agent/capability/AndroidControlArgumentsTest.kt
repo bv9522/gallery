@@ -69,6 +69,39 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun biometricAndKeystoreArgumentsAreBoundedAndValidated() {
+    val biometric = JsonObject().apply {
+      addProperty("operation", "biometric_auth")
+      addProperty("reason", "Unlock protected data")
+    }
+    val invalidAlias = JsonObject().apply {
+      addProperty("operation", "keystore_create")
+      addProperty("key_alias", "../outside")
+    }
+    val validAlias = JsonObject().apply {
+      addProperty("operation", "keystore_create")
+      addProperty("key_alias", "private_key_01")
+    }
+    val oversizedPlaintext = JsonObject().apply {
+      addProperty("operation", "keystore_encrypt")
+      addProperty("key_alias", "private_key_01")
+      addProperty("plaintext", "x".repeat(4_097))
+    }
+    val invalidCiphertext = JsonObject().apply {
+      addProperty("operation", "keystore_decrypt")
+      addProperty("key_alias", "private_key_01")
+      addProperty("iv_base64", "not-base64")
+      addProperty("ciphertext_base64", "not-base64")
+    }
+
+    assertNull(AndroidControlArguments.validate(biometric))
+    assertNull(AndroidControlArguments.validate(validAlias))
+    assertTrue(AndroidControlArguments.validate(invalidAlias).orEmpty().contains("key_alias"))
+    assertTrue(AndroidControlArguments.validate(oversizedPlaintext).orEmpty().contains("plaintext"))
+    assertTrue(AndroidControlArguments.validate(invalidCiphertext).orEmpty().contains("iv_base64"))
+  }
+
+  @Test
   fun statusWithStreamIsRejectedByTheGenericOperationSchema() {
     val arguments = JsonObject().apply {
       addProperty("operation", "status")

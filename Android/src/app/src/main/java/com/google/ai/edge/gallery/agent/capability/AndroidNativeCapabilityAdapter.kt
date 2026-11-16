@@ -61,7 +61,11 @@ import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.telephony.TelephonyManager
 import android.provider.Settings
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
@@ -77,6 +81,11 @@ import kotlinx.coroutines.withContext
 import dagger.hilt.android.EntryPointAccessors
 import com.google.ai.edge.gallery.notifications.NotificationScheduleManagerEntryPoint
 import com.google.ai.edge.gallery.proto.ScheduledNotification
+import java.security.KeyStore
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -247,6 +256,14 @@ private data class BluetoothGattSession(
   val events: Channel<BluetoothGattEvent>,
 )
 
+fun interface NativeBiometricAuthenticator {
+  suspend fun authenticate(
+    title: String,
+    subtitle: String,
+    cryptoObject: BiometricPrompt.CryptoObject?,
+  ): BiometricPrompt.AuthenticationResult?
+}
+
 /**
  * Typed Android framework operations. Discovery is observational; mutating methods require an
  * injected authorizer and validate their inputs before touching Android system services.
@@ -259,6 +276,7 @@ class AndroidNativeCapabilityAdapter(
   private val authorizer: NativeCapabilityAuthorizer,
   private val permissionRequester: NativeRuntimePermissionRequester = NativeRuntimePermissionRequester { false },
   private val photoCaptureRequester: NativePhotoCaptureRequester = NativePhotoCaptureRequester { false },
+  private val biometricAuthenticator: NativeBiometricAuthenticator = NativeBiometricAuthenticator { _, _, _ -> null },
 ) : NativeCapabilityOperations {
   private val appContext = context.applicationContext
   private val wakeLockGuard = Any()
@@ -485,6 +503,28 @@ class AndroidNativeCapabilityAdapter(
         details[AndroidCapability.SMS_COMPOSE] = "No SMS composer can handle smsto links."
         ProviderAvailability.UNSUPPORTED
       }
+    val biometricStatus = BiometricManager.from(appContext)
+      .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+    capabilities[AndroidCapability.BIOMETRIC_AUTH] =
+      if (biometricStatus == BiometricManager.BIOMETRIC_SUCCESS) ProviderAvailability.AVAILABLE
+      else {
+        details[AndroidCapability.BIOMETRIC_AUTH] = when (biometricStatus) {
+          BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "No strong biometric is enrolled. Enroll a fingerprint or other strong biometric in Android settings."
+          BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "This device has no strong biometric hardware."
+          BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "Strong biometric hardware is temporarily unavailable."
+          else -> "Strong biometric authentication is unavailable (status $biometricStatus)."
+        }
+        if (biometricStatus == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED) ProviderAvailability.PERMISSION_REQUIRED
+        else ProviderAvailability.UNSUPPORTED
+      }
+    capabilities[AndroidCapability.KEYSTORE_OPERATION] =
+      if (runCatching { KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) } }.isSuccess) {
+        ProviderAvailability.AVAILABLE
+      } else {
+        details[AndroidCapability.KEYSTORE_OPERATION] = "Android Keystore is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+
     capabilities[AndroidCapability.CALL_LOG_READ] = ProviderAvailability.UNSUPPORTED
     details[AndroidCapability.CALL_LOG_READ] =
       "Call-log access is not implemented; it requires separate sensitive-permission and policy review."
@@ -2044,6 +2084,153 @@ class AndroidNativeCapabilityAdapter(
     }
   }
 
+  override suspend fun authenticateBiometric(reason: String): Boolean {
+    val safeReason = reason.trim().take(MAX_BIOMETRIC_REASON_CHARS)
+      .takeIf { it.isNotBlank() } ?: return false
+    if (BiometricManager.from(appContext).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) !=
+      BiometricManager.BIOMETRIC_SUCCESS) return false
+    if (!authorizer.authorize(AndroidCapability.BIOMETRIC_AUTH, "Authenticate with a strong enrolled biometric. Purpose: $safeReason")) return false
+    return biometricAuthenticator.authenticate("Confirm your identity", safeReason, null) != null
+  }
+
+  override suspend fun createKeystoreKey(alias: String): NativeCapabilityActionResult {
+    val safeAlias = normalizeKeystoreAlias(alias)
+      ?: return NativeCapabilityActionResult(false, "alias must be 1–32 lowercase letters, digits, underscores, or hyphens.")
+    if (BiometricManager.from(appContext).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) !=
+      BiometricManager.BIOMETRIC_SUCCESS) {
+      return NativeCapabilityActionResult(false, "Enroll a strong biometric in Android settings before creating a biometric-protected key.")
+    }
+    if (!authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
+        "Create a non-exportable AES-256 Android Keystore key named $safeAlias. Using it later requires strong biometric authentication.")) {
+      return NativeCapabilityActionResult(false, "Keystore key creation was not approved.")
+    }
+    return try {
+      val store = androidKeyStore()
+      if (store.containsAlias(fullKeystoreAlias(safeAlias))) {
+        NativeCapabilityActionResult(false, "Keystore key $safeAlias already exists.")
+      } else {
+        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
+        generator.init(KeyGenParameterSpec.Builder(
+          fullKeystoreAlias(safeAlias),
+          KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
+        )
+          .setKeySize(256)
+          .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+          .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+          .setRandomizedEncryptionRequired(true)
+          .setUserAuthenticationRequired(true)
+          .setUserAuthenticationParameters(0, BiometricManager.Authenticators.BIOMETRIC_STRONG)
+          .setInvalidatedByBiometricEnrollment(true)
+          .build())
+        generator.generateKey()
+        NativeCapabilityActionResult(true, "Created non-exportable biometric-protected AES-256 key $safeAlias.")
+      }
+    } catch (error: Exception) {
+      NativeCapabilityActionResult(false, "Could not create Android Keystore key: " + (error.message ?: error.javaClass.simpleName))
+    }
+  }
+
+  override suspend fun listKeystoreKeys(): List<String> {
+    check(authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
+      "List Gallery Agent Keystore key aliases. Key material and encrypted contents will not be read.")) {
+      "Keystore key listing was not approved."
+    }
+    return androidKeyStore().aliases().toList()
+      .filter { it.startsWith(KEYSTORE_ALIAS_PREFIX) }
+      .map { it.removePrefix(KEYSTORE_ALIAS_PREFIX) }
+      .sorted()
+      .take(MAX_KEYSTORE_KEYS)
+  }
+
+  override suspend fun deleteKeystoreKey(alias: String): NativeCapabilityActionResult {
+    val safeAlias = normalizeKeystoreAlias(alias)
+      ?: return NativeCapabilityActionResult(false, "alias must be 1–32 lowercase letters, digits, underscores, or hyphens.")
+    if (!authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
+        "Permanently delete Gallery Agent Keystore key $safeAlias. Existing ciphertext encrypted with this key will become unrecoverable.")) {
+      return NativeCapabilityActionResult(false, "Keystore key deletion was not approved.")
+    }
+    return try {
+      val store = androidKeyStore()
+      val fullAlias = fullKeystoreAlias(safeAlias)
+      if (!store.containsAlias(fullAlias)) NativeCapabilityActionResult(false, "Keystore key $safeAlias does not exist.")
+      else {
+        store.deleteEntry(fullAlias)
+        NativeCapabilityActionResult(true, "Deleted Keystore key $safeAlias. Ciphertext encrypted with it can no longer be decrypted.")
+      }
+    } catch (error: Exception) {
+      NativeCapabilityActionResult(false, "Could not delete Android Keystore key: " + (error.message ?: error.javaClass.simpleName))
+    }
+  }
+
+  override suspend fun encryptKeystoreData(alias: String, plaintext: String): NativeKeystoreCiphertext {
+    val safeAlias = normalizeKeystoreAlias(alias) ?: error("Invalid Keystore alias.")
+    requireStrongBiometricAvailable()
+    require(plaintext.isNotEmpty() && plaintext.length <= MAX_KEYSTORE_PLAINTEXT_CHARS) {
+      "plaintext must contain 1–$MAX_KEYSTORE_PLAINTEXT_CHARS characters."
+    }
+    check(authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
+      "Encrypt " + plaintext.length + " characters using biometric-protected Keystore key $safeAlias. Plaintext is processed in memory only.")) {
+      "Keystore encryption was not approved."
+    }
+    val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
+    cipher.init(Cipher.ENCRYPT_MODE, getKeystoreSecretKey(safeAlias))
+    val authentication = biometricAuthenticator.authenticate(
+      "Encrypt protected data", "Authenticate to use Keystore key $safeAlias.", BiometricPrompt.CryptoObject(cipher),
+    ) ?: error("Strong biometric authentication was cancelled or failed.")
+    val authenticatedCipher = authentication.cryptoObject?.cipher ?: error("Biometric authentication did not return the Keystore cipher.")
+    val encrypted = authenticatedCipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+    val iv = authenticatedCipher.iv ?: error("Android Keystore did not return a GCM IV.")
+    return NativeKeystoreCiphertext(
+      alias = safeAlias,
+      ivBase64 = Base64.encodeToString(iv, Base64.NO_WRAP),
+      ciphertextBase64 = Base64.encodeToString(encrypted, Base64.NO_WRAP),
+    )
+  }
+
+  override suspend fun decryptKeystoreData(alias: String, ivBase64: String, ciphertextBase64: String): String {
+    val safeAlias = normalizeKeystoreAlias(alias) ?: error("Invalid Keystore alias.")
+    requireStrongBiometricAvailable()
+    val iv = decodeKeystoreBase64(ivBase64, "iv_base64", MIN_GCM_IV_BYTES, MAX_GCM_IV_BYTES)
+    val ciphertext = decodeKeystoreBase64(ciphertextBase64, "ciphertext_base64", GCM_TAG_BYTES, MAX_KEYSTORE_CIPHERTEXT_BYTES)
+    check(authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
+      "Decrypt " + ciphertext.size + " encrypted bytes using biometric-protected Keystore key $safeAlias. Plaintext is returned to the local agent only.")) {
+      "Keystore decryption was not approved."
+    }
+    val cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION)
+    cipher.init(Cipher.DECRYPT_MODE, getKeystoreSecretKey(safeAlias), GCMParameterSpec(GCM_TAG_BITS, iv))
+    val authentication = biometricAuthenticator.authenticate(
+      "Decrypt protected data", "Authenticate to use Keystore key $safeAlias.", BiometricPrompt.CryptoObject(cipher),
+    ) ?: error("Strong biometric authentication was cancelled or failed.")
+    val authenticatedCipher = authentication.cryptoObject?.cipher ?: error("Biometric authentication did not return the Keystore cipher.")
+    return authenticatedCipher.doFinal(ciphertext).toString(Charsets.UTF_8)
+  }
+
+  private fun requireStrongBiometricAvailable() {
+    check(
+      BiometricManager.from(appContext).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+        BiometricManager.BIOMETRIC_SUCCESS
+    ) { "Enroll a strong biometric and make sure it is available before using this Keystore key." }
+  }
+
+  private fun androidKeyStore(): KeyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
+
+  private fun getKeystoreSecretKey(alias: String): SecretKey =
+    androidKeyStore().getKey(fullKeystoreAlias(alias), null) as? SecretKey
+      ?: error("Keystore key $alias does not exist.")
+
+  private fun normalizeKeystoreAlias(value: String): String? =
+    value.trim().lowercase().takeIf { it.matches(Regex("^[a-z0-9_-]{1,32}$")) }
+
+  private fun fullKeystoreAlias(alias: String) = KEYSTORE_ALIAS_PREFIX + alias
+
+  private fun decodeKeystoreBase64(value: String, name: String, minBytes: Int, maxBytes: Int): ByteArray {
+    require(value.length <= ((maxBytes + 2) / 3) * 4 + 4) { "$name exceeds the encoded size limit." }
+    val decoded = runCatching { Base64.decode(value, Base64.NO_WRAP) }.getOrNull()
+      ?: error("$name must be valid unwrapped Base64.")
+    require(decoded.size in minBytes..maxBytes) { "$name must decode to $minBytes–$maxBytes bytes." }
+    return decoded
+  }
+
   private fun normalizePhoneNumber(value: String): String? {
     val normalized = value.trim()
     if (normalized.isEmpty() || normalized.length > MAX_PHONE_NUMBER_CHARS) return null
@@ -2121,6 +2308,17 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_CONTACT_VALUE_CHARS = 120
     const val MAX_PHONE_NUMBER_CHARS = 32
     const val MAX_SMS_MESSAGE_CHARS = 1_600
+    const val ANDROID_KEYSTORE = "AndroidKeyStore"
+    const val KEYSTORE_ALIAS_PREFIX = "gallery_agent_"
+    const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"
+    const val GCM_TAG_BITS = 128
+    const val GCM_TAG_BYTES = GCM_TAG_BITS / 8
+    const val MIN_GCM_IV_BYTES = 12
+    const val MAX_GCM_IV_BYTES = 16
+    const val MAX_KEYSTORE_PLAINTEXT_CHARS = 4_096
+    const val MAX_KEYSTORE_CIPHERTEXT_BYTES = 16_400
+    const val MAX_KEYSTORE_KEYS = 50
+    const val MAX_BIOMETRIC_REASON_CHARS = 160
     const val MAX_CLIPBOARD_ITEMS = 5
     const val MAX_CLIPBOARD_CHARS = 8_192
     const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
