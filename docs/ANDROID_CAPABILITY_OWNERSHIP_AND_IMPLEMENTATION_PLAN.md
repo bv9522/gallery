@@ -76,10 +76,10 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | URL open | Native Kotlin (ACTION_VIEW) | Implemented |
 | Contacts read | Native Kotlin (ContactsContract) | Draft in PR #28: scoped name/text search, READ_CONTACTS requested only after approval, maximum 20 results with at most 3 phone numbers and 3 email addresses each; local validation and device acceptance pending |
 | Call-log read | Native Kotlin (CallLog provider) | Planned; restricted permission and privacy review |
-| Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Draft in Wave 3 telephony PR: phone type and SIM state only; excludes subscriber IDs, phone numbers, carrier identifiers, and cell-location data; local validation pending |
+| Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Draft in PR #31: phone type and SIM state only; excludes subscriber IDs, phone numbers, carrier identifiers, and cell-location data; local validation pending |
 | SMS inbox/list | Native Kotlin (Telephony provider where permitted) | Planned; not implemented; Android restricts READ_SMS to qualifying/default SMS roles |
-| SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Draft in Wave 3 telephony PR: scoped approval opens a prefilled composer; user must press Send; no SEND_SMS permission or silent send |
-| Place a phone call | Native Kotlin (ACTION_DIAL) | Draft in Wave 3 telephony PR: scoped approval opens dialer with number; user must place call; no CALL_PHONE permission |
+| SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Draft in PR #31: scoped approval opens a prefilled composer; user must press Send; no SEND_SMS permission or silent send |
+| Place a phone call | Native Kotlin (ACTION_DIAL) | Draft in PR #31: scoped approval opens dialer with number; user must place call; no CALL_PHONE permission |
 | Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
 | Notifications created by this app | Native Kotlin (NotificationManager) | Phase 9B draft: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; current-head validation and device acceptance pending |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
