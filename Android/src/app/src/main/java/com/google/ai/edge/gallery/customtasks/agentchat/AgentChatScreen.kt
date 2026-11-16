@@ -17,12 +17,14 @@
 package com.google.ai.edge.gallery.customtasks.agentchat
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -76,6 +78,9 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.R
@@ -90,6 +95,7 @@ import com.google.ai.edge.gallery.skills.formatSelectedSkills
 import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
+import com.google.ai.edge.gallery.tools.AuthenticateBiometricToolAction
 import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.OpenDocumentTreeToolAction
 import com.google.ai.edge.gallery.tools.AskShellCommandPermissionAction
@@ -462,6 +468,45 @@ fun AgentChatScreen(
             }
             is AskNativeCapabilityPermissionAction -> {
               currentNativeCapabilityPermissionAction = action
+            }
+            is AuthenticateBiometricToolAction -> {
+              val activity = context.findComponentActivity()
+              if (activity == null) {
+                action.result.complete(null)
+              } else {
+                runCatching {
+                  val prompt = BiometricPrompt(
+                    activity,
+                    ContextCompat.getMainExecutor(activity),
+                    object : BiometricPrompt.AuthenticationCallback() {
+                      override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        action.result.complete(result)
+                        action.cancelPrompt = null
+                      }
+
+                      override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        action.result.complete(null)
+                        action.cancelPrompt = null
+                      }
+                    },
+                  )
+                  action.cancelPrompt = { prompt.cancelAuthentication() }
+                  val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle(action.title)
+                    .setSubtitle(action.subtitle)
+                    .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                    .setNegativeButtonText("Cancel")
+                    .build()
+                  if (action.cryptoObject == null) {
+                    prompt.authenticate(promptInfo)
+                  } else {
+                    prompt.authenticate(promptInfo, action.cryptoObject)
+                  }
+                }.onFailure {
+                  action.cancelPrompt = null
+                  action.result.complete(null)
+                }
+              }
             }
             is CapturePhotoToolAction -> {
               currentPhotoCaptureAction = action
@@ -889,3 +934,11 @@ class ChatWebViewClient(val context: Context) : BaseGalleryWebViewClient(context
     onPageLoaded?.invoke()
   }
 }
+
+
+private tailrec fun Context.findComponentActivity(): ComponentActivity? =
+  when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findComponentActivity()
+    else -> null
+  }
