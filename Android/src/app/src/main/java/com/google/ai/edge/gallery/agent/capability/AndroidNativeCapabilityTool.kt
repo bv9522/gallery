@@ -20,6 +20,7 @@ import android.content.Context
 import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
+import com.google.ai.edge.gallery.tools.AuthenticateBiometricToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.Gson
 import com.google.gson.JsonArray
@@ -27,8 +28,33 @@ import com.google.gson.JsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.biometric.BiometricPrompt
 
 /** Sends exact, one-time native mutation requests through Agent Chat's existing action channel. */
+class ChannelNativeBiometricAuthenticator(
+  private val actionChannel: SendChannel<ToolAction>,
+  private val timeoutMs: Long = 120_000L,
+) : NativeBiometricAuthenticator {
+  override suspend fun authenticate(
+    title: String,
+    subtitle: String,
+    cryptoObject: BiometricPrompt.CryptoObject?,
+  ): BiometricPrompt.AuthenticationResult? {
+    val action = AuthenticateBiometricToolAction(title, subtitle, cryptoObject)
+    return try {
+      withTimeoutOrNull(timeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      }
+    } finally {
+      if (!action.result.isCompleted) {
+        action.cancelPrompt?.invoke()
+        action.result.complete(null)
+      }
+    }
+  }
+}
+
 class ChannelNativeCapabilityAuthorizer(
   private val actionChannel: SendChannel<ToolAction>,
   private val approvalTimeoutMs: Long = 120_000L,
@@ -71,6 +97,7 @@ class AndroidNativeCapabilityTool internal constructor(
       authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
       permissionRequester = ChannelNativeRuntimePermissionRequester(actionChannel),
       photoCaptureRequester = ChannelNativePhotoCaptureRequester(actionChannel),
+      biometricAuthenticator = ChannelNativeBiometricAuthenticator(actionChannel),
     ),
     registry,
   )
@@ -96,6 +123,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "are limited to 512 bytes and require approval showing the exact Base64 payload. No subscriptions or " +
       "persistent connections are retained. Phone calls and SMS use Android's dialer/composer only; " +
       "the user must confirm the call or press Send. No CALL_PHONE or SEND_SMS permission is requested, " +
+      "and biometrics/Keystore use strong biometric authentication for non-exportable AES-256 keys. " +
       "and no call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers " +
       "and cell-location data. USB I/O is not yet exposed. This tool never executes shell commands."
 
@@ -107,7 +135,7 @@ class AndroidNativeCapabilityTool internal constructor(
           addProperty("type", "string")
           add("enum", JsonArray().apply {
             listOf(
-              "status", "device_info", "telephony_info", "dial_phone", "compose_sms", "battery_status", "volume_status", "audio_devices",
+              "status", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
               "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
@@ -122,6 +150,31 @@ class AndroidNativeCapabilityTool internal constructor(
           addProperty("type", "string")
           addProperty("description", "Exact message to prefill in the SMS composer; maximum 1600 characters. Android will not send it automatically.")
           addProperty("maxLength", 1600)
+        })
+        add("reason", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Short purpose for standalone strong biometric authentication; maximum 160 characters.")
+          addProperty("maxLength", 160)
+        })
+        add("key_alias", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Gallery Agent Keystore alias: 1–32 lowercase letters, digits, underscores, or hyphens.")
+          addProperty("maxLength", 32)
+        })
+        add("plaintext", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Plaintext to encrypt using a biometric-protected AES-256 key; maximum 4096 characters.")
+          addProperty("maxLength", 4096)
+        })
+        add("iv_base64", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "GCM IV returned by keystore_encrypt, encoded as unwrapped Base64.")
+          addProperty("maxLength", 24)
+        })
+        add("ciphertext_base64", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Ciphertext returned by keystore_encrypt, encoded as unwrapped Base64.")
+          addProperty("maxLength", 10944)
         })
         add("stream", JsonObject().apply {
           addProperty("type", "string")
@@ -343,6 +396,35 @@ class AndroidNativeCapabilityTool internal constructor(
           val message = arguments.string("sms_message")
             ?: return failure("compose_sms requires sms_message.")
           mutate(AndroidCapability.SMS_COMPOSE) { adapter.composeSms(phoneNumber, message) }
+        }
+        "biometric_auth" -> {
+          val reason = arguments.string("reason") ?: return failure("biometric_auth requires reason.")
+          val authenticated = adapter.authenticateBiometric(reason)
+          AgentToolResult("authenticated=$authenticated", authenticated)
+        }
+        "keystore_create" -> {
+          val alias = arguments.string("key_alias") ?: return failure("keystore_create requires key_alias.")
+          mutate(AndroidCapability.KEYSTORE_OPERATION) { adapter.createKeystoreKey(alias) }
+        }
+        "keystore_list" -> read(AndroidCapability.KEYSTORE_OPERATION) {
+          Gson().toJson(adapter.listKeystoreKeys())
+        }
+        "keystore_delete" -> {
+          val alias = arguments.string("key_alias") ?: return failure("keystore_delete requires key_alias.")
+          mutate(AndroidCapability.KEYSTORE_OPERATION) { adapter.deleteKeystoreKey(alias) }
+        }
+        "keystore_encrypt" -> {
+          val alias = arguments.string("key_alias") ?: return failure("keystore_encrypt requires key_alias.")
+          val plaintext = arguments.string("plaintext") ?: return failure("keystore_encrypt requires plaintext.")
+          runCatching { adapter.encryptKeystoreData(alias, plaintext) }
+            .fold({ AgentToolResult(Gson().toJson(it)) }, { failure(it.message ?: "Keystore encryption failed.") })
+        }
+        "keystore_decrypt" -> {
+          val alias = arguments.string("key_alias") ?: return failure("keystore_decrypt requires key_alias.")
+          val iv = arguments.string("iv_base64") ?: return failure("keystore_decrypt requires iv_base64.")
+          val ciphertext = arguments.string("ciphertext_base64") ?: return failure("keystore_decrypt requires ciphertext_base64.")
+          runCatching { adapter.decryptKeystoreData(alias, iv, ciphertext) }
+            .fold({ AgentToolResult(it) }, { failure(it.message ?: "Keystore decryption failed.") })
         }
         "bluetooth_bonded_devices" -> AgentToolResult(Gson().toJson(adapter.getBluetoothBondedDevices()))
         "bluetooth_gatt_services" -> {
