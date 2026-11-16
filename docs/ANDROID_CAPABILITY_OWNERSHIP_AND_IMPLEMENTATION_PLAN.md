@@ -242,7 +242,7 @@ version compatibility must be verified on-device before an operation is marked i
 - Downloads, media scan/playback, sharing, app-owned scheduling.
 - Keep native user-mediated SMS/call/share flows; never expose silent send/call behavior.
 
-### Wave 3B — Native notifications and scheduling (Phase 9B draft; validation pending)
+### Wave 3B — Native notifications and scheduling (PR #30; local validation passed)
 
 - Reuses Gallery's existing `NotificationScheduleManager`, `NotificationReceiver`, `BootReceiver`, `NotificationPendingIntentHelper`, and `scheduled_notification.proto`; does not add a competing scheduler.
 - Exposes immediate app-owned notification posting, bounded listing/dismissal of active Gallery notifications, scheduled reminder creation/listing/cancellation, and bounded notification-channel listing/creation through `android_control`.
