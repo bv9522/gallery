@@ -2096,6 +2096,10 @@ class AndroidNativeCapabilityAdapter(
   override suspend fun createKeystoreKey(alias: String): NativeCapabilityActionResult {
     val safeAlias = normalizeKeystoreAlias(alias)
       ?: return NativeCapabilityActionResult(false, "alias must be 1–32 lowercase letters, digits, underscores, or hyphens.")
+    if (BiometricManager.from(appContext).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) !=
+      BiometricManager.BIOMETRIC_SUCCESS) {
+      return NativeCapabilityActionResult(false, "Enroll a strong biometric in Android settings before creating a biometric-protected key.")
+    }
     if (!authorizer.authorize(AndroidCapability.KEYSTORE_OPERATION,
         "Create a non-exportable AES-256 Android Keystore key named $safeAlias. Using it later requires strong biometric authentication.")) {
       return NativeCapabilityActionResult(false, "Keystore key creation was not approved.")
@@ -2301,7 +2305,7 @@ class AndroidNativeCapabilityAdapter(
     const val MIN_GCM_IV_BYTES = 12
     const val MAX_GCM_IV_BYTES = 16
     const val MAX_KEYSTORE_PLAINTEXT_CHARS = 4_096
-    const val MAX_KEYSTORE_CIPHERTEXT_BYTES = 8_208
+    const val MAX_KEYSTORE_CIPHERTEXT_BYTES = 16_400
     const val MAX_KEYSTORE_KEYS = 50
     const val MAX_BIOMETRIC_REASON_CHARS = 160
     const val MAX_CLIPBOARD_ITEMS = 5
