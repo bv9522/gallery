@@ -490,7 +490,7 @@ fun AgentChatScreen(
                       }
                     },
                   )
-                  action.cancelPrompt = { prompt.cancelAuthentication() }
+                  action.cancelPrompt = { activity.runOnUiThread { prompt.cancelAuthentication() } }
                   val promptInfo = BiometricPrompt.PromptInfo.Builder()
                     .setTitle(action.title)
                     .setSubtitle(action.subtitle)
