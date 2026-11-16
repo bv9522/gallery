@@ -24,7 +24,7 @@ import android.util.Log
 import android.webkit.ConsoleMessage
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -470,7 +470,7 @@ fun AgentChatScreen(
               currentNativeCapabilityPermissionAction = action
             }
             is AuthenticateBiometricToolAction -> {
-              val activity = context.findComponentActivity()
+              val activity = context.findFragmentActivity()
               if (activity == null) {
                 action.result.complete(null)
               } else {
@@ -936,9 +936,9 @@ class ChatWebViewClient(val context: Context) : BaseGalleryWebViewClient(context
 }
 
 
-private tailrec fun Context.findComponentActivity(): ComponentActivity? =
+private tailrec fun Context.findFragmentActivity(): FragmentActivity? =
   when (this) {
-    is ComponentActivity -> this
-    is ContextWrapper -> baseContext.findComponentActivity()
+    is FragmentActivity -> this
+    is ContextWrapper -> baseContext.findFragmentActivity()
     else -> null
   }
