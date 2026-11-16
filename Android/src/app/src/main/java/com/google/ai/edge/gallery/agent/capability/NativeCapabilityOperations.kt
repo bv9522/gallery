@@ -57,6 +57,12 @@ data class NativeTelephonyInfo(
   val simState: String,
 )
 
+data class NativeKeystoreCiphertext(
+  val alias: String,
+  val ivBase64: String,
+  val ciphertextBase64: String,
+)
+
 data class NativeClipboardContent(
   val text: String,
   val hasText: Boolean,
@@ -114,6 +120,12 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   suspend fun openUrl(url: String): NativeCapabilityActionResult
   suspend fun dialPhoneNumber(phoneNumber: String): NativeCapabilityActionResult
   suspend fun composeSms(phoneNumber: String, message: String): NativeCapabilityActionResult
+  suspend fun authenticateBiometric(reason: String): Boolean
+  suspend fun createKeystoreKey(alias: String): NativeCapabilityActionResult
+  suspend fun listKeystoreKeys(): List<String>
+  suspend fun deleteKeystoreKey(alias: String): NativeCapabilityActionResult
+  suspend fun encryptKeystoreData(alias: String, plaintext: String): NativeKeystoreCiphertext
+  suspend fun decryptKeystoreData(alias: String, ivBase64: String, ciphertextBase64: String): String
   suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice>
   suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice>
   suspend fun inspectBluetoothGatt(deviceAddress: String, timeoutMs: Long): NativeBluetoothGattInspection
