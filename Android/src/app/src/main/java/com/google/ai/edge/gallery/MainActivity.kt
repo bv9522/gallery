@@ -24,7 +24,7 @@ import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -64,7 +64,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity(), VirtualDevicePermissionsHost {
+class MainActivity : FragmentActivity(), VirtualDevicePermissionsHost {
 
   private val modelManagerViewModel: ModelManagerViewModel by viewModels()
   private val permissionsResultListeners = CopyOnWriteArraySet<PermissionsResultListener>()
