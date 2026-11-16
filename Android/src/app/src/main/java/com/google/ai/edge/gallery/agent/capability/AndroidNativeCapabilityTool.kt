@@ -398,9 +398,13 @@ class AndroidNativeCapabilityTool internal constructor(
           mutate(AndroidCapability.SMS_COMPOSE) { adapter.composeSms(phoneNumber, message) }
         }
         "biometric_auth" -> {
-          val reason = arguments.string("reason") ?: return failure("biometric_auth requires reason.")
-          val authenticated = adapter.authenticateBiometric(reason)
-          AgentToolResult("authenticated=$authenticated", authenticated)
+          val unavailable = availabilityFailure(AndroidCapability.BIOMETRIC_AUTH)
+          if (unavailable != null) unavailable
+          else {
+            val reason = arguments.string("reason") ?: return failure("biometric_auth requires reason.")
+            val authenticated = adapter.authenticateBiometric(reason)
+            AgentToolResult("authenticated=$authenticated", authenticated)
+          }
         }
         "keystore_create" -> {
           val alias = arguments.string("key_alias") ?: return failure("keystore_create requires key_alias.")
@@ -422,26 +426,34 @@ class AndroidNativeCapabilityTool internal constructor(
           mutate(AndroidCapability.KEYSTORE_OPERATION) { adapter.deleteKeystoreKey(alias) }
         }
         "keystore_encrypt" -> {
-          val alias = arguments.string("key_alias") ?: return failure("keystore_encrypt requires key_alias.")
-          val plaintext = arguments.string("plaintext") ?: return failure("keystore_encrypt requires plaintext.")
-          try {
-            AgentToolResult(Gson().toJson(adapter.encryptKeystoreData(alias, plaintext)))
-          } catch (cancelled: CancellationException) {
-            throw cancelled
-          } catch (error: Exception) {
-            failure(error.message ?: "Keystore encryption failed.")
+          val unavailable = availabilityFailure(AndroidCapability.KEYSTORE_OPERATION)
+          if (unavailable != null) unavailable
+          else {
+            val alias = arguments.string("key_alias") ?: return failure("keystore_encrypt requires key_alias.")
+            val plaintext = arguments.string("plaintext") ?: return failure("keystore_encrypt requires plaintext.")
+            try {
+              AgentToolResult(Gson().toJson(adapter.encryptKeystoreData(alias, plaintext)))
+            } catch (cancelled: CancellationException) {
+              throw cancelled
+            } catch (error: Exception) {
+              failure(error.message ?: "Keystore encryption failed.")
+            }
           }
         }
         "keystore_decrypt" -> {
-          val alias = arguments.string("key_alias") ?: return failure("keystore_decrypt requires key_alias.")
-          val iv = arguments.string("iv_base64") ?: return failure("keystore_decrypt requires iv_base64.")
-          val ciphertext = arguments.string("ciphertext_base64") ?: return failure("keystore_decrypt requires ciphertext_base64.")
-          try {
-            AgentToolResult(adapter.decryptKeystoreData(alias, iv, ciphertext))
-          } catch (cancelled: CancellationException) {
-            throw cancelled
-          } catch (error: Exception) {
-            failure(error.message ?: "Keystore decryption failed.")
+          val unavailable = availabilityFailure(AndroidCapability.KEYSTORE_OPERATION)
+          if (unavailable != null) unavailable
+          else {
+            val alias = arguments.string("key_alias") ?: return failure("keystore_decrypt requires key_alias.")
+            val iv = arguments.string("iv_base64") ?: return failure("keystore_decrypt requires iv_base64.")
+            val ciphertext = arguments.string("ciphertext_base64") ?: return failure("keystore_decrypt requires ciphertext_base64.")
+            try {
+              AgentToolResult(adapter.decryptKeystoreData(alias, iv, ciphertext))
+            } catch (cancelled: CancellationException) {
+              throw cancelled
+            } catch (error: Exception) {
+              failure(error.message ?: "Keystore decryption failed.")
+            }
           }
         }
         "bluetooth_bonded_devices" -> AgentToolResult(Gson().toJson(adapter.getBluetoothBondedDevices()))
