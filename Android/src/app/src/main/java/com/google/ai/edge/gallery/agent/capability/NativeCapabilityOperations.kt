@@ -50,6 +50,13 @@ data class NativeContactSummary(
   val emailAddresses: List<String>,
 )
 
+/** Deliberately excludes subscriber IDs, phone numbers, cell IDs, and carrier identifiers. */
+data class NativeTelephonyInfo(
+  val hasTelephonyFeature: Boolean,
+  val phoneType: String,
+  val simState: String,
+)
+
 data class NativeClipboardContent(
   val text: String,
   val hasText: Boolean,
@@ -92,6 +99,7 @@ data class NativePostedNotification(
 interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun getDeviceInfo(): NativeDeviceInfo
   fun getBatteryStatus(): NativeBatteryStatus
+  fun getTelephonyInfo(): NativeTelephonyInfo
   fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus
   fun getAudioDevices(): List<NativeAudioDevice>
   fun getDisplayBrightness(): NativeDisplayBrightness
@@ -104,6 +112,8 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun listLaunchableApps(): List<NativeLaunchableApp>
   suspend fun launchApp(packageName: String): NativeCapabilityActionResult
   suspend fun openUrl(url: String): NativeCapabilityActionResult
+  suspend fun dialPhoneNumber(phoneNumber: String): NativeCapabilityActionResult
+  suspend fun composeSms(phoneNumber: String, message: String): NativeCapabilityActionResult
   suspend fun getBluetoothBondedDevices(): List<NativeBluetoothDevice>
   suspend fun scanBluetoothLe(durationMs: Long): List<NativeBluetoothDevice>
   suspend fun inspectBluetoothGatt(deviceAddress: String, timeoutMs: Long): NativeBluetoothGattInspection

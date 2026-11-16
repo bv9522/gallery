@@ -38,7 +38,7 @@ The list below reflects previously integrated Gallery-native operations; it is n
 
 ## Onboarding readiness
 
-The current capability onboarding chain through Phase 9A consists of open draft PRs #23–#28. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28. These changes remain unmerged. Current-head Gradle validation and the consolidated S21 device-acceptance pass are still pending.
+The capability onboarding chain through Phase 9B consists of open draft PRs #23–#30. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30. Wave 3 telephony metadata and user-mediated dialer/SMS composition are in draft PR #31. These changes remain unmerged. PR #30 passed the current-head unit-test task and debug build as confirmed by the user; the current telephony PR still requires local validation. Consolidated S21 device acceptance remains deferred until onboarding is complete.
 
 The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
 
@@ -56,8 +56,10 @@ results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Ko
 USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/security-sensitive
 integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
 provider owns removable-storage files. USB host enumeration is draft code; raw USB device I/O remains
-planned. Gallery-owned notification posting/scheduling is the next native integration phase; the
-existing notification scheduler is now being integrated through Phase 9B draft code; it is not yet locally validated or device-accepted.
+planned. Gallery-owned notification posting/scheduling is implemented in draft PR #30 and has user-confirmed
+local unit-test/build validation; device acceptance remains pending. The current Wave 3 telephony slice
+adds non-identifying telephony metadata and user-mediated dialer/SMS composer actions; call-log and SMS
+inbox reads remain planned.
 
 ## Security and implementation rules
 
@@ -143,3 +145,10 @@ existing notification scheduler is now being integrated through Phase 9B draft c
   writes remain unsupported.
 - Attached USB mass storage is accessed through SAF, not through UsbManager bulk transfers. UsbManager
   is only used for peripheral enumeration and future non-storage USB protocols.
+
+## Native telephony onboarding — Wave 3 draft
+
+- Telephony metadata is deliberately limited to whether the device exposes telephony, phone type, and SIM state. No subscriber IDs, phone numbers, IMEI/MEID, carrier identifiers, cell IDs, or location are read.
+- ACTION_DIAL opens the system dialer after scoped approval. The user reviews the destination and initiates the call; no CALL_PHONE permission is requested.
+- ACTION_SENDTO with an smsto: URI opens a prefilled SMS composer after scoped approval showing the exact recipient and message. The user presses Send; no SEND_SMS permission is requested and the app does not send directly.
+- Call-log and SMS inbox reads remain unimplemented pending separate sensitive-permission, default-role, and policy review.

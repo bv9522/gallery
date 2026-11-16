@@ -21,6 +21,54 @@ import org.junit.Test
 
 class AndroidControlArgumentsTest {
   @Test
+  fun dialPhoneAcceptsCommonInternationalNumberFormatting() {
+    val arguments = JsonObject().apply {
+      addProperty("operation", "dial_phone")
+      addProperty("phone_number", "+1 (555) 010-1234")
+    }
+
+    assertNull(AndroidControlArguments.validate(arguments))
+  }
+
+  @Test
+  fun dialPhoneRejectsInvalidCharactersAndTooFewDigits() {
+    val invalidCharacters = JsonObject().apply {
+      addProperty("operation", "dial_phone")
+      addProperty("phone_number", "555-0100;123")
+    }
+    val tooFewDigits = JsonObject().apply {
+      addProperty("operation", "dial_phone")
+      addProperty("phone_number", "+12")
+    }
+
+    assertTrue(AndroidControlArguments.validate(invalidCharacters).orEmpty().contains("phone_number"))
+    assertTrue(AndroidControlArguments.validate(tooFewDigits).orEmpty().contains("phone_number"))
+  }
+
+  @Test
+  fun smsComposerRequiresBoundedNonBlankMessage() {
+    val valid = JsonObject().apply {
+      addProperty("operation", "compose_sms")
+      addProperty("phone_number", "5550101234")
+      addProperty("sms_message", "Hello there")
+    }
+    val blank = JsonObject().apply {
+      addProperty("operation", "compose_sms")
+      addProperty("phone_number", "5550101234")
+      addProperty("sms_message", "   ")
+    }
+    val oversized = JsonObject().apply {
+      addProperty("operation", "compose_sms")
+      addProperty("phone_number", "5550101234")
+      addProperty("sms_message", "x".repeat(1_601))
+    }
+
+    assertNull(AndroidControlArguments.validate(valid))
+    assertTrue(AndroidControlArguments.validate(blank).orEmpty().contains("sms_message"))
+    assertTrue(AndroidControlArguments.validate(oversized).orEmpty().contains("sms_message"))
+  }
+
+  @Test
   fun statusWithStreamIsRejectedByTheGenericOperationSchema() {
     val arguments = JsonObject().apply {
       addProperty("operation", "status")

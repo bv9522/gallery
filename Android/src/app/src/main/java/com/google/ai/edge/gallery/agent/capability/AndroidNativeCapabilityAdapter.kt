@@ -59,6 +59,7 @@ import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.telephony.TelephonyManager
 import android.provider.Settings
 import android.util.Base64
 import androidx.core.app.NotificationCompat
@@ -463,6 +464,33 @@ class AndroidNativeCapabilityAdapter(
           "Contacts permission is required; provider discovery did not request it."
         ProviderAvailability.PERMISSION_REQUIRED
       }
+
+    val telephonyManager = appContext.getSystemService(TelephonyManager::class.java)
+    val hasTelephony = telephonyManager != null &&
+      appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+    capabilities[AndroidCapability.TELEPHONY_INFO] =
+      if (hasTelephony) ProviderAvailability.AVAILABLE else {
+        details[AndroidCapability.TELEPHONY_INFO] = "This device does not expose a telephony service."
+        ProviderAvailability.UNSUPPORTED
+      }
+    val dialIntent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", "123", null))
+    capabilities[AndroidCapability.PHONE_CALL_DIAL] =
+      if (dialIntent.resolveActivity(appContext.packageManager) != null) ProviderAvailability.AVAILABLE else {
+        details[AndroidCapability.PHONE_CALL_DIAL] = "No dialer activity can handle telephone numbers."
+        ProviderAvailability.UNSUPPORTED
+      }
+    val smsIntent = Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", "123", null))
+    capabilities[AndroidCapability.SMS_COMPOSE] =
+      if (smsIntent.resolveActivity(appContext.packageManager) != null) ProviderAvailability.AVAILABLE else {
+        details[AndroidCapability.SMS_COMPOSE] = "No SMS composer can handle smsto links."
+        ProviderAvailability.UNSUPPORTED
+      }
+    capabilities[AndroidCapability.CALL_LOG_READ] = ProviderAvailability.UNSUPPORTED
+    details[AndroidCapability.CALL_LOG_READ] =
+      "Call-log access is not implemented; it requires separate sensitive-permission and policy review."
+    capabilities[AndroidCapability.SMS_READ] = ProviderAvailability.UNSUPPORTED
+    details[AndroidCapability.SMS_READ] =
+      "SMS inbox access is not implemented; Android restricts READ_SMS to qualifying/default SMS roles."
 
     val notificationManager = appContext.getSystemService(NotificationManager::class.java)
     val notificationsEnabled = NotificationManagerCompat.from(appContext).areNotificationsEnabled()
@@ -1590,6 +1618,31 @@ class AndroidNativeCapabilityAdapter(
       securityPatch = Build.VERSION.SECURITY_PATCH.takeIf { it.isNotBlank() },
     )
 
+  override fun getTelephonyInfo(): NativeTelephonyInfo {
+    val manager = appContext.getSystemService(TelephonyManager::class.java)
+      ?: throw IllegalStateException("TelephonyManager is unavailable.")
+    val hasFeature = appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+    val phoneType = when (manager.phoneType) {
+      TelephonyManager.PHONE_TYPE_GSM -> "GSM"
+      TelephonyManager.PHONE_TYPE_CDMA -> "CDMA"
+      TelephonyManager.PHONE_TYPE_SIP -> "SIP"
+      else -> "NONE_OR_UNKNOWN"
+    }
+    val simState = when (manager.simState) {
+      TelephonyManager.SIM_STATE_ABSENT -> "ABSENT"
+      TelephonyManager.SIM_STATE_PIN_REQUIRED -> "PIN_REQUIRED"
+      TelephonyManager.SIM_STATE_PUK_REQUIRED -> "PUK_REQUIRED"
+      TelephonyManager.SIM_STATE_NETWORK_LOCKED -> "NETWORK_LOCKED"
+      TelephonyManager.SIM_STATE_READY -> "READY"
+      TelephonyManager.SIM_STATE_NOT_READY -> "NOT_READY"
+      TelephonyManager.SIM_STATE_PERM_DISABLED -> "PERMANENTLY_DISABLED"
+      TelephonyManager.SIM_STATE_CARD_IO_ERROR -> "CARD_IO_ERROR"
+      TelephonyManager.SIM_STATE_CARD_RESTRICTED -> "CARD_RESTRICTED"
+      else -> "UNKNOWN"
+    }
+    return NativeTelephonyInfo(hasFeature, phoneType, simState)
+  }
+
   override fun getBatteryStatus(): NativeBatteryStatus {
     val batteryManager = appContext.getSystemService(BatteryManager::class.java)
     val capacity = batteryManager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
@@ -1938,6 +1991,67 @@ class AndroidNativeCapabilityAdapter(
     }
   }
 
+  override suspend fun dialPhoneNumber(phoneNumber: String): NativeCapabilityActionResult {
+    val normalized = normalizePhoneNumber(phoneNumber)
+      ?: return NativeCapabilityActionResult(false, "phone_number must contain 3–20 digits and only common phone-number punctuation.")
+    val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", normalized, null))
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (intent.resolveActivity(appContext.packageManager) == null) {
+      return NativeCapabilityActionResult(false, "No dialer activity can handle this phone number.")
+    }
+    if (!authorizer.authorize(AndroidCapability.PHONE_CALL_DIAL, "Open the dialer with phone number $normalized. No call will be placed automatically.")) {
+      return NativeCapabilityActionResult(false, "Opening the dialer was not approved.")
+    }
+    return try {
+      appContext.startActivity(intent)
+      NativeCapabilityActionResult(true, "Opened the dialer with $normalized. Review the number and place the call yourself.")
+    } catch (error: ActivityNotFoundException) {
+      NativeCapabilityActionResult(false, "No dialer activity is available: ${error.message}")
+    } catch (error: SecurityException) {
+      NativeCapabilityActionResult(false, "Android denied opening the dialer: ${error.message}")
+    }
+  }
+
+  override suspend fun composeSms(
+    phoneNumber: String,
+    message: String,
+  ): NativeCapabilityActionResult {
+    val normalized = normalizePhoneNumber(phoneNumber)
+      ?: return NativeCapabilityActionResult(false, "phone_number must contain 3–20 digits and only common phone-number punctuation.")
+    require(message.isNotBlank() && message.length <= MAX_SMS_MESSAGE_CHARS) {
+      "SMS message must contain 1–$MAX_SMS_MESSAGE_CHARS non-whitespace characters."
+    }
+    val intent = Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", normalized, null))
+      .putExtra("sms_body", message)
+      .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (intent.resolveActivity(appContext.packageManager) == null) {
+      return NativeCapabilityActionResult(false, "No SMS composer can handle this recipient.")
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.SMS_COMPOSE,
+        "Open the SMS composer addressed to $normalized with this exact message: $message. The message will not be sent automatically.",
+      )
+    ) {
+      return NativeCapabilityActionResult(false, "Opening the SMS composer was not approved.")
+    }
+    return try {
+      appContext.startActivity(intent)
+      NativeCapabilityActionResult(true, "Opened the SMS composer for $normalized. Review and send the message yourself.")
+    } catch (error: ActivityNotFoundException) {
+      NativeCapabilityActionResult(false, "No SMS composer is available: ${error.message}")
+    } catch (error: SecurityException) {
+      NativeCapabilityActionResult(false, "Android denied opening the SMS composer: ${error.message}")
+    }
+  }
+
+  private fun normalizePhoneNumber(value: String): String? {
+    val normalized = value.trim()
+    if (normalized.isEmpty() || normalized.length > MAX_PHONE_NUMBER_CHARS) return null
+    if (!normalized.matches(Regex("^\\+?[0-9][0-9 .()-]*$"))) return null
+    val digits = normalized.count { it.isDigit() }
+    return normalized.takeIf { digits in 3..20 }
+  }
+
   private fun flashlightAvailability(): ProviderAvailability {
     if (appContext.checkSelfPermission(Manifest.permission.CAMERA) !=
       PackageManager.PERMISSION_GRANTED
@@ -2005,6 +2119,8 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_CONTACT_NAME_CHARS = 100
     const val MAX_CONTACT_VALUES_PER_TYPE = 3
     const val MAX_CONTACT_VALUE_CHARS = 120
+    const val MAX_PHONE_NUMBER_CHARS = 32
+    const val MAX_SMS_MESSAGE_CHARS = 1_600
     const val MAX_CLIPBOARD_ITEMS = 5
     const val MAX_CLIPBOARD_CHARS = 8_192
     const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
