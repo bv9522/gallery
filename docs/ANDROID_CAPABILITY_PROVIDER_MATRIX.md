@@ -38,7 +38,7 @@ The list below reflects previously integrated Gallery-native operations; it is n
 
 ## Onboarding readiness
 
-The capability onboarding chain through Phase 9B consists of open draft PRs #23–#30. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30. Wave 3 telephony metadata and user-mediated dialer/SMS composition are proposed in the current draft PR. These changes remain unmerged. PR #30 passed the current-head unit-test task and debug build as confirmed by the user; the current telephony PR still requires local validation. Consolidated S21 device acceptance remains deferred until onboarding is complete.
+The capability onboarding chain through Phase 9B consists of open draft PRs #23–#30. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30. Wave 3 telephony metadata and user-mediated dialer/SMS composition are in draft PR #31. These changes remain unmerged. PR #30 passed the current-head unit-test task and debug build as confirmed by the user; the current telephony PR still requires local validation. Consolidated S21 device acceptance remains deferred until onboarding is complete.
 
 The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
 
