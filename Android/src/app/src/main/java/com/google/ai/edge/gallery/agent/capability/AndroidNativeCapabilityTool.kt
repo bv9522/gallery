@@ -409,8 +409,13 @@ class AndroidNativeCapabilityTool internal constructor(
         "keystore_list" -> {
           val unavailable = availabilityFailure(AndroidCapability.KEYSTORE_OPERATION)
           if (unavailable != null) unavailable
-          else runCatching { adapter.listKeystoreKeys() }
-            .fold({ AgentToolResult(Gson().toJson(it)) }, { failure(it.message ?: "Keystore listing failed.") })
+          else try {
+            AgentToolResult(Gson().toJson(adapter.listKeystoreKeys()))
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (error: Exception) {
+            failure(error.message ?: "Keystore listing failed.")
+          }
         }
         "keystore_delete" -> {
           val alias = arguments.string("key_alias") ?: return failure("keystore_delete requires key_alias.")
@@ -419,15 +424,25 @@ class AndroidNativeCapabilityTool internal constructor(
         "keystore_encrypt" -> {
           val alias = arguments.string("key_alias") ?: return failure("keystore_encrypt requires key_alias.")
           val plaintext = arguments.string("plaintext") ?: return failure("keystore_encrypt requires plaintext.")
-          runCatching { adapter.encryptKeystoreData(alias, plaintext) }
-            .fold({ AgentToolResult(Gson().toJson(it)) }, { failure(it.message ?: "Keystore encryption failed.") })
+          try {
+            AgentToolResult(Gson().toJson(adapter.encryptKeystoreData(alias, plaintext)))
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (error: Exception) {
+            failure(error.message ?: "Keystore encryption failed.")
+          }
         }
         "keystore_decrypt" -> {
           val alias = arguments.string("key_alias") ?: return failure("keystore_decrypt requires key_alias.")
           val iv = arguments.string("iv_base64") ?: return failure("keystore_decrypt requires iv_base64.")
           val ciphertext = arguments.string("ciphertext_base64") ?: return failure("keystore_decrypt requires ciphertext_base64.")
-          runCatching { adapter.decryptKeystoreData(alias, iv, ciphertext) }
-            .fold({ AgentToolResult(it) }, { failure(it.message ?: "Keystore decryption failed.") })
+          try {
+            AgentToolResult(adapter.decryptKeystoreData(alias, iv, ciphertext))
+          } catch (cancelled: CancellationException) {
+            throw cancelled
+          } catch (error: Exception) {
+            failure(error.message ?: "Keystore decryption failed.")
+          }
         }
         "bluetooth_bonded_devices" -> AgentToolResult(Gson().toJson(adapter.getBluetoothBondedDevices()))
         "bluetooth_gatt_services" -> {
