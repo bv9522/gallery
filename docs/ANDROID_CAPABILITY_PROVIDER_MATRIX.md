@@ -35,9 +35,6 @@ The list below reflects previously integrated Gallery-native operations; it is n
 - Bounded partial CPU wake lock (approval-gated, maximum five-minute timeout with automatic release)
 - Launcher-visible app discovery and app launch
 - HTTP(S) URL opening
-- Read-only telephony type/SIM-state metadata (no subscriber identifiers)
-- User-mediated phone dialing through ACTION_DIAL
-- User-mediated SMS composition through ACTION_SENDTO (no silent send)
 
 ## Onboarding readiness
 
