@@ -30,6 +30,12 @@ internal object AndroidControlArguments {
     "telephony_info" to setOf("operation"),
     "dial_phone" to setOf("operation", "phone_number"),
     "compose_sms" to setOf("operation", "phone_number", "sms_message"),
+    "biometric_auth" to setOf("operation", "reason"),
+    "keystore_create" to setOf("operation", "key_alias"),
+    "keystore_list" to setOf("operation"),
+    "keystore_delete" to setOf("operation", "key_alias"),
+    "keystore_encrypt" to setOf("operation", "key_alias", "plaintext"),
+    "keystore_decrypt" to setOf("operation", "key_alias", "iv_base64", "ciphertext_base64"),
     "battery_status" to setOf("operation"),
     "volume_status" to setOf("operation", "stream"),
     "audio_devices" to setOf("operation"),
@@ -75,6 +81,11 @@ internal object AndroidControlArguments {
     "open_url" to setOf("url"),
     "dial_phone" to setOf("phone_number"),
     "compose_sms" to setOf("phone_number", "sms_message"),
+    "biometric_auth" to setOf("reason"),
+    "keystore_create" to setOf("key_alias"),
+    "keystore_delete" to setOf("key_alias"),
+    "keystore_encrypt" to setOf("key_alias", "plaintext"),
+    "keystore_decrypt" to setOf("key_alias", "iv_base64", "ciphertext_base64"),
     "set_wallpaper" to setOf("content_uri"),
     "bluetooth_gatt_services" to setOf("device_address"),
     "bluetooth_gatt_read" to setOf("device_address", "service_uuid", "characteristic_uuid"),
@@ -166,6 +177,44 @@ internal object AndroidControlArguments {
       if (message.isBlank() || message.length > 1_600) {
         return "sms_message must contain 1–1600 non-whitespace characters."
       }
+    }
+
+    if (operation == "biometric_auth") {
+      val reason = arguments.get("reason")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (reason.isBlank() || reason.length > 160) return "reason must contain 1–160 non-whitespace characters."
+    }
+
+    if (operation in setOf("keystore_create", "keystore_delete", "keystore_encrypt", "keystore_decrypt")) {
+      val alias = arguments.get("key_alias")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (!alias.trim().lowercase().matches(Regex("^[a-z0-9_-]{1,32}$"))) {
+        return "key_alias must contain 1–32 lowercase letters, digits, underscores, or hyphens."
+      }
+    }
+
+    if (operation == "keystore_encrypt") {
+      val plaintext = arguments.get("plaintext")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (plaintext.isEmpty() || plaintext.length > 4_096) {
+        return "plaintext must contain 1–4096 characters."
+      }
+    }
+
+    if (operation == "keystore_decrypt") {
+      val ivText = arguments.get("iv_base64")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      val cipherText = arguments.get("ciphertext_base64")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      val iv = runCatching { Base64.getDecoder().decode(ivText) }.getOrNull()
+      val cipher = runCatching { Base64.getDecoder().decode(cipherText) }.getOrNull()
+      if (iv == null || iv.size !in 12..16) return "iv_base64 must decode to 12–16 bytes of unwrapped Base64."
+      if (cipher == null || cipher.size !in 16..8_208) return "ciphertext_base64 must decode to 16–8208 bytes of unwrapped Base64."
     }
 
     if (operation == "contacts_search") {
