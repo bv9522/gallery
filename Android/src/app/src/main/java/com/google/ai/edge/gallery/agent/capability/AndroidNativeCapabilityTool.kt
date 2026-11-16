@@ -81,7 +81,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "and launchable apps, or perform an approved native Android action. Use status to inspect " +
       "availability of each native Android " +
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
-      "values: status, device_info, battery_status, volume_status, list_apps, set_volume, " +
+      "values: status, device_info, telephony_info, dial_phone, compose_sms, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
@@ -94,7 +94,10 @@ class AndroidNativeCapabilityTool internal constructor(
       "are limited to 1–10 seconds; each GATT operation connects to one address for at most 20 seconds, " +
       "performs one bounded action, and disconnects on completion, timeout, or cancellation. GATT writes " +
       "are limited to 512 bytes and require approval showing the exact Base64 payload. No subscriptions or " +
-      "persistent connections are retained. USB I/O is not yet exposed. This tool never executes shell commands."
+      "persistent connections are retained. Phone calls and SMS use Android's dialer/composer only; " +
+      "the user must confirm the call or press Send. No CALL_PHONE or SEND_SMS permission is requested, " +
+      "and no call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers " +
+      "and cell-location data. USB I/O is not yet exposed. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -104,11 +107,21 @@ class AndroidNativeCapabilityTool internal constructor(
           addProperty("type", "string")
           add("enum", JsonArray().apply {
             listOf(
-              "status", "device_info", "battery_status", "volume_status", "audio_devices",
+              "status", "device_info", "telephony_info", "dial_phone", "compose_sms", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
               "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
             ).forEach { add(it) }
           })
+        })
+        add("phone_number", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Destination phone number for dial_phone or compose_sms; 3–20 digits, optional leading plus, and common punctuation only.")
+          addProperty("maxLength", 32)
+        })
+        add("sms_message", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Exact message to prefill in the SMS composer; maximum 1600 characters. Android will not send it automatically.")
+          addProperty("maxLength", 1600)
         })
         add("stream", JsonObject().apply {
           addProperty("type", "string")
@@ -254,6 +267,9 @@ class AndroidNativeCapabilityTool internal constructor(
         "device_info" -> read(AndroidCapability.DEVICE_INFO) {
           NativeCapabilityResultFormatter.deviceInfo(adapter.getDeviceInfo())
         }
+        "telephony_info" -> read(AndroidCapability.TELEPHONY_INFO) {
+          Gson().toJson(adapter.getTelephonyInfo())
+        }
         "battery_status" -> read(AndroidCapability.BATTERY_STATUS) {
           NativeCapabilityResultFormatter.batteryStatus(adapter.getBatteryStatus())
         }
@@ -315,6 +331,18 @@ class AndroidNativeCapabilityTool internal constructor(
           val url = arguments.string("url")
             ?: return failure("open_url requires url.")
           mutate(AndroidCapability.OPEN_URL) { adapter.openUrl(url) }
+        }
+        "dial_phone" -> {
+          val phoneNumber = arguments.string("phone_number")
+            ?: return failure("dial_phone requires phone_number.")
+          mutate(AndroidCapability.PHONE_CALL_DIAL) { adapter.dialPhoneNumber(phoneNumber) }
+        }
+        "compose_sms" -> {
+          val phoneNumber = arguments.string("phone_number")
+            ?: return failure("compose_sms requires phone_number.")
+          val message = arguments.string("sms_message")
+            ?: return failure("compose_sms requires sms_message.")
+          mutate(AndroidCapability.SMS_COMPOSE) { adapter.composeSms(phoneNumber, message) }
         }
         "bluetooth_bonded_devices" -> AgentToolResult(Gson().toJson(adapter.getBluetoothBondedDevices()))
         "bluetooth_gatt_services" -> {
