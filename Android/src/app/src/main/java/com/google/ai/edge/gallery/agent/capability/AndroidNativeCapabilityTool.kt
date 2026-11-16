@@ -123,9 +123,9 @@ class AndroidNativeCapabilityTool internal constructor(
       "are limited to 512 bytes and require approval showing the exact Base64 payload. No subscriptions or " +
       "persistent connections are retained. Phone calls and SMS use Android's dialer/composer only; " +
       "the user must confirm the call or press Send. No CALL_PHONE or SEND_SMS permission is requested, " +
-      "No call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers. " +
+      "No call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers and cell-location data. " +
       "Keystore keys are non-exportable AES-256 keys and each encrypt/decrypt operation requires strong biometric authentication. " +
-      "and cell-location data. USB I/O is not yet exposed. This tool never executes shell commands."
+      "USB I/O is not yet exposed. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
