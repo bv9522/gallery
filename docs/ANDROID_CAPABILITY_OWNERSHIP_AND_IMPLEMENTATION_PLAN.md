@@ -81,9 +81,9 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Draft in PR #31: scoped approval opens a prefilled composer; user must press Send; no SEND_SMS permission or silent send |
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Draft in PR #31: scoped approval opens dialer with number; user must place call; no CALL_PHONE permission |
 | Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
-| Notifications created by this app | Native Kotlin (NotificationManager) | Phase 9B draft: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; current-head validation and device acceptance pending |
+| Notifications created by this app | Native Kotlin (NotificationManager) | Draft in PR #30: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; user-confirmed unit tests and debug build passed; device acceptance pending |
 | Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
-| Notification channel management | Native Kotlin (NotificationManager) | Phase 9B draft: bounded channel listing and approval-gated channel creation; channel settings remain user-controlled in Android settings |
+| Notification channel management | Native Kotlin (NotificationManager) | Draft in PR #30: bounded channel listing and approval-gated channel creation; user-confirmed unit tests and debug build passed; channel settings remain user-controlled in Android settings |
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
@@ -97,7 +97,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Active media-session control | Native Kotlin (MediaSessionManager) | Planned; notification-listener access may be required |
 | Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
 | Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
-| App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Phase 9B draft: approved schedule/list/cancel operations reuse Gallery's existing scheduler; WorkManager remains for deferrable jobs, not exact-time notification alarms |
+| App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Draft in PR #30: approved schedule/list/cancel operations reuse Gallery's existing scheduler; user-confirmed unit tests and debug build passed; WorkManager remains for deferrable jobs, not exact-time notification alarms |
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Planned; do not treat UsbManager as a mass-storage filesystem |
