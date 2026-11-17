@@ -509,7 +509,9 @@ class DefaultDownloadRepository(
             val snapshot =
               AgentDownloadSnapshot(
                 handle = handle,
-                modelLabel = safeAgentModelLabel(pending.modelName),
+                modelLabel =
+                  GalleryAllowlistedModelCatalog.displayName(pending.modelName)
+                    ?.let(::safeAgentModelLabel) ?: "Gallery model download",
                 extraDataOnly = pending.isExtraDataOnly,
                 phase = phase,
                 receivedBytes = receivedBytes,
