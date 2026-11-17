@@ -105,15 +105,15 @@ class AndroidControlArgumentsTest {
   fun speakTextRequiresBoundedNonBlankText() {
     val valid = JsonObject().apply {
       addProperty("operation", "speak_text")
-      addProperty("text", "Hello from Gallery.")
+      addProperty("speech_text", "Hello from Gallery.")
     }
     val blank = JsonObject().apply {
       addProperty("operation", "speak_text")
-      addProperty("text", "   ")
+      addProperty("speech_text", "   ")
     }
     val oversized = JsonObject().apply {
       addProperty("operation", "speak_text")
-      addProperty("text", "x".repeat(1_001))
+      addProperty("speech_text", "x".repeat(1_001))
     }
 
     assertNull(AndroidControlArguments.validate(valid))
