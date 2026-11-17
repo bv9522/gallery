@@ -493,9 +493,9 @@ class DefaultDownloadRepository(
             val progress = workInfo.progress
             val receivedBytes =
               progress.getLong(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES, 0L).coerceAtLeast(0L)
-            val progressTotal = progress.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
-            val inputTotal = workInfo.inputData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
-            val totalBytes = maxOf(progressTotal, inputTotal, 0L)
+            // WorkInfo exposes progress and output data, not the worker's private input data.
+            // The worker publishes the total in progress once byte transfer begins.
+            val totalBytes = progress.getLong(KEY_MODEL_TOTAL_BYTES, 0L).coerceAtLeast(0L)
             val phase =
               if (
                 workInfo.state == WorkInfo.State.RUNNING &&
