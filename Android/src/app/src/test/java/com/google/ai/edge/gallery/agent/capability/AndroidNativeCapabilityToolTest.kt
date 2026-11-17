@@ -78,6 +78,28 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun speechPlaybackRequesterPassesExactTextAndReturnsUiResult() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val requester = ChannelNativeSpeechPlaybackRequester(actions, timeoutMs = 1_000L)
+    val expected = "A short spoken response."
+    val responder = launch {
+      val action = actions.receive() as com.google.ai.edge.gallery.tools.SpeakTextToolAction
+      assertEquals(expected, action.text)
+      action.result.complete(true)
+    }
+
+    assertTrue(requester.speak(expected))
+    responder.join()
+  }
+
+  @Test
+  fun speechPlaybackRequesterFailsClosedWhenUiDoesNotRespond() = runBlocking {
+    val actions = Channel<ToolAction>(capacity = 0)
+    val requester = ChannelNativeSpeechPlaybackRequester(actions, timeoutMs = 10L)
+    assertFalse(requester.speak("No UI consumer"))
+  }
+
+  @Test
   fun mutationOperationsReachTheirMatchingNativeAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
