@@ -161,9 +161,12 @@ class AndroidNativeCapabilityToolTest {
   @Test
   fun downloadStatusReturnsBoundedSnapshotsWithoutRequestingApproval() = runBlocking {
     val downloads = FakeAgentDownloadOperations()
+    val adapter = FakeNativeCapabilityOperations().apply {
+      availability[AndroidCapability.DOWNLOAD_MANAGEMENT] = ProviderAvailability.UNSUPPORTED
+    }
     var approvalRequested = false
     val tool = AndroidNativeCapabilityTool(
-      adapter = FakeNativeCapabilityOperations(),
+      adapter = adapter,
       downloadOperations = downloads,
       downloadAuthorizer = NativeCapabilityAuthorizer { _, _ ->
         approvalRequested = true
@@ -171,8 +174,10 @@ class AndroidNativeCapabilityToolTest {
       },
     )
 
+    val providerStatus = tool.execute(arguments("status"))
     val result = tool.execute(arguments("download_status"))
 
+    assertTrue(providerStatus.content.contains("DOWNLOAD_MANAGEMENT=AVAILABLE"))
     assertTrue(result.isSuccessful)
     assertTrue(result.content.contains("model=Gemma E2B"))
     assertTrue(result.content.contains("phase=RUNNING"))
