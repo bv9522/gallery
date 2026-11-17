@@ -36,6 +36,7 @@ import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.DownloadRepository
 import com.google.ai.edge.gallery.runtime.runtimeHelper
 import com.google.ai.edge.gallery.shizuku.ShizukuShellClient
 import com.google.ai.edge.gallery.shizuku.ShizukuManagerPackageResolver
@@ -69,7 +70,12 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
     append("\n\n")
   }
   append(
-    "DEVICE CONTROL TOOL RULES: Use android_control for native device information, battery, " +
+    "DEVICE CONTROL TOOL RULES: Use android_control download_status to inspect up to 20 active Gallery model downloads. " +
+      "Use cancel_download only after download_status, passing the exact opaque download_handle from that latest result. " +
+      "Cancellation always requires one-time user approval for the selected model and phase. Never invent, reuse, or alter a handle; " +
+      "if it is stale, run download_status again. Never request model-wide cancellation or expose WorkManager IDs, tags, URLs, " +
+      "access tokens, or filesystem paths. " +
+      "Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
       "device enumeration. Use record_audio for a local AAC recording of 1–30 seconds saved to Music/EdgeGallery; " +
@@ -162,6 +168,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
 class NativeAgentRuntimeExecutor(
   private val agentTools: AgentTools,
   private val fallbackExecutor: AgentRuntimeExecutor,
+  private val downloadRepository: DownloadRepository? = null,
 ) : AgentRuntimeExecutor {
 
   private val stateLock = Any()
@@ -376,6 +383,7 @@ class NativeAgentRuntimeExecutor(
             AndroidNativeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
+              downloadOperations = downloadRepository,
             ),
             DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },

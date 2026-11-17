@@ -122,6 +122,34 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun downloadStatusIsReadOnlyAndTakesNoArguments() {
+    val arguments = JsonObject().apply {
+      addProperty("operation", "download_status")
+    }
+
+    assertNull(AndroidControlArguments.validate(arguments))
+  }
+
+  @Test
+  fun cancelDownloadRequiresAnOpaqueHandleInTheExpectedFormat() {
+    val missing = JsonObject().apply {
+      addProperty("operation", "cancel_download")
+    }
+    val malformed = JsonObject().apply {
+      addProperty("operation", "cancel_download")
+      addProperty("download_handle", "worker-uuid")
+    }
+    val valid = JsonObject().apply {
+      addProperty("operation", "cancel_download")
+      addProperty("download_handle", "dl_" + "a".repeat(32))
+    }
+
+    assertTrue(AndroidControlArguments.validate(missing).orEmpty().contains("download_handle"))
+    assertTrue(AndroidControlArguments.validate(malformed).orEmpty().contains("download_handle"))
+    assertNull(AndroidControlArguments.validate(valid))
+  }
+
+  @Test
   fun statusWithStreamIsRejectedByTheGenericOperationSchema() {
     val arguments = JsonObject().apply {
       addProperty("operation", "status")

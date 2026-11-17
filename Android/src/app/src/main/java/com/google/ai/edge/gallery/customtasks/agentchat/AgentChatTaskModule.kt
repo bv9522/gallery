@@ -33,6 +33,7 @@ import com.google.ai.edge.gallery.customtasks.common.CustomTaskDataForBuiltinTas
 import com.google.ai.edge.gallery.data.BuiltInTaskId
 import com.google.ai.edge.gallery.data.Category
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.DownloadRepository
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.proto.McpServers
 import com.google.ai.edge.gallery.skills.SkillManager
@@ -267,6 +268,7 @@ internal object AgentChatTaskModule {
     skillManager: SkillManager,
     agentTools: AgentTools,
     llmSessionManager: LlmSessionManager,
+    downloadRepository: DownloadRepository,
   ): AgentRuntimeExecutor {
     val fallbackExecutor =
       DefaultAgentRuntimeExecutor(
@@ -278,6 +280,7 @@ internal object AgentChatTaskModule {
     return com.google.ai.edge.gallery.agent.NativeAgentRuntimeExecutor(
       agentTools = agentTools,
       fallbackExecutor = fallbackExecutor,
+      downloadRepository = downloadRepository,
     )
   }
 

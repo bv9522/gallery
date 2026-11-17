@@ -6,10 +6,11 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 
 ## Current progress snapshot (2026-11-17)
 
-- Active branch: `wave-3e-media-sharing-tts`.
-- Active PR: [#33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33), draft/open/unmerged.
+- Active branch: `wave-3e-gallery-download-management` (documentation checkpoint stacked on `wave-3e-media-sharing-tts`).
+- Active PR: [#34 — Wave 3E: define safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), draft/open/unmerged; [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33) remains open beneath it.
 - Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
 - Remaining Wave 3E work: Gallery-owned downloads/status/cancellation, media scanning/indexing and Gallery-initiated playback, active media-session controls (special access remains user-granted only), and user-mediated text/file sharing.
+- PR #34 now reuses `DefaultDownloadRepository` / `DownloadWorker` / WorkManager and adds bounded snapshots, allowlist-backed labels, opaque handles, exact-worker cancellation, scoped approval, and unit tests. Local validation is pending.
 - PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
 - PR #23–#29 and #16–#27 still require the applicable local validation and consolidated S21 acceptance recorded in the master roadmap.
 - Consolidated S21 acceptance is intentionally gated until capability onboarding and the ownership audit are complete.
@@ -174,9 +175,13 @@ inbox reads remain planned.
 - Key creation, listing, deletion, encryption, and decryption require scoped approval. Deleting a key permanently prevents recovery of ciphertext encrypted with it.
 - Plaintext is limited to 4,096 characters. IV and ciphertext lengths are bounded and validated. No CALL_PHONE, SEND_SMS, or additional Android runtime permission is introduced by this slice.
 
-## Downloads, media, sharing, and TTS integration — Wave 3E (planned)
+## Downloads, media, sharing, and TTS integration — Wave 3E (download implementation in PR #34; validation pending)
 
-- Download management must be bounded, cancellable, and owned by Gallery; prefer Android DownloadManager when its lifecycle/status contract fits.
+- Reuse Gallery's existing WorkManager-backed `DefaultDownloadRepository` and `DownloadWorker`; do not introduce Android DownloadManager or a parallel queue.
+- The agent reuses Gallery's WorkManager-backed repository. `download_status` returns at most 20 active Gallery downloads with opaque handles, state/phase, received/total bytes, and bounded optional rate/ETA. It does not expose WorkManager IDs, raw tags, worker data, URLs, tokens, or paths.
+- Display names resolve only through Gallery's currently loaded allowlist catalog; imported or unknown jobs use the generic label “Gallery model download”.
+- `cancel_download` accepts only a fresh handle from the latest status result, consumes it once, revalidates the exact active Gallery job and its ownership tags, marks observed work as user-cancelled, and cancels only that WorkManager UUID. The operation requires the existing one-time scoped approval, which shows the model label, phase, and exact opaque download reference. Model-wide cancellation is not used.
+- Unit tests cover status without approval, rejection of handles not first issued by status, exact approval, and cancellation denial. PR #34 local Gradle validation and device acceptance remain pending.
 - Media scanning/indexing and app-initiated playback should reuse Gallery-owned media infrastructure where possible.
 - Active media-session control is distinct from playback initiated by Gallery. Notification-listener special access must never be silently enabled; report unavailable until the user grants it.
 - Text/file sharing uses ACTION_SEND and the Android chooser. The user selects the receiving app and completes the action.

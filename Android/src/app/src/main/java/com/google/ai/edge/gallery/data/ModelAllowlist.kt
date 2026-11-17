@@ -31,6 +31,23 @@ private const val TAG = "AGModelAllowlist"
  */
 fun getBaseFileName(path: String): String = path.substringAfterLast('/')
 
+/**
+ * Names exposed to the agent must resolve to the currently loaded Gallery model allowlist.
+ * Imported and unknown model names intentionally receive no display-name resolution.
+ */
+object GalleryAllowlistedModelCatalog {
+  @Volatile private var displayNames: Map<String, String> = emptyMap()
+
+  fun replace(models: Collection<Model>) {
+    displayNames = models
+      .asSequence()
+      .filterNot { it.downloadInfo.imported }
+      .associate { model -> model.name to model.displayName.ifEmpty { model.name } }
+  }
+
+  fun displayName(modelName: String): String? = displayNames[modelName]
+}
+
 data class DefaultConfig(
   @SerializedName("topK") val topK: Int?,
   @SerializedName("topP") val topP: Float?,
