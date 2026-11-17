@@ -755,9 +755,20 @@ class AndroidNativeCapabilityTool internal constructor(
   }
 
   private suspend fun status(): AgentToolResult {
-    // Provider discovery is deliberately distinct from reading device state.
+    // Provider discovery is deliberately distinct from reading device state. Download
+    // availability reflects whether the existing Gallery repository was wired into this tool.
+    val observation = adapter.inspect()
+    val downloadAvailability =
+      if (downloadOperations != null) ProviderAvailability.AVAILABLE
+      else ProviderAvailability.UNSUPPORTED
     return AgentToolResult(
-      NativeCapabilityResultFormatter.providerAvailability(adapter.inspect())
+      NativeCapabilityResultFormatter.providerAvailability(
+        observation.copy(
+          capabilityAvailability =
+            observation.capabilityAvailability +
+              (AndroidCapability.DOWNLOAD_MANAGEMENT to downloadAvailability),
+        )
+      )
     )
   }
 
