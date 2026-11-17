@@ -710,6 +710,7 @@ class AndroidNativeCapabilityTool internal constructor(
       appendLine("Model: ${snapshot.modelLabel}")
       appendLine("Content: $description")
       appendLine("Phase: ${snapshot.phase}")
+      appendLine("Download reference: $handle")
       if (snapshot.totalBytes > 0L) {
         append("Progress: ${snapshot.receivedBytes} of ${snapshot.totalBytes} bytes")
       }
@@ -735,7 +736,10 @@ class AndroidNativeCapabilityTool internal constructor(
     return buildString {
       appendLine("returned=${snapshots.size}")
       appendLine("limit=20")
-      appendLine("truncated=false")
+      appendLine("truncated=${if (snapshots.size == 20) "unknown" else "false"}")
+      if (snapshots.size == 20) {
+        appendLine("truncation_note=Additional active downloads may exist.")
+      }
       snapshots.forEachIndexed { index, snapshot ->
         appendLine("download=${index + 1}")
         appendLine("download_handle=${snapshot.handle}")
