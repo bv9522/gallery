@@ -565,9 +565,9 @@ class DefaultDownloadRepository(
               WorkInfo.State.BLOCKED,
             ) &&
             pending?.modelName == record.modelName &&
-            pending.isExtraDataOnly == record.isExtraDataOnly &&
-            pending.taskId == record.taskId &&
-            pending.version == record.version &&
+            pending?.isExtraDataOnly == record.isExtraDataOnly &&
+            pending?.taskId == record.taskId &&
+            pending?.version == record.version &&
             record.workerId !in endedWorkerIds
 
         if (!isStillTheSameActiveDownload) {
