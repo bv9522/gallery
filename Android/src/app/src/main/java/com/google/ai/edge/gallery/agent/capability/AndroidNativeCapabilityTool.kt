@@ -19,6 +19,8 @@ package com.google.ai.edge.gallery.agent.capability
 import android.content.Context
 import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
+import com.google.ai.edge.gallery.data.AgentDownloadOperations
+import com.google.ai.edge.gallery.data.AgentDownloadSnapshot
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.AuthenticateBiometricToolAction
 import com.google.ai.edge.gallery.tools.SpeakTextToolAction
@@ -29,6 +31,9 @@ import com.google.gson.JsonObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import java.util.concurrent.ConcurrentHashMap
 import androidx.biometric.BiometricPrompt
 
 /** Sends exact, one-time native mutation requests through Agent Chat's existing action channel. */
@@ -110,11 +115,16 @@ class AndroidNativeCapabilityTool internal constructor(
   private val registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
   private val speechPlaybackRequester: NativeSpeechPlaybackRequester = NativeSpeechPlaybackRequester { false },
   private val speechAuthorizer: NativeCapabilityAuthorizer? = null,
+  private val downloadOperations: AgentDownloadOperations? = null,
+  private val downloadAuthorizer: NativeCapabilityAuthorizer? = null,
 ) : AgentTool {
+  private val issuedDownloadSnapshots = ConcurrentHashMap<String, AgentDownloadSnapshot>()
+
   constructor(
     context: Context,
     actionChannel: SendChannel<ToolAction>,
     registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
+    downloadOperations: AgentDownloadOperations? = null,
   ) : this(
     AndroidNativeCapabilityAdapter(
       context = context.applicationContext,
@@ -125,6 +135,8 @@ class AndroidNativeCapabilityTool internal constructor(
     ),
     registry,
     ChannelNativeSpeechPlaybackRequester(actionChannel),
+    ChannelNativeCapabilityAuthorizer(actionChannel),
+    downloadOperations,
     ChannelNativeCapabilityAuthorizer(actionChannel),
   )
 
@@ -139,7 +151,10 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
       "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
-      "cancel_scheduled_notification, list_notification_channels, create_notification_channel. Notifications " +
+      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, download_status, cancel_download. " +
+      "download_status returns at most 20 active Gallery model downloads with short-lived opaque handles. " +
+      "cancel_download requires a handle from the latest status result and one-time approval for that exact download. " +
+      "No worker IDs, tags, URLs, tokens, or filesystem paths are exposed. Notifications " +
       "are posted/scheduled only after scoped approval and POST_NOTIFICATIONS permission; reading other apps' " +
       "notifications is not supported. Device discovery, GATT connections, GATT reads/writes, " +
       "audio recording (1–30 seconds, local MediaStore output), photo capture, and wallpaper changes " +
@@ -161,11 +176,16 @@ class AndroidNativeCapabilityTool internal constructor(
           addProperty("type", "string")
           add("enum", JsonArray().apply {
             listOf(
-              "status", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
+              "status", "download_status", "cancel_download", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
               "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text",
             ).forEach { add(it) }
           })
+        })
+        add("download_handle", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Opaque handle copied exactly from the most recent download_status result; valid only briefly.")
+          addProperty("maxLength", 35)
         })
         add("phone_number", JsonObject().apply {
           addProperty("type", "string")
@@ -348,6 +368,8 @@ class AndroidNativeCapabilityTool internal constructor(
     return try {
       when (operation) {
         "status" -> status()
+        "download_status" -> downloadStatus()
+        "cancel_download" -> cancelDownload(arguments)
         "device_info" -> read(AndroidCapability.DEVICE_INFO) {
           NativeCapabilityResultFormatter.deviceInfo(adapter.getDeviceInfo())
         }
@@ -658,6 +680,74 @@ class AndroidNativeCapabilityTool internal constructor(
     } catch (error: Exception) {
       failure(error.message ?: error.javaClass.simpleName)
     }
+  }
+
+  private suspend fun downloadStatus(): AgentToolResult {
+    val operations = downloadOperations
+      ?: return failure("Gallery download management is unavailable.")
+    val snapshots = suspendCancellableCoroutine { continuation ->
+      operations.getAgentDownloadSnapshots { result ->
+        if (continuation.isActive) continuation.resume(result)
+      }
+    }
+    issuedDownloadSnapshots.clear()
+    snapshots.forEach { issuedDownloadSnapshots[it.handle] = it }
+    return AgentToolResult(formatDownloadSnapshots(snapshots))
+  }
+
+  private suspend fun cancelDownload(arguments: JsonObject): AgentToolResult {
+    val operations = downloadOperations
+      ?: return failure("Gallery download management is unavailable.")
+    val handle = arguments.string("download_handle")
+      ?: return failure("cancel_download requires download_handle from download_status.")
+    val snapshot = issuedDownloadSnapshots[handle]
+      ?: return failure("That download handle is unknown or expired. Run download_status again.")
+    val authorizer = downloadAuthorizer
+      ?: return failure("Download cancellation approval is unavailable.")
+    val description = if (snapshot.extraDataOnly) "optional model files" else "model files"
+    val approvalSummary = buildString {
+      appendLine("Cancel this exact Gallery download?")
+      appendLine("Model: ${snapshot.modelLabel}")
+      appendLine("Content: $description")
+      appendLine("Phase: ${snapshot.phase}")
+      if (snapshot.totalBytes > 0L) {
+        append("Progress: ${snapshot.receivedBytes} of ${snapshot.totalBytes} bytes")
+      }
+    }
+    if (!authorizer.authorize(AndroidCapability.DOWNLOAD_MANAGEMENT, approvalSummary)) {
+      return failure("Download cancellation was not approved.")
+    }
+    val cancelled = suspendCancellableCoroutine { continuation ->
+      operations.cancelAgentDownload(handle) { result ->
+        if (continuation.isActive) continuation.resume(result)
+      }
+    }
+    issuedDownloadSnapshots.remove(handle)
+    return if (cancelled) {
+      AgentToolResult("Cancellation requested for ${snapshot.modelLabel}.")
+    } else {
+      failure("The selected download is no longer active or its handle expired. Run download_status again.")
+    }
+  }
+
+  private fun formatDownloadSnapshots(snapshots: List<AgentDownloadSnapshot>): String {
+    if (snapshots.isEmpty()) return "No active Gallery model downloads."
+    return buildString {
+      appendLine("returned=${snapshots.size}")
+      appendLine("limit=20")
+      appendLine("truncated=false")
+      snapshots.forEachIndexed { index, snapshot ->
+        appendLine("download=${index + 1}")
+        appendLine("download_handle=${snapshot.handle}")
+        appendLine("model=${snapshot.modelLabel}")
+        appendLine("content=${if (snapshot.extraDataOnly) "optional_model_files" else "model_files"}")
+        appendLine("phase=${snapshot.phase}")
+        appendLine("received_bytes=${snapshot.receivedBytes}")
+        appendLine("total_bytes=${snapshot.totalBytes}")
+        snapshot.bytesPerSecond?.let { appendLine("bytes_per_second=$it") }
+        snapshot.remainingMs?.let { appendLine("remaining_ms=$it") }
+      }
+    }.trimEnd()
   }
 
   private suspend fun status(): AgentToolResult {
