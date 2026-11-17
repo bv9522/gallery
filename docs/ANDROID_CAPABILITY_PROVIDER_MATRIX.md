@@ -8,7 +8,7 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 
 - Active branch: `wave-3e-media-sharing-tts`.
 - Active PR: [#33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33), draft/open/unmerged.
-- Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; local unit tests and the Shizuku debug build are pending user confirmation.
+- Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
 - Remaining Wave 3E work: Gallery-owned downloads/status/cancellation, media scanning/indexing and Gallery-initiated playback, active media-session controls (special access remains user-granted only), and user-mediated text/file sharing.
 - PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
 - PR #23–#29 and #16–#27 still require the applicable local validation and consolidated S21 acceptance recorded in the master roadmap.
