@@ -16,6 +16,8 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.data.AgentDownloadOperations
+import com.google.ai.edge.gallery.data.AgentDownloadSnapshot
 import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
@@ -154,6 +156,80 @@ class AndroidNativeCapabilityToolTest {
 
     assertFalse(result.isSuccessful)
     assertFalse(playbackRequested)
+  }
+
+  @Test
+  fun downloadStatusReturnsBoundedSnapshotsWithoutRequestingApproval() = runBlocking {
+    val downloads = FakeAgentDownloadOperations()
+    var approvalRequested = false
+    val tool = AndroidNativeCapabilityTool(
+      adapter = FakeNativeCapabilityOperations(),
+      downloadOperations = downloads,
+      downloadAuthorizer = NativeCapabilityAuthorizer { _, _ ->
+        approvalRequested = true
+        true
+      },
+    )
+
+    val result = tool.execute(arguments("download_status"))
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("model=Gemma E2B"))
+    assertTrue(result.content.contains("phase=RUNNING"))
+    assertTrue(result.content.contains("download_handle=${downloads.snapshot.handle}"))
+    assertFalse(result.content.contains("workerId"))
+    assertFalse(approvalRequested)
+  }
+
+  @Test
+  fun cancelDownloadRequiresFreshHandleAndExactOneTimeApproval() = runBlocking {
+    val downloads = FakeAgentDownloadOperations()
+    var approvedCapability: AndroidCapability? = null
+    var approvalSummary = ""
+    val tool = AndroidNativeCapabilityTool(
+      adapter = FakeNativeCapabilityOperations(),
+      downloadOperations = downloads,
+      downloadAuthorizer = NativeCapabilityAuthorizer { capability, summary ->
+        approvedCapability = capability
+        approvalSummary = summary
+        true
+      },
+    )
+
+    val beforeStatus = tool.execute(arguments("cancel_download").apply {
+      addProperty("download_handle", downloads.snapshot.handle)
+    })
+    assertFalse(beforeStatus.isSuccessful)
+    assertTrue(downloads.cancelledHandles.isEmpty())
+
+    tool.execute(arguments("download_status"))
+    val result = tool.execute(arguments("cancel_download").apply {
+      addProperty("download_handle", downloads.snapshot.handle)
+    })
+
+    assertTrue(result.isSuccessful)
+    assertEquals(AndroidCapability.DOWNLOAD_MANAGEMENT, approvedCapability)
+    assertTrue(approvalSummary.contains("Gemma E2B"))
+    assertTrue(approvalSummary.contains("RUNNING"))
+    assertEquals(listOf(downloads.snapshot.handle), downloads.cancelledHandles)
+  }
+
+  @Test
+  fun cancelDownloadDoesNotReachRepositoryWhenApprovalIsDenied() = runBlocking {
+    val downloads = FakeAgentDownloadOperations()
+    val tool = AndroidNativeCapabilityTool(
+      adapter = FakeNativeCapabilityOperations(),
+      downloadOperations = downloads,
+      downloadAuthorizer = NativeCapabilityAuthorizer { _, _ -> false },
+    )
+
+    tool.execute(arguments("download_status"))
+    val result = tool.execute(arguments("cancel_download").apply {
+      addProperty("download_handle", downloads.snapshot.handle)
+    })
+
+    assertFalse(result.isSuccessful)
+    assertTrue(downloads.cancelledHandles.isEmpty())
   }
 
   @Test
@@ -650,6 +726,29 @@ class AndroidNativeCapabilityToolTest {
 
   private fun arguments(operation: String) = JsonObject().apply {
     addProperty("operation", operation)
+  }
+
+  private class FakeAgentDownloadOperations : AgentDownloadOperations {
+    val snapshot = AgentDownloadSnapshot(
+      handle = "dl_" + "a".repeat(32),
+      modelLabel = "Gemma E2B",
+      extraDataOnly = false,
+      phase = "RUNNING",
+      receivedBytes = 512L,
+      totalBytes = 1_024L,
+      bytesPerSecond = 128L,
+      remainingMs = 4_000L,
+    )
+    val cancelledHandles = mutableListOf<String>()
+
+    override fun getAgentDownloadSnapshots(onResult: (List<AgentDownloadSnapshot>) -> Unit) {
+      onResult(listOf(snapshot))
+    }
+
+    override fun cancelAgentDownload(handle: String, onResult: (Boolean) -> Unit) {
+      cancelledHandles += handle
+      onResult(handle == snapshot.handle)
+    }
   }
 
   private class FakeNativeCapabilityOperations : NativeCapabilityOperations {
