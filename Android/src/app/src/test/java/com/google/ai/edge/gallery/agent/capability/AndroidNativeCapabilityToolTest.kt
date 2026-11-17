@@ -100,6 +100,63 @@ class AndroidNativeCapabilityToolTest {
   }
 
   @Test
+  fun speakTextRequiresExactApprovalAndUsesInjectedGalleryPlaybackRequester() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val expectedText = "Hello from Gallery."
+    var spokenText: String? = null
+    var approvedCapability: AndroidCapability? = null
+    var approvalSummary: String? = null
+    val requester = NativeSpeechPlaybackRequester { text ->
+      spokenText = text
+      true
+    }
+    val authorizer = NativeCapabilityAuthorizer { capability, summary ->
+      approvedCapability = capability
+      approvalSummary = summary
+      true
+    }
+    val tool = AndroidNativeCapabilityTool(
+      adapter = adapter,
+      registry = CapabilityCatalog.createRegistry(),
+      speechPlaybackRequester = requester,
+      speechAuthorizer = authorizer,
+    )
+
+    val result = tool.execute(arguments("speak_text").apply {
+      addProperty("speech_text", expectedText)
+    })
+
+    assertTrue(result.isSuccessful)
+    assertEquals(expectedText, spokenText)
+    assertEquals(AndroidCapability.TEXT_TO_SPEECH, approvedCapability)
+    assertTrue(approvalSummary.orEmpty().contains(expectedText))
+  }
+
+  @Test
+  fun speakTextDoesNotStartPlaybackWhenApprovalIsDenied() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    var playbackRequested = false
+    val requester = NativeSpeechPlaybackRequester {
+      playbackRequested = true
+      true
+    }
+    val authorizer = NativeCapabilityAuthorizer { _, _ -> false }
+    val tool = AndroidNativeCapabilityTool(
+      adapter = adapter,
+      registry = CapabilityCatalog.createRegistry(),
+      speechPlaybackRequester = requester,
+      speechAuthorizer = authorizer,
+    )
+
+    val result = tool.execute(arguments("speak_text").apply {
+      addProperty("speech_text", "Do not speak this.")
+    })
+
+    assertFalse(result.isSuccessful)
+    assertFalse(playbackRequested)
+  }
+
+  @Test
   fun mutationOperationsReachTheirMatchingNativeAdapterMethods() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
