@@ -134,7 +134,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "and launchable apps, or perform an approved native Android action. Use status to inspect " +
       "availability of each native Android " +
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
-      "values: status, device_info, telephony_info, dial_phone, compose_sms, biometric_auth, keystore_create, keystore_list, keystore_delete, keystore_encrypt, keystore_decrypt, battery_status, volume_status, list_apps, set_volume, " +
+      "values: speak_text, status, device_info, telephony_info, dial_phone, compose_sms, biometric_auth, keystore_create, keystore_list, keystore_delete, keystore_encrypt, keystore_decrypt, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
@@ -277,8 +277,13 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("text", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Text for clipboard_write (maximum 2048 characters) or speak_text (maximum 1000 characters; uses Gallery TTS).")
+          addProperty("description", "Text to place on the clipboard; maximum 2048 characters.")
           addProperty("maxLength", MAX_CLIPBOARD_WRITE_CHARS)
+        })
+        add("speech_text", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Exact text for speak_text; maximum 1000 characters. Uses Gallery's configured TTS engine.")
+          addProperty("maxLength", MAX_SPEAK_TEXT_CHARS)
         })
         add("title", JsonObject().apply {
           addProperty("type", "string")
@@ -544,7 +549,7 @@ class AndroidNativeCapabilityTool internal constructor(
           AgentToolResult(Gson().toJson(adapter.searchContacts(query, limit)))
         }
         "speak_text" -> {
-          val text = arguments.string("text") ?: return failure("speak_text requires text.")
+          val text = arguments.string("speech_text") ?: return failure("speak_text requires speech_text.")
           if (text.isBlank() || text.length > MAX_SPEAK_TEXT_CHARS) {
             return failure("Speech text must contain 1–$MAX_SPEAK_TEXT_CHARS non-whitespace characters.")
           }
