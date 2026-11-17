@@ -1,8 +1,18 @@
 # Android capability provider matrix
 
 The canonical inventory, provider ownership decisions, Termux:API command disposition, security
-contracts, and implementation waves are maintained in
+contracts, end-to-end roadmap, and live progress ledger are maintained in
 [ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md](ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md).
+
+## Current progress snapshot (2026-11-17)
+
+- Active branch: `wave-3e-media-sharing-tts`.
+- Active PR: [#33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33), draft/open/unmerged.
+- Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; local unit tests and the Shizuku debug build are pending user confirmation.
+- Remaining Wave 3E work: Gallery-owned downloads/status/cancellation, media scanning/indexing and Gallery-initiated playback, active media-session controls (special access remains user-granted only), and user-mediated text/file sharing.
+- PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
+- PR #23–#29 and #16–#27 still require the applicable local validation and consolidated S21 acceptance recorded in the master roadmap.
+- Consolidated S21 acceptance is intentionally gated until capability onboarding and the ownership audit are complete.
 
 ## Single-owner policy
 
@@ -96,11 +106,11 @@ inbox reads remain planned.
   platform SpeechRecognizer, ML Kit ASR, or MediaPipe SpeechProcessor. The microphone is user-started;
   there is no background recording or model-triggered microphone start.
 - Speech output already uses `TtsServiceProvider`: Android platform TextToSpeech, ML Kit GenAI TTS,
-  and MediaPipe TTS. Gallery owns engine/voice/language selection and chat playback.
+  and MediaPipe TTS. Gallery owns engine/voice/language selection and chat playback. Agent-triggered
+  `speak_text` now reuses the existing playback controller in draft PR #33; local validation is pending.
 - The capability catalog assigns both speech capabilities to the native provider. Termux:API TTS
   and speech-to-text operations are removed from the Gallery model-facing Termux tool to prevent
-  duplicate ownership. Agent-triggered TTS reuse of the existing playback controller remains a
-  distinct integration task.
+  duplicate ownership. Agent-triggered TTS reuses the existing playback controller in PR #33.
 
 ## Native contacts and clipboard onboarding — Phase 9A draft
 
