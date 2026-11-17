@@ -7,8 +7,8 @@
 >
 > **Last reconciled:** 2026-11-17 (PR #33 local validation confirmed)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-3e-media-sharing-tts`  
-> **Current change:** [PR #33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33)  
+> **Current implementation branch:** `wave-3e-gallery-download-management` (documentation checkpoint stacked on `wave-3e-media-sharing-tts`)  
+> **Current change:** [PR #34 — Wave 3E: define safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), draft/open; PR #33 remains open beneath it.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -224,7 +224,8 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3B notifications/scheduling | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #30 |
 | Wave 3C telephony/user-mediated actions | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #31 |
 | Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
-| Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; validated head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`; downloads/media/sharing remain |
+| Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build; downloads/media/sharing remain |
+| Wave 3E Gallery downloads | IN PROGRESS — architecture/API gap documented; implementation not yet started | PR #34 records the existing WorkManager/DownloadRepository contract and required safe repository extension; no code or validation claimed |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | PLANNED | No implementation PR in current chain |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
@@ -246,7 +247,8 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #30 — Gallery notifications and scheduling (**local tests/build user-confirmed**).
 - PR #31 — telephony metadata and user-mediated dialer/SMS (**local tests/build user-confirmed**).
 - PR #32 — strong biometric and Android Keystore (**local tests/build user-confirmed**).
-- PR #33 — agent speech through Gallery TTS (**local tests/build pending**).
+- PR #33 — agent speech through Gallery TTS (**local tests and Shizuku debug build user-confirmed**).
+- PR #34 — Gallery-owned download control contract and repository integration findings (**documentation checkpoint only; implementation and validation pending**).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
@@ -695,3 +697,13 @@ version compatibility must be verified on-device before an operation is marked i
 - Transfers stream in 32 KiB chunks, enforce a 100 MiB maximum even when provider metadata omits size, and remove incomplete destination files when cleanup succeeds. Cleanup failures and partial moves are reported explicitly.
 - Cross-tree move deletes the source only after the destination stream completes. Directory transfer, arbitrary MIME types, raw paths, and arbitrary URIs remain unsupported.
 
+
+
+**Download implementation findings (2026-11-17; PR #34 documentation checkpoint):**
+- Gallery already owns model downloads through `DefaultDownloadRepository` and `DownloadWorker` on WorkManager. Do not add Android `DownloadManager`, a parallel downloader, or a second queue.
+- The existing repository exposes pending worker IDs/tags and model-level observer callbacks. It does not yet expose a sanitized agent-facing progress snapshot, and its `cancelPendingDownload` intentionally refuses to cancel jobs already observed by the current process. The current model-wide cancellation path cancels by model tag and can affect more than one related work item.
+- Required repository seam before exposing the capability: enumerate only Gallery `DownloadWorker` jobs; map each to a bounded opaque per-job handle plus safe model display identifier, work state, phase, bytes/total, and bounded rate/ETA; never return WorkManager input/output `Data`, URLs, access tokens, raw paths, or arbitrary tags.
+- Cancellation must accept only a handle returned by the status operation, revalidate that it still identifies a Gallery-owned active download, mark the matching observed job as user-cancelled, and call WorkManager cancellation for that exact worker ID. Do not use model-wide `cancelAllWorkByTag` for the agent operation.
+- Only allowlist-backed Gallery model records should be named or made eligible for agent cancellation. Imported/custom or unknown model jobs may be visible only as a generic Gallery download, or omitted, until their identity and ownership can be safely resolved.
+- Status and cancellation are read-only / mutating native Gallery capabilities respectively. Cancellation requires the existing one-time scoped approval displaying the model label and exact selected download handle. A denied, stale, completed, or foreign handle fails closed.
+- This PR is a documentation checkpoint, not the implementation. Implementation remains blocked on adding and testing the narrow repository API, resolving the allowlisted model catalog at the app boundary, and wiring the repository through the existing Hilt graph without exposing internal WorkManager structures.
