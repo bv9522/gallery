@@ -270,12 +270,13 @@ version compatibility must be verified on-device before an operation is marked i
 - Plaintext is bounded to 4,096 characters; ciphertext input and GCM IV sizes are bounded and validated. No key material is exported and no plaintext is persisted by the adapter.
 - Biometric UI behavior, hardware-backed Keystore behavior, and cancellation on the target device remain device-acceptance concerns. User-confirmed local `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host fix. PR #32 remains draft and unmerged.
 
-### Wave 3E — Downloads, media, sharing, and Gallery TTS integration (next)
+### Wave 3E — Downloads, media, sharing, and Gallery TTS integration (in progress)
 - Add bounded, Gallery-owned download management; reuse Android DownloadManager where it provides reliable lifecycle and status semantics, and keep any app-owned transfer implementation narrowly scoped.
 - Add explicit media scanning/index lookup and app-initiated playback using Gallery's existing media stack where available; do not duplicate media infrastructure without a demonstrated gap.
 - Treat active media-session control as a separate capability with explicit access-state reporting. Do not silently request NotificationListenerService special access; unsupported access remains unavailable until the user enables it.
 - Add text/file sharing through Android ACTION_SEND and the system chooser. The user selects the destination and completes the share; no silent cross-app content delivery.
 - Route agent-triggered speech through Gallery's existing TtsServiceProvider and playback/service lifecycle, respecting the user's persisted engine, voice, and language selection. Do not add a parallel TTS engine or Termux TTS route.
+- Agent `speak_text` is implemented on `wave-3e-media-sharing-tts`: text is limited to 1,000 characters, exact text is shown in one-time scoped approval, and Agent Chat dispatches playback through its existing `TtsPlaybackViewModel` / `TtsPlaybackController`. The saved Gallery TTS engine, voice, and language selection are preserved. No parallel TTS engine or Termux route is added. Unit coverage includes argument bounds and action-channel result/timeout behavior; local Gradle validation is pending.
 - Discovery remains observational; downloads, playback changes, and sharing use scoped approval and bounded arguments/results. Media URIs must be content URIs with ownership/grant handling, not arbitrary filesystem paths.
 - Local unit tests and debug build validation will be recorded per implementation slice; consolidated S21 device acceptance remains deferred until onboarding is complete.
 
