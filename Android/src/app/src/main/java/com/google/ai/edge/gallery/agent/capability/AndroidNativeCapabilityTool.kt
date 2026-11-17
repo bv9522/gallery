@@ -277,7 +277,7 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("text", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Text to place on the clipboard; maximum 2048 characters.")
+          addProperty("description", "Text for clipboard_write (maximum 2048 characters) or speak_text (maximum 1000 characters; uses Gallery TTS).")
           addProperty("maxLength", MAX_CLIPBOARD_WRITE_CHARS)
         })
         add("title", JsonObject().apply {
