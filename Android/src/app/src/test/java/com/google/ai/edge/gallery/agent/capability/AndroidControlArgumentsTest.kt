@@ -102,6 +102,26 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun speakTextRequiresBoundedNonBlankText() {
+    val valid = JsonObject().apply {
+      addProperty("operation", "speak_text")
+      addProperty("text", "Hello from Gallery.")
+    }
+    val blank = JsonObject().apply {
+      addProperty("operation", "speak_text")
+      addProperty("text", "   ")
+    }
+    val oversized = JsonObject().apply {
+      addProperty("operation", "speak_text")
+      addProperty("text", "x".repeat(1_001))
+    }
+
+    assertNull(AndroidControlArguments.validate(valid))
+    assertTrue(AndroidControlArguments.validate(blank).orEmpty().contains("speak_text"))
+    assertTrue(AndroidControlArguments.validate(oversized).orEmpty().contains("1000"))
+  }
+
+  @Test
   fun statusWithStreamIsRejectedByTheGenericOperationSchema() {
     val arguments = JsonObject().apply {
       addProperty("operation", "status")
