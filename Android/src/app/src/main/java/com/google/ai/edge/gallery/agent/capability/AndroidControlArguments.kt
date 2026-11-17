@@ -26,6 +26,8 @@ import java.util.UUID
 internal object AndroidControlArguments {
   private val operationArguments = mapOf(
     "status" to setOf("operation"),
+    "download_status" to setOf("operation"),
+    "cancel_download" to setOf("operation", "download_handle"),
     "device_info" to setOf("operation"),
     "telephony_info" to setOf("operation"),
     "dial_phone" to setOf("operation", "phone_number"),
@@ -124,6 +126,15 @@ internal object AndroidControlArguments {
     if (missing.isNotEmpty()) {
       return "$operation requires: " + missing.sorted().joinToString(", ") +
         ". Retry the same operation with those arguments."
+    }
+
+    if (operation == "cancel_download") {
+      val handle = arguments.get("download_handle")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (!handle.matches(Regex("^dl_[0-9a-f]{32}$"))) {
+        return "download_handle must be copied exactly from the most recent download_status result."
+      }
     }
 
     if (operation in setOf("bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write")) {
