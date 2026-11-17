@@ -32,6 +32,7 @@ enum class ToolActionName() {
   AUTHENTICATE_BIOMETRIC,
   CAPTURE_PHOTO,
   OPEN_DOCUMENT_TREE,
+  SPEAK_TEXT,
 }
 
 /**
@@ -202,3 +203,10 @@ class CapturePhotoToolAction(
 class OpenDocumentTreeToolAction(
   val result: CompletableDeferred<String?> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.OPEN_DOCUMENT_TREE)
+
+
+/** Requests Gallery-owned TTS playback for exact, bounded text. */
+class SpeakTextToolAction(
+  val text: String,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.SPEAK_TEXT)
