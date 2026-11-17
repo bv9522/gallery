@@ -47,6 +47,7 @@ import com.google.ai.edge.gallery.data.DeviceIdentity
 import com.google.ai.edge.gallery.data.DeviceRequirementRegistry
 import com.google.ai.edge.gallery.data.DownloadAuthError
 import com.google.ai.edge.gallery.data.DownloadRepository
+import com.google.ai.edge.gallery.data.GalleryAllowlistedModelCatalog
 import com.google.ai.edge.gallery.data.DownloadStorageManager
 import com.google.ai.edge.gallery.data.EMPTY_MODEL
 import com.google.ai.edge.gallery.data.IMPORTS_DIR
@@ -2139,6 +2140,7 @@ constructor(
       try {
         // Clear existing allowlist models.
         _allowlistModels.clear()
+        GalleryAllowlistedModelCatalog.replace(emptyList())
         _supplementaryModels.clear()
 
         // Load model allowlist json.
@@ -2244,6 +2246,7 @@ constructor(
           }
         }
         registerAllowlistSpeechModels(_supplementaryModels)
+        GalleryAllowlistedModelCatalog.replace(_allowlistModels)
 
         // Find models from allowlist if a task's `modelNames` field is not empty.
         Log.d(TAG, "loadModelAllowlist: Processing task modelNames")
