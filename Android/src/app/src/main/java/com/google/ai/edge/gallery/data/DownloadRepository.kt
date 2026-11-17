@@ -54,8 +54,38 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 private const val TAG = "AGDownloadRepository"
+private const val MAX_AGENT_DOWNLOADS = 20
+private const val AGENT_DOWNLOAD_HANDLE_TTL_MS = 120_000L
 
-interface DownloadRepository {
+
+/** Removes control characters and path separators before a model name reaches the agent. */
+private fun safeAgentModelLabel(modelName: String): String =
+  modelName
+    .replace(Regex("[\\r\\n\\t/\\\\]"), " ")
+    .filter { it.isLetterOrDigit() || it in " ._-()" }
+    .trim()
+    .take(80)
+    .ifEmpty { "Gallery model" }
+
+/** A bounded, model-facing view of one active Gallery download. Never contains a WorkManager ID. */
+data class AgentDownloadSnapshot(
+  val handle: String,
+  val modelLabel: String,
+  val extraDataOnly: Boolean,
+  val phase: String,
+  val receivedBytes: Long,
+  val totalBytes: Long,
+  val bytesPerSecond: Long?,
+  val remainingMs: Long?,
+)
+
+/** Narrow interface exposed to the local agent; callers never supply WorkManager identifiers. */
+interface AgentDownloadOperations {
+  fun getAgentDownloadSnapshots(onResult: (List<AgentDownloadSnapshot>) -> Unit)
+  fun cancelAgentDownload(handle: String, onResult: (Boolean) -> Unit)
+}
+
+interface DownloadRepository : AgentDownloadOperations {
   fun downloadModel(
     task: Task?,
     model: Model,
@@ -155,6 +185,18 @@ class DefaultDownloadRepository(
    * caller that attaches after the download ended. Replaced downloads have none.
    */
   private val endedDownloadStatuses = ConcurrentHashMap<UUID, ModelDownloadStatus>()
+
+  /** Short-lived opaque handles issued by the most recent agent status query. */
+  private data class AgentDownloadHandleRecord(
+    val workerId: UUID,
+    val modelName: String,
+    val isExtraDataOnly: Boolean,
+    val taskId: String?,
+    val version: String?,
+    val issuedAtMs: Long,
+  )
+
+  private val agentDownloadHandles = ConcurrentHashMap<String, AgentDownloadHandleRecord>()
 
   /** A download observed by this process. */
   private class ObservedDownload(
@@ -413,6 +455,160 @@ class DefaultDownloadRepository(
       }
     }
     workManager.cancelAllWorkByTag(modelNameTag(workName))
+  }
+
+  override fun getAgentDownloadSnapshots(onResult: (List<AgentDownloadSnapshot>) -> Unit) {
+    val future =
+      workManager.getWorkInfos(
+        WorkQuery.fromStates(
+          WorkInfo.State.ENQUEUED,
+          WorkInfo.State.RUNNING,
+          WorkInfo.State.BLOCKED,
+        )
+      )
+    future.addListener(
+      {
+        val workInfos =
+          try {
+            future.get()
+          } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            Log.e(TAG, "Interrupted while querying agent download status", e)
+            null
+          } catch (e: Exception) {
+            Log.e(TAG, "Failed to query agent download status", e)
+            null
+          }
+
+        if (workInfos == null) {
+          agentDownloadHandles.clear()
+          onResult(emptyList())
+          return@addListener
+        }
+
+        val issuedAtMs = clock.millis()
+        val snapshots =
+          workInfos.mapNotNull { workInfo ->
+            val pending = PendingDownload.fromTags(workInfo.id, workInfo.tags) ?: return@mapNotNull null
+            val progress = workInfo.progress
+            val receivedBytes =
+              progress.getLong(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES, 0L).coerceAtLeast(0L)
+            val progressTotal = progress.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
+            val inputTotal = workInfo.inputData.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
+            val totalBytes = maxOf(progressTotal, inputTotal, 0L)
+            val phase =
+              if (
+                workInfo.state == WorkInfo.State.RUNNING &&
+                  progress.getBoolean(KEY_MODEL_START_UNZIPPING, false)
+              ) {
+                "UNZIPPING"
+              } else {
+                workInfo.state.name
+              }
+            val handle = "dl_" + UUID.randomUUID().toString().replace("-", "")
+            val snapshot =
+              AgentDownloadSnapshot(
+                handle = handle,
+                modelLabel = safeAgentModelLabel(pending.modelName),
+                extraDataOnly = pending.isExtraDataOnly,
+                phase = phase,
+                receivedBytes = receivedBytes,
+                totalBytes = totalBytes,
+                bytesPerSecond =
+                  progress.getLong(KEY_MODEL_DOWNLOAD_RATE, 0L).takeIf { it > 0L },
+                remainingMs =
+                  progress.getLong(KEY_MODEL_DOWNLOAD_REMAINING_MS, 0L).takeIf { it > 0L },
+              )
+            snapshot to
+              AgentDownloadHandleRecord(
+                workerId = pending.workerId,
+                modelName = pending.modelName,
+                isExtraDataOnly = pending.isExtraDataOnly,
+                taskId = pending.taskId,
+                version = pending.version,
+                issuedAtMs = issuedAtMs,
+              )
+          }
+            .sortedBy { it.first.modelLabel }
+            .take(MAX_AGENT_DOWNLOADS)
+
+        agentDownloadHandles.clear()
+        snapshots.forEach { (snapshot, record) ->
+          agentDownloadHandles[snapshot.handle] = record
+        }
+        onResult(snapshots.map { it.first })
+      },
+      Executor { it.run() },
+    )
+  }
+
+  override fun cancelAgentDownload(handle: String, onResult: (Boolean) -> Unit) {
+    val record = agentDownloadHandles.remove(handle) ?: run {
+      onResult(false)
+      return
+    }
+    if (clock.millis() - record.issuedAtMs !in 0..AGENT_DOWNLOAD_HANDLE_TTL_MS) {
+      onResult(false)
+      return
+    }
+
+    val workerInfoFuture = workManager.getWorkInfoById(record.workerId)
+    workerInfoFuture.addListener(
+      {
+        val workInfo = runCatching { workerInfoFuture.get() }.getOrNull()
+        val pending = workInfo?.let { PendingDownload.fromTags(it.id, it.tags) }
+        val isStillTheSameActiveDownload =
+          workInfo != null &&
+            workInfo.state in setOf(
+              WorkInfo.State.ENQUEUED,
+              WorkInfo.State.RUNNING,
+              WorkInfo.State.BLOCKED,
+            ) &&
+            pending?.modelName == record.modelName &&
+            pending.isExtraDataOnly == record.isExtraDataOnly &&
+            pending.taskId == record.taskId &&
+            pending.version == record.version &&
+            record.workerId !in endedWorkerIds
+
+        if (!isStillTheSameActiveDownload) {
+          onResult(false)
+          return@addListener
+        }
+
+        val observed = observedDownloads[record.workerId]
+        if (observed != null) {
+          observed.cancelledByUser = true
+        }
+        val reservedEnd = observed == null && endedWorkerIds.add(record.workerId)
+        if (observed == null && !reservedEnd) {
+          onResult(false)
+          return@addListener
+        }
+
+        val operation = workManager.cancelWorkById(record.workerId)
+        operation.result.addListener(
+          {
+            val succeeded = runCatching {
+              operation.result.get()
+              true
+            }.getOrDefault(false)
+            if (succeeded && reservedEnd) {
+              logDownloadOutcome(
+                workerId = record.workerId,
+                modelName = record.modelName,
+                eventType = EVENT_TYPE_CANCELLED,
+              )
+            } else if (!succeeded) {
+              if (reservedEnd) endedWorkerIds.remove(record.workerId)
+              if (observed != null) observed.cancelledByUser = false
+            }
+            onResult(succeeded)
+          },
+          Executor { it.run() },
+        )
+      },
+      Executor { it.run() },
+    )
   }
 
   override fun getPendingDownloads(onResult: (List<PendingDownload>) -> Unit) {
