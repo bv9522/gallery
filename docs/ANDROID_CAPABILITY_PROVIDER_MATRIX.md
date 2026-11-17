@@ -1,8 +1,18 @@
 # Android capability provider matrix
 
 The canonical inventory, provider ownership decisions, Termux:API command disposition, security
-contracts, and implementation waves are maintained in
+contracts, end-to-end roadmap, and live progress ledger are maintained in
 [ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md](ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md).
+
+## Current progress snapshot (2026-11-17)
+
+- Active branch: `wave-3e-media-sharing-tts`.
+- Active PR: [#33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33), draft/open/unmerged.
+- Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
+- Remaining Wave 3E work: Gallery-owned downloads/status/cancellation, media scanning/indexing and Gallery-initiated playback, active media-session controls (special access remains user-granted only), and user-mediated text/file sharing.
+- PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
+- PR #23–#29 and #16–#27 still require the applicable local validation and consolidated S21 acceptance recorded in the master roadmap.
+- Consolidated S21 acceptance is intentionally gated until capability onboarding and the ownership audit are complete.
 
 ## Single-owner policy
 
@@ -38,7 +48,7 @@ The list below reflects previously integrated Gallery-native operations; it is n
 
 ## Onboarding readiness
 
-The capability onboarding chain through Wave 3D consists of open draft PRs #23–#32. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E covers downloads, media, user-mediated sharing, and integration with Gallery's existing TTS stack. Consolidated S21 device acceptance remains deferred until onboarding is complete.
+The capability onboarding chain through Wave 3D consists of open draft PRs #23–#32. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E covers downloads, media, user-mediated sharing, and integration with Gallery's existing TTS stack. The `speak_text` operation is implemented on the Wave 3E branch with a 1,000-character bound, exact-text one-time approval, and Agent Chat dispatch to the existing TTS playback controller; local validation is pending. Consolidated S21 device acceptance remains deferred until onboarding is complete.
 
 The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
 
@@ -96,11 +106,11 @@ inbox reads remain planned.
   platform SpeechRecognizer, ML Kit ASR, or MediaPipe SpeechProcessor. The microphone is user-started;
   there is no background recording or model-triggered microphone start.
 - Speech output already uses `TtsServiceProvider`: Android platform TextToSpeech, ML Kit GenAI TTS,
-  and MediaPipe TTS. Gallery owns engine/voice/language selection and chat playback.
+  and MediaPipe TTS. Gallery owns engine/voice/language selection and chat playback. Agent-triggered
+  `speak_text` now reuses the existing playback controller in draft PR #33; local validation is pending.
 - The capability catalog assigns both speech capabilities to the native provider. Termux:API TTS
   and speech-to-text operations are removed from the Gallery model-facing Termux tool to prevent
-  duplicate ownership. Agent-triggered TTS reuse of the existing playback controller remains a
-  distinct integration task.
+  duplicate ownership. Agent-triggered TTS reuses the existing playback controller in PR #33.
 
 ## Native contacts and clipboard onboarding — Phase 9A draft
 

@@ -1,3 +1,257 @@
+# Android MCP — Master Project Roadmap and Progress Ledger
+
+> **Roadmap authority:** This section is the end-to-end project tracker. The capability ownership
+> matrix, Termux:API disposition, detailed provider contracts, and wave-specific notes below remain
+> the technical source of truth. If a legacy status below conflicts with this ledger, update both;
+> this ledger states the current project sequence and readiness.
+>
+> **Last reconciled:** 2026-11-17 (PR #33 local validation confirmed)  
+> **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
+> **Current implementation branch:** `wave-3e-media-sharing-tts`  
+> **Current change:** [PR #33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33)  
+> **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
+> Waves 1–5 implementation and the final ownership audit are complete.
+
+## How to read and maintain this roadmap
+
+- **DONE** — implementation and the stated local validation are confirmed; does not imply merged or device-accepted.
+- **CODE / VALIDATION PENDING** — implementation exists in a draft PR/branch; local tests/build have not been confirmed.
+- **IN PROGRESS** — active slice being implemented or awaiting immediate validation.
+- **PLANNED** — not implemented yet.
+- **DEFERRED / NOT EXPOSED** — intentionally excluded until its permission, policy, safety, or reliability conditions are met.
+- **DEVICE ACCEPTANCE PENDING** — must be tested on the target Galaxy S21 during the consolidated acceptance pass.
+- **COMPLETE** — all required implementation, local validation, device acceptance, documentation, and integration gates for that workstream have passed.
+
+A PR being open, a commit existing, or code compiling is never by itself proof of device acceptance. All implementation PRs
+remain draft/open/unmerged until explicitly approved for integration. No PR is to be merged or closed without the owner's
+explicit approval.
+
+**Progress-update rule:** after every implementation slice, update (1) this ledger, (2) the capability row/status in the
+ownership matrix, (3) the provider matrix if ownership/readiness changed, and (4) the relevant PR description. Record the
+branch, PR, head SHA, tests/build actually run, and device evidence. Never upgrade a status based on expectation or inference.
+If a capability is deliberately deferred or found unsupported, record the reason and its revisit condition.
+
+## Project destination
+
+Deliver a dependable, local-first Android assistant in Gallery on the unrooted Samsung Galaxy S21. A local Gemma model
+should be able to reason and invoke a coherent set of useful device capabilities through one agent/coordinator/tool
+registry and one approval/security boundary. The assistant should use the existing shell router for general shell work,
+native Kotlin where Android APIs or Gallery-owned lifecycle/security require it, Termux:API for bounded operations it
+already handles well, SAF for Gallery-granted document trees, and AccessibilityService for semantic UI automation.
+
+The finished system must have:
+- one model-facing operation per useful capability and exactly one selected provider owner;
+- explicit execution identity/backend selection, reliable tool-call parsing and result delivery;
+- bounded inputs, outputs, timeouts, cancellation, cleanup, and typed results;
+- scoped approvals for sensitive reads and mutations, with Android permissions requested only when needed;
+- no root, no Knox-sensitive modification, no arbitrary model-generated code execution, and no device-specific hacks;
+- useful coverage of system, connectivity, media, privacy-sensitive, storage, removable-storage, and UI capabilities;
+- documented capability availability and honest failure states when Android or user-granted access prevents an operation;
+- acceptable latency, memory, battery, thermal behavior, and storage footprint on the target phone.
+
+## End-to-end roadmap
+
+### Stage 0 — Project definition and architecture decisions
+- [x] Establish local-first Android assistant goal and Gallery fork as the app base.
+- [x] Establish no-root / preserve Knox constraint and avoid Termux-hosted Ollama or llama.cpp.
+- [x] Decide the model should use a universal shell route for general commands instead of a large collection of shell wrappers.
+- [x] Establish the ownership principle: shell when reliable, reusable native adapter for Android APIs, Termux:API where it is the right bounded provider.
+- [x] Retain discontinued local-MCP/cloud-tunnel experiments as historical branches/PRs; they are not on the critical path.
+- [x] Establish one owner per capability, observational discovery, scoped approvals, fail-closed behavior, and bounded contracts.
+
+**Exit gate:** architecture and non-goals documented; no competing provider routes or hidden privilege escalation.
+
+### Stage 1 — Unified execution foundation
+- [x] Define the unified execution request, backend identities, router, and common result contract.
+- [x] Implement TERMUX, SHIZUKU, and TERMUX_RISH execution paths.
+- [x] Integrate Shizuku UserService/Binder execution and the Rish bridge without requiring root.
+- [x] Add the common approval policy and execution identity to requests.
+- [x] Add process supervision, timeout/cancellation propagation, bounded output, and cleanup.
+- [x] Integrate Termux RUN_COMMAND as a supervised execution transport.
+- [x] Keep execution transport separate from capability ownership.
+- [ ] Final consolidated backend acceptance on the S21: permissions, UID/backend identity, cancellation, timeout, process cleanup, and repeatability.
+
+**Historical PR trail:** PRs #2 and #4–#11 (unified runtime, discovery/runtime integration, reliability, and mutation hardening). PR #11's
+84-test result and build were previously user-confirmed. Later capability PRs are stacked and have not been merged.
+
+### Stage 2 — Local model and agent tool execution
+- [x] Integrate the LiteRT-LM / Gallery agent model path and AgentCoordinator lifecycle.
+- [x] Add the shared AgentToolRegistry and native capability dispatch boundary.
+- [x] Connect agent chat to the unified shell execution route.
+- [x] Add model tool-call recovery, bounded context/results, and authoritative native-result handling.
+- [x] Preserve explicit backend selection; do not silently fall back to a different execution identity.
+- [ ] Consolidated Gemma 4 E2B real-device tool-call acceptance: natural-language request → structured tool call → approval → execution → truthful result.
+- [ ] Verify malformed/literal JSON recovery, repeated tool calls, denial, cancellation, timeout, and no duplicate execution.
+- [ ] Verify Agent Skills/model-selection UI lifecycle and resolve any remaining white-screen or chat integration regressions.
+
+**Exit gate:** local model can reliably invoke the common tool runtime, not merely emit tool-call-looking text.
+
+### Stage 3 — Capability vocabulary, inventory, and ownership
+- [x] Create stable granular Android capability IDs and typed provider declarations.
+- [x] Create one selected owner per capability and enforce registry/catalog completeness.
+- [x] Separate Termux:API capability ownership from Termux shell execution transport.
+- [x] Record the official Termux:API command inventory and decide which commands are reused, replaced by native APIs, or not exposed.
+- [x] Separate shell path-based filesystem operations from Gallery-owned SAF document-tree operations.
+- [x] Audit speech, notification, telephony, biometric, and media ownership to prevent duplicate routes.
+- [ ] Final audit across every catalog ID against implementation, Android permission, provider discovery, approval, and actual device behavior.
+- [ ] Remove or explicitly label any transitional diagnostics/legacy routes that no longer belong to the selected owner.
+
+**Historical PR trail:** PRs #12–#15 establish Termux:API, catalog ownership, native system capabilities, and ownership rebalance; PR #29
+reconciles readiness and ownership. Ownership documentation is maintained in this file and the provider matrix.
+
+### Stage 4 — System and connectivity capabilities (Wave 2)
+- [x] Native device/build and app discovery/launch/URL open capabilities.
+- [x] Native battery, flashlight, volume, audio endpoint discovery, brightness, vibration, and bounded wake lock.
+- [CODE / VALIDATION PENDING] Termux:API sensor listing and finite reads; location once/last; Wi-Fi connection information and last-scan results (PR #16).
+- [CODE / VALIDATION PENDING] Termux:API bounded infrared frequency discovery/transmit (PR #17).
+- [CODE / VALIDATION PENDING] Termux:API NFC NDEF read/write (PR #18); foreground tag interaction and cleanup require device verification.
+- [CODE / VALIDATION PENDING] Termux:API read-only camera metadata (PR #19).
+- [CODE / VALIDATION PENDING] Native Bluetooth bonded-device listing and bounded BLE scan; native USB host device/interface enumeration (PR #20).
+- [CODE / VALIDATION PENDING] Native Bluetooth GATT service/characteristic inspection and bounded one-shot read/write (PRs #26–#27).
+- [ ] Decide and implement user-mediated Wi-Fi enable/settings flow if still required; do not promise forbidden silent toggles.
+- [ ] Verify every selected Termux:API command exists on the installed companion/package version, has correct permission behavior, bounded output, and cleanup.
+- [ ] Device-test Bluetooth permission states, scan cancellation, GATT compatibility, NFC tag UX, infrared hardware availability, sensor/location/Wi-Fi data quality, and USB enumeration.
+
+**Exit gate:** all exposed operations are locally validated and device-verified, or clearly marked unavailable/deferred with evidence.
+
+### Stage 5 — Gallery-owned and privacy-sensitive integrations (Wave 3)
+
+#### 5A — Speech services and user-visible playback
+- [x] Assign speech recognition to Gallery's existing AsrServiceProvider; retain user-started hold-to-dictate and no model-triggered microphone activation.
+- [x] Assign speech synthesis to Gallery's existing TtsServiceProvider; do not add a Termux TTS model route.
+- [IN PROGRESS — PR #33] Add agent `speak_text` through the existing TtsPlaybackViewModel/TtsPlaybackController and Agent Chat action channel; exact text is shown in scoped approval; 1–1,000 character bound; preserve saved engine/voice/language.
+- [x] Run `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` for PR #33; user confirmed both tasks completed with `BUILD SUCCESSFUL` using Android Studio JBR 25.0.4. Unit-test task: 18m 51s (43 tasks); debug build: 8m 13s (50 tasks, 33 up-to-date). Build warnings remain non-fatal. Validated head: `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`.
+- [ ] Device-test speech with each supported configured engine, voice/language persistence, approval denial, playback failure, and cancellation.
+
+#### 5B — Contacts and clipboard
+- [CODE / VALIDATION PENDING — PR #28; ownership audit PR #29] Contacts search through ContactsContract, maximum 20 results, bounded phone/email fields, READ_CONTACTS only after scoped approval.
+- [CODE / VALIDATION PENDING — PR #28] Foreground-only plain-text clipboard reads (maximum 5 items / 8,192 characters) and writes (maximum 2,048 characters), with exact-content approval for writes.
+- [ ] Validate permissions, foreground restrictions, result bounds, and no background clipboard access on device.
+
+#### 5C — Notifications and scheduling
+- [x] PR #30 local unit tests and Shizuku debug build confirmed by user.
+- [CODE / DEVICE ACCEPTANCE PENDING — PR #30] Gallery-owned notification posting, bounded listing/dismissal, channel operations, reminder schedule/list/cancel using existing AlarmManager/DataStore/receivers.
+- [ ] Device-test Android notification permission, disabled channels/global notifications, reboot recovery, local wall-clock scheduling, cancellation, and 50-reminder cap.
+- [DEFERRED] Reading other apps' notifications: requires user-enabled NotificationListenerService special access; never silently enabled.
+
+#### 5D — Telephony and user-mediated communication
+- [x] PR #31 local unit tests and Shizuku debug build confirmed by user.
+- [CODE / DEVICE ACCEPTANCE PENDING — PR #31] Non-identifying telephony metadata only (phone type/SIM state); ACTION_DIAL and ACTION_SENDTO SMS composer; user places call or presses Send.
+- [DEFERRED] Call-log reads and SMS inbox reads pending separate restricted-permission/default-role/policy review. No silent calls or SMS sending.
+
+#### 5E — Biometric authentication and secure keys
+- [x] PR #32 local unit tests and Shizuku debug build confirmed by user after FragmentActivity host correction.
+- [CODE / DEVICE ACCEPTANCE PENDING — PR #32] Foreground strong BiometricPrompt; boolean result only; app-namespaced non-exportable AES-256/GCM Android Keystore keys; fresh strong biometric per encrypt/decrypt; invalidation on enrollment change.
+- [ ] Device-test strong biometric prompt, cancel/failure paths, hardware-backed key availability, enrollment invalidation, key deletion, and ciphertext recovery expectations.
+
+#### 5F — Downloads, media, and sharing (remaining Wave 3E)
+- [ ] Gallery-owned download creation, status/progress, cancellation, and bounded result reporting; choose DownloadManager vs app-owned downloader based on lifecycle needs.
+- [ ] Media scan/index lookup through MediaScannerConnection/MediaStore; bounded query and permission behavior.
+- [ ] Gallery-initiated media playback through existing Gallery media infrastructure; define start/stop/status/error semantics.
+- [ ] Active media-session discovery/control as a distinct capability from Gallery-initiated playback; report unavailable unless the user explicitly grants any required notification-listener special access.
+- [ ] User-mediated text/file sharing through ACTION_SEND/chooser; user selects target app and completes share.
+- [ ] Local tests, documentation, and device acceptance for each operation.
+
+**Wave 3 exit gate:** all Gallery-owned capabilities have a single owner, scoped approval/permission contract, bounded lifecycle, local validation,
+and documented device-acceptance plan. Sensitive capabilities not meeting the gate remain unavailable rather than being silently broadened.
+
+### Stage 6 — Files and removable storage (Wave 4)
+- [x] Retain the unified shell router for general path-based file and directory operations; do not create duplicate model-facing file tools.
+- [CODE / VALIDATION PENDING — PR #23] Gallery-owned SAF document-tree picker and persisted URI grants; grant listing, bounded directory listing, metadata, text read/write, create/rename/delete.
+- [CODE / VALIDATION PENDING — PR #24] Same-tree copy/move and bounded name-only search.
+- [CODE / VALIDATION PENDING — PR #25] Cross-tree file copy/move and generated text-file creation; transfer bounded to 100 MiB; source deleted only after successful destination copy.
+- [ ] Verify Gallery URI grant persistence/revocation and strict rejection of arbitrary model-supplied paths/URIs.
+- [ ] Verify internal storage and attached USB mass-storage devices through SAF; test multiple document providers, errors, low storage, cancellation, partial transfer, and recovery.
+- [ ] Verify no confusion between UsbManager peripheral enumeration and USB mass-storage filesystem access.
+- [ ] Confirm destructive operations require stronger confirmation and transfer bounds are enforced.
+
+**Exit gate:** safe and reliable user-granted access to phone storage and USB removable storage, with no root or broad storage permission.
+
+### Stage 7 — Accessibility and UI automation (Wave 5)
+- [ ] Define minimal AccessibilityService capability contracts and explicit user enable/disable lifecycle.
+- [ ] Implement bounded screen capture subject to Android restrictions and user-visible service state.
+- [ ] Implement semantic UI tree inspection with limits on node count, text, depth, and sensitive fields.
+- [ ] Implement semantic tap/click/long-press/swipe using node identity and verified bounds.
+- [ ] Implement semantic text entry and selection with explicit target/context validation.
+- [ ] Keep coordinate gesture fallback on the existing unified shell route only when explicitly requested/authorized; do not duplicate semantic operations.
+- [ ] Add per-action approval rules, cancellation, stale-node handling, foreground/app-change checks, and sensitive-screen exclusions.
+- [ ] Add tests for service unavailable/disabled, permission denial, node churn, app transitions, timeouts, and bounded results.
+- [ ] Device-test accessibility enablement, screen capture restrictions, multiple apps, keyboard behavior, and safe failure.
+
+**Exit gate:** user-enabled accessibility is transparent, controllable, bounded, and demonstrably safer than generic coordinate automation.
+
+### Stage 8 — Consolidated provider verification and S21 acceptance (Wave 6)
+**This stage starts only after Stages 4–7 implementation and the final ownership audit are complete.**
+- [ ] Freeze an acceptance build from the complete stacked implementation chain.
+- [ ] Run full unit tests and Shizuku debug build from a clean, reproducible Windows/Android Studio JBR environment.
+- [ ] Verify app install/update/signature behavior and model/runtime startup on the Galaxy S21 (Android 15 / One UI 7).
+- [ ] Verify Termux, Termux:API, Shizuku Next/Rish execution identities and permissions without root.
+- [ ] Verify every capability's discovery state, permission prompt timing, approval text/scope, execution, result, timeout, cancellation, and cleanup.
+- [ ] Verify all read/write and destructive operations, including exact user-mediated handoffs (dialer, SMS composer, camera, share chooser, SAF picker).
+- [ ] Verify Bluetooth/BLE/GATT, USB/OTG, NFC, infrared, sensors, location, Wi-Fi, camera, microphone, notifications, media, TTS, biometrics/Keystore, and AccessibilityService on actual hardware where supported.
+- [ ] Verify negative paths: missing companion app, missing permission, unsupported hardware, disabled special access, denied approval, app backgrounding, process death, timeout, and cancellation.
+- [ ] Measure latency, CPU/GPU behavior, RAM, storage, battery drain, thermal impact, and background process count during representative workloads.
+- [ ] Check no-root/Knox integrity and ensure no unsupported privilege escalation or device-specific assumptions.
+- [ ] Record per-capability results as PASS / LIMITED / UNAVAILABLE / FAIL with device/build details and evidence.
+- [ ] Fix failures, update ownership/status docs, rerun affected tests, and repeat acceptance until exit criteria pass.
+
+**Exit gate:** complete capability matrix with evidence; no unexplained failures; unsupported capabilities honestly marked; resource and security constraints met.
+
+### Stage 9 — Integration, release, and maintenance
+- [ ] Review the complete stacked PR chain for dependency order, duplicate changes, stale branches, and documentation consistency.
+- [ ] Obtain explicit owner approval before merging any PR; merge in dependency order only after validation/acceptance criteria are met.
+- [ ] Reconcile the final integration branch with the canonical ownership plan and provider matrix.
+- [ ] Produce a reproducible signed release APK/build artifact with version/build metadata and documented install/update path.
+- [ ] Perform clean install and upgrade testing on the S21; verify model download/use, settings persistence, and app data behavior.
+- [ ] Publish user-facing setup, permissions, capability availability, limitations, recovery, and troubleshooting documentation.
+- [ ] Establish regression checks for Android/API changes, Termux:API compatibility, Shizuku/Rish behavior, Gallery upstream changes, and model/runtime updates.
+- [ ] Maintain the roadmap after each future capability or compatibility change.
+
+**Project completion definition:** Stages 0–9 have passed their exit gates, the final app is integrated and reproducibly built,
+the target S21 acceptance report is complete, and all remaining unsupported/deferred capabilities are explicitly documented.
+
+## Current progress snapshot (2026-11-17)
+
+| Workstream | Current status | Evidence / next gate |
+|---|---|---|
+| Architecture and no-root principles | DONE | Documented in this plan |
+| Unified execution foundation | Implemented; device acceptance pending | PR #2, #4–#11; historical PR #11 local validation was user-confirmed |
+| Local Gemma agent/tool runtime | Implemented; consolidated device acceptance pending | AgentCoordinator/LiteRT-LM/tool registry; real-device end-to-end retest remains |
+| Capability catalog and owner model | Implemented; final audit pending | PR #12–#15 and #29 |
+| System/Termux:API providers | CODE / VALIDATION PENDING | PR #16–#19; native Bluetooth/USB discovery PR #20 |
+| Bluetooth GATT | CODE / VALIDATION PENDING | PR #26–#27 |
+| Wave 3A contacts/clipboard | CODE / VALIDATION PENDING | PR #28–#29 |
+| Wave 3B notifications/scheduling | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #30 |
+| Wave 3C telephony/user-mediated actions | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #31 |
+| Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
+| Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; validated head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`; downloads/media/sharing remain |
+| Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
+| Wave 5 Accessibility/UI automation | PLANNED | No implementation PR in current chain |
+| Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
+| Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
+
+## Active PR dependency chain
+
+All entries below were observed open and unmerged on 2026-11-17. Draft status is intentional; it is not a release status.
+
+- PR #1 — optional historical local-MCP loopback build; discontinued from the critical path.
+- PR #2 — unified native agent runtime / shell execution foundation.
+- PR #4–#11 — capability discovery/provider/runtime integration and reliability hardening.
+- PR #12–#15 — Termux:API provider, complete capability catalog, native system capabilities, owner rebalance.
+- PR #16–#19 — Termux:API sensor/location/Wi-Fi, infrared, NFC, camera metadata/speech historical work.
+- PR #20–#22 — native Bluetooth/USB discovery, photo/wallpaper, microphone recording.
+- PR #23–#25 — SAF document tree, same-tree operations/search, cross-tree transfer/file generation.
+- PR #26–#27 — Bluetooth GATT discovery and characteristic I/O.
+- PR #28–#29 — contacts/clipboard and ownership/readiness audit.
+- PR #30 — Gallery notifications and scheduling (**local tests/build user-confirmed**).
+- PR #31 — telephony metadata and user-mediated dialer/SMS (**local tests/build user-confirmed**).
+- PR #32 — strong biometric and Android Keystore (**local tests/build user-confirmed**).
+- PR #33 — agent speech through Gallery TTS (**local tests/build pending**).
+
+The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
+
+---
+
 # Android Capability Ownership and Implementation Plan
 
 ## Purpose
@@ -270,12 +524,13 @@ version compatibility must be verified on-device before an operation is marked i
 - Plaintext is bounded to 4,096 characters; ciphertext input and GCM IV sizes are bounded and validated. No key material is exported and no plaintext is persisted by the adapter.
 - Biometric UI behavior, hardware-backed Keystore behavior, and cancellation on the target device remain device-acceptance concerns. User-confirmed local `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host fix. PR #32 remains draft and unmerged.
 
-### Wave 3E — Downloads, media, sharing, and Gallery TTS integration (next)
+### Wave 3E — Downloads, media, sharing, and Gallery TTS integration (in progress)
 - Add bounded, Gallery-owned download management; reuse Android DownloadManager where it provides reliable lifecycle and status semantics, and keep any app-owned transfer implementation narrowly scoped.
 - Add explicit media scanning/index lookup and app-initiated playback using Gallery's existing media stack where available; do not duplicate media infrastructure without a demonstrated gap.
 - Treat active media-session control as a separate capability with explicit access-state reporting. Do not silently request NotificationListenerService special access; unsupported access remains unavailable until the user enables it.
 - Add text/file sharing through Android ACTION_SEND and the system chooser. The user selects the destination and completes the share; no silent cross-app content delivery.
 - Route agent-triggered speech through Gallery's existing TtsServiceProvider and playback/service lifecycle, respecting the user's persisted engine, voice, and language selection. Do not add a parallel TTS engine or Termux TTS route.
+- Agent `speak_text` is implemented on `wave-3e-media-sharing-tts`: text is limited to 1,000 characters, exact text is shown in one-time scoped approval, and Agent Chat dispatches playback through its existing `TtsPlaybackViewModel` / `TtsPlaybackController`. The saved Gallery TTS engine, voice, and language selection are preserved. No parallel TTS engine or Termux route is added. Unit coverage includes argument bounds and action-channel result/timeout behavior; local Gradle validation is pending.
 - Discovery remains observational; downloads, playback changes, and sharing use scoped approval and bounded arguments/results. Media URIs must be content URIs with ownership/grant handling, not arbitrary filesystem paths.
 - Local unit tests and debug build validation will be recorded per implementation slice; consolidated S21 device acceptance remains deferred until onboarding is complete.
 

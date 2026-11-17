@@ -21,6 +21,7 @@ import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.AuthenticateBiometricToolAction
+import com.google.ai.edge.gallery.tools.SpeakTextToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.Gson
 import com.google.gson.JsonArray
@@ -83,9 +84,32 @@ class ChannelNativeCapabilityAuthorizer(
  * one-time approval; runtime Android permissions are requested only when needed. Every operation
  * is routed through the capability registry; this tool does not fall back to a shell provider.
  */
+fun interface NativeSpeechPlaybackRequester {
+  suspend fun speak(text: String): Boolean
+}
+
+class ChannelNativeSpeechPlaybackRequester(
+  private val actionChannel: SendChannel<ToolAction>,
+  private val timeoutMs: Long = 120_000L,
+) : NativeSpeechPlaybackRequester {
+  override suspend fun speak(text: String): Boolean {
+    val action = SpeakTextToolAction(text)
+    return try {
+      withTimeoutOrNull(timeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
+    } finally {
+      if (!action.result.isCompleted) action.result.complete(false)
+    }
+  }
+}
+
 class AndroidNativeCapabilityTool internal constructor(
   private val adapter: NativeCapabilityOperations,
   private val registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
+  private val speechPlaybackRequester: NativeSpeechPlaybackRequester = NativeSpeechPlaybackRequester { false },
+  private val speechAuthorizer: NativeCapabilityAuthorizer? = null,
 ) : AgentTool {
   constructor(
     context: Context,
@@ -100,6 +124,8 @@ class AndroidNativeCapabilityTool internal constructor(
       biometricAuthenticator = ChannelNativeBiometricAuthenticator(actionChannel),
     ),
     registry,
+    ChannelNativeSpeechPlaybackRequester(actionChannel),
+    ChannelNativeCapabilityAuthorizer(actionChannel),
   )
 
   override val name: String = "android_control"
@@ -108,7 +134,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "and launchable apps, or perform an approved native Android action. Use status to inspect " +
       "availability of each native Android " +
       "capability; status is a provider diagnostic, not a battery or volume reading. Use operation " +
-      "values: status, device_info, telephony_info, dial_phone, compose_sms, biometric_auth, keystore_create, keystore_list, keystore_delete, keystore_encrypt, keystore_decrypt, battery_status, volume_status, list_apps, set_volume, " +
+      "values: speak_text, status, device_info, telephony_info, dial_phone, compose_sms, biometric_auth, keystore_create, keystore_list, keystore_delete, keystore_encrypt, keystore_decrypt, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
@@ -125,7 +151,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "the user must confirm the call or press Send. No CALL_PHONE or SEND_SMS permission is requested, " +
       "No call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers and cell-location data. " +
       "Keystore keys are non-exportable AES-256 keys and each encrypt/decrypt operation requires strong biometric authentication. " +
-      "USB I/O is not yet exposed. This tool never executes shell commands."
+      "USB I/O is not yet exposed. Agent speech uses Gallery's existing TtsServiceProvider and playback controller, preserves saved engine/voice/language, and requires one-time approval of the exact text. Speech text is limited to 1000 characters. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -137,7 +163,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text",
             ).forEach { add(it) }
           })
         })
@@ -253,6 +279,11 @@ class AndroidNativeCapabilityTool internal constructor(
           addProperty("type", "string")
           addProperty("description", "Text to place on the clipboard; maximum 2048 characters.")
           addProperty("maxLength", MAX_CLIPBOARD_WRITE_CHARS)
+        })
+        add("speech_text", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Exact text for speak_text; maximum 1000 characters. Uses Gallery's configured TTS engine.")
+          addProperty("maxLength", MAX_SPEAK_TEXT_CHARS)
         })
         add("title", JsonObject().apply {
           addProperty("type", "string")
@@ -517,6 +548,20 @@ class AndroidNativeCapabilityTool internal constructor(
           }
           AgentToolResult(Gson().toJson(adapter.searchContacts(query, limit)))
         }
+        "speak_text" -> {
+          val text = arguments.string("speech_text") ?: return failure("speak_text requires speech_text.")
+          if (text.isBlank() || text.length > MAX_SPEAK_TEXT_CHARS) {
+            return failure("Speech text must contain 1–$MAX_SPEAK_TEXT_CHARS non-whitespace characters.")
+          }
+          val unavailable = availabilityFailure(AndroidCapability.TEXT_TO_SPEECH)
+          if (unavailable != null) return unavailable
+          val authorizer = speechAuthorizer ?: return failure("Speech approval is unavailable.")
+          if (!authorizer.authorize(AndroidCapability.TEXT_TO_SPEECH, "Speak this exact text using Gallery's saved TTS engine and voice:\n\n$text")) {
+            return failure("Speech playback was not approved.")
+          }
+          if (speechPlaybackRequester.speak(text)) AgentToolResult("Speech playback started using Gallery's configured TTS engine.")
+          else failure("Speech playback could not be started or was cancelled.")
+        }
         "clipboard_read" -> AgentToolResult(Gson().toJson(adapter.readClipboard()))
         "clipboard_write" -> {
           val text = arguments.string("text")
@@ -680,6 +725,7 @@ class AndroidNativeCapabilityTool internal constructor(
     const val MIN_CONTACT_LIMIT = 1
     const val MAX_CONTACT_LIMIT = 20
     const val MAX_CLIPBOARD_WRITE_CHARS = 2_048
+    const val MAX_SPEAK_TEXT_CHARS = 1_000
     const val MAX_NOTIFICATION_TITLE_CHARS = 100
     const val MAX_NOTIFICATION_MESSAGE_CHARS = 1_000
     const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
