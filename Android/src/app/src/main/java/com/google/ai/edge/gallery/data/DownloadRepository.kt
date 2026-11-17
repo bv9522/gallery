@@ -56,6 +56,8 @@ import java.util.concurrent.Executor
 private const val TAG = "AGDownloadRepository"
 private const val MAX_AGENT_DOWNLOADS = 20
 private const val AGENT_DOWNLOAD_HANDLE_TTL_MS = 120_000L
+private const val MAX_AGENT_DOWNLOAD_RATE_BPS = 10_000_000_000L
+private const val MAX_AGENT_DOWNLOAD_REMAINING_MS = 604_800_000L
 
 
 /** Removes control characters and path separators before a model name reaches the agent. */
@@ -481,7 +483,7 @@ class DefaultDownloadRepository(
           }
 
         if (workInfos == null) {
-          agentDownloadHandles.clear()
+          synchronized(agentDownloadHandles) { agentDownloadHandles.clear() }
           onResult(emptyList())
           return@addListener
         }
@@ -517,9 +519,11 @@ class DefaultDownloadRepository(
                 receivedBytes = receivedBytes,
                 totalBytes = totalBytes,
                 bytesPerSecond =
-                  progress.getLong(KEY_MODEL_DOWNLOAD_RATE, 0L).takeIf { it > 0L },
+                  progress.getLong(KEY_MODEL_DOWNLOAD_RATE, 0L)
+                    .takeIf { it in 1L..MAX_AGENT_DOWNLOAD_RATE_BPS },
                 remainingMs =
-                  progress.getLong(KEY_MODEL_DOWNLOAD_REMAINING_MS, 0L).takeIf { it > 0L },
+                  progress.getLong(KEY_MODEL_DOWNLOAD_REMAINING_MS, 0L)
+                    .takeIf { it in 1L..MAX_AGENT_DOWNLOAD_REMAINING_MS },
               )
             snapshot to
               AgentDownloadHandleRecord(
@@ -534,9 +538,11 @@ class DefaultDownloadRepository(
             .sortedBy { it.first.modelLabel }
             .take(MAX_AGENT_DOWNLOADS)
 
-        agentDownloadHandles.clear()
-        snapshots.forEach { (snapshot, record) ->
-          agentDownloadHandles[snapshot.handle] = record
+        synchronized(agentDownloadHandles) {
+          agentDownloadHandles.clear()
+          snapshots.forEach { (snapshot, record) ->
+            agentDownloadHandles[snapshot.handle] = record
+          }
         }
         onResult(snapshots.map { it.first })
       },
@@ -545,7 +551,7 @@ class DefaultDownloadRepository(
   }
 
   override fun cancelAgentDownload(handle: String, onResult: (Boolean) -> Unit) {
-    val record = agentDownloadHandles.remove(handle) ?: run {
+    val record = synchronized(agentDownloadHandles) { agentDownloadHandles.remove(handle) } ?: run {
       onResult(false)
       return
     }
