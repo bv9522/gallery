@@ -55,6 +55,7 @@ internal object AndroidControlArguments {
     "bluetooth_gatt_read" to setOf("operation", "device_address", "service_uuid", "characteristic_uuid", "timeout_ms"),
     "bluetooth_gatt_write" to setOf("operation", "device_address", "service_uuid", "characteristic_uuid", "value_base64", "timeout_ms"),
     "contacts_search" to setOf("operation", "query", "limit"),
+    "speak_text" to setOf("operation", "text"),
     "clipboard_read" to setOf("operation"),
     "clipboard_write" to setOf("operation", "text"),
     "post_notification" to setOf("operation", "title", "message", "channel_id"),
@@ -92,6 +93,7 @@ internal object AndroidControlArguments {
     "bluetooth_gatt_write" to setOf("device_address", "service_uuid", "characteristic_uuid", "value_base64"),
     "contacts_search" to setOf("query"),
     "clipboard_write" to setOf("text"),
+    "speak_text" to setOf("text"),
     "post_notification" to setOf("title", "message"),
     "schedule_notification" to setOf("title", "message", "hour", "minute"),
     "cancel_posted_notification" to setOf("notification_id"),
@@ -232,6 +234,11 @@ internal object AndroidControlArguments {
           return "contacts_search limit must be an integer from 1 to 20."
         }
       }
+    }
+
+    if (operation == "speak_text") {
+      val text = arguments.get("text")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString.orEmpty()
+      if (text.isBlank() || text.length > 1_000) return "speak_text text must contain 1–1000 non-whitespace characters."
     }
 
     if (operation == "clipboard_write") {
