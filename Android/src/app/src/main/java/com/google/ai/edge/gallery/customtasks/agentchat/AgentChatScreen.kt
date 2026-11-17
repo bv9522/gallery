@@ -103,7 +103,9 @@ import com.google.ai.edge.gallery.tools.CallJsToolAction
 import com.google.ai.edge.gallery.tools.PermissionResult
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.SkillProgressToolAction
+import com.google.ai.edge.gallery.tools.SpeakTextToolAction
 import com.google.ai.edge.gallery.ui.common.BaseGalleryWebViewClient
+import com.google.ai.edge.gallery.ui.common.tts.TtsPlaybackViewModel
 import com.google.ai.edge.gallery.ui.common.GalleryWebView
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessage
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageCollapsableProgressPanel
@@ -139,6 +141,7 @@ fun AgentChatScreen(
   navigateUp: () -> Unit,
   agentTools: AgentTools,
   viewModel: AgentChatViewModel = hiltViewModel(),
+  ttsPlaybackViewModel: TtsPlaybackViewModel = hiltViewModel(),
   skillManagerViewModel: SkillManagerViewModel = hiltViewModel(),
   mcpManagerViewModel: McpManagerViewModel = hiltViewModel(),
   initialQuery: String? = null,
@@ -329,6 +332,24 @@ fun AgentChatScreen(
         for (action in actionChannel) {
           Log.d(TAG, "Handling action: $action")
           when (action) {
+            is SpeakTextToolAction -> {
+              try {
+                if (!ttsPlaybackViewModel.controller.isAvailable) {
+                  action.result.complete(false)
+                } else {
+                  ttsPlaybackViewModel.controller.startPlayback(
+                    messageId = "agent-speech-${System.currentTimeMillis()}",
+                    text = action.text,
+                    includeIncompleteTail = true,
+                    capabilityName = task.id,
+                  )
+                  action.result.complete(true)
+                }
+              } catch (error: Exception) {
+                Log.w(TAG, "Agent TTS playback could not start.", error)
+                action.result.complete(false)
+              }
+            }
             is SkillProgressToolAction -> {
               viewModel.updateCollapsableProgressPanelMessage(
                 model = currentModel,
