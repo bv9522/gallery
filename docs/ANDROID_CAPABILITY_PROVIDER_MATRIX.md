@@ -6,10 +6,11 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 
 ## Current progress snapshot (2026-11-17)
 
-- Active branch: `wave-3e-media-sharing-tts`.
-- Active PR: [#33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33), draft/open/unmerged.
+- Active branch: `wave-3e-gallery-download-management` (documentation checkpoint stacked on `wave-3e-media-sharing-tts`).
+- Active PR: [#34 — Wave 3E: define safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), draft/open/unmerged; [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33) remains open beneath it.
 - Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
 - Remaining Wave 3E work: Gallery-owned downloads/status/cancellation, media scanning/indexing and Gallery-initiated playback, active media-session controls (special access remains user-granted only), and user-mediated text/file sharing.
+- Download findings in PR #34: reuse `DefaultDownloadRepository` / `DownloadWorker` / WorkManager. The current repository has no sanitized progress snapshot API; `cancelPendingDownload` skips jobs already observed by this process, while model-wide cancellation can affect multiple related work items. Agent cancellation therefore requires a tested exact-worker-ID repository method that marks user cancellation and never cancels by model tag.
 - PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
 - PR #23–#29 and #16–#27 still require the applicable local validation and consolidated S21 acceptance recorded in the master roadmap.
 - Consolidated S21 acceptance is intentionally gated until capability onboarding and the ownership audit are complete.
@@ -174,9 +175,14 @@ inbox reads remain planned.
 - Key creation, listing, deletion, encryption, and decryption require scoped approval. Deleting a key permanently prevents recovery of ciphertext encrypted with it.
 - Plaintext is limited to 4,096 characters. IV and ciphertext lengths are bounded and validated. No CALL_PHONE, SEND_SMS, or additional Android runtime permission is introduced by this slice.
 
-## Downloads, media, sharing, and TTS integration — Wave 3E (planned)
+## Downloads, media, sharing, and TTS integration — Wave 3E (downloads in progress; PR #34 documents repository gap)
 
-- Download management must be bounded, cancellable, and owned by Gallery; prefer Android DownloadManager when its lifecycle/status contract fits.
+- Reuse Gallery's existing WorkManager-backed `DefaultDownloadRepository` and `DownloadWorker`; do not introduce Android DownloadManager or a parallel queue.
+- The current repository can enumerate pending Gallery downloads, but it does not expose a sanitized agent-facing progress snapshot. Its `cancelPendingDownload` is for allowlist cleanup and deliberately skips jobs observed by the current process; its model-wide cancel method uses a tag and may cancel related work. Add a narrow repository API for bounded status and exact worker-ID cancellation before exposing the tool.
+- Agent status must return at most a small bounded set of Gallery jobs with opaque per-job handles, safe model labels, state/phase, byte progress, and optional bounded rate/ETA. Never expose WorkManager Data, URLs, tokens, paths, raw tags, or arbitrary worker IDs as caller-supplied inputs.
+- Cancellation must accept only a fresh handle from the status result, revalidate Gallery ownership and active state, mark that observed job as user-cancelled, and cancel that exact WorkManager UUID. Require scoped approval showing which download will stop. Never cancel by model-wide tag.
+- Only resolve named models through Gallery's allowlist/catalog. Unknown/imported jobs must not become arbitrary model-selection or download targets.
+- PR #34 is a documentation checkpoint only; download capability code, tests, and local validation have not yet been completed.
 - Media scanning/indexing and app-initiated playback should reuse Gallery-owned media infrastructure where possible.
 - Active media-session control is distinct from playback initiated by Gallery. Notification-listener special access must never be silently enabled; report unavailable until the user grants it.
 - Text/file sharing uses ACTION_SEND and the Android chooser. The user selects the receiving app and completes the action.
