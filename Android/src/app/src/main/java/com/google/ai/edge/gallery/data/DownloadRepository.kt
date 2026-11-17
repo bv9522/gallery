@@ -58,6 +58,7 @@ private const val MAX_AGENT_DOWNLOADS = 20
 private const val AGENT_DOWNLOAD_HANDLE_TTL_MS = 120_000L
 private const val MAX_AGENT_DOWNLOAD_RATE_BPS = 10_000_000_000L
 private const val MAX_AGENT_DOWNLOAD_REMAINING_MS = 604_800_000L
+private const val MAX_AGENT_DOWNLOAD_BYTES = 1_099_511_627_776L
 
 
 /** Removes control characters and path separators before a model name reaches the agent. */
@@ -494,10 +495,13 @@ class DefaultDownloadRepository(
             val pending = PendingDownload.fromTags(workInfo.id, workInfo.tags) ?: return@mapNotNull null
             val progress = workInfo.progress
             val receivedBytes =
-              progress.getLong(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES, 0L).coerceAtLeast(0L)
+              progress.getLong(KEY_MODEL_DOWNLOAD_RECEIVED_BYTES, 0L)
+                .coerceIn(0L, MAX_AGENT_DOWNLOAD_BYTES)
             // WorkInfo exposes progress and output data, not the worker's private input data.
             // The worker publishes the total in progress once byte transfer begins.
-            val totalBytes = progress.getLong(KEY_MODEL_TOTAL_BYTES, 0L).coerceAtLeast(0L)
+            val totalBytes =
+              progress.getLong(KEY_MODEL_TOTAL_BYTES, 0L)
+                .coerceIn(0L, MAX_AGENT_DOWNLOAD_BYTES)
             val phase =
               if (
                 workInfo.state == WorkInfo.State.RUNNING &&
