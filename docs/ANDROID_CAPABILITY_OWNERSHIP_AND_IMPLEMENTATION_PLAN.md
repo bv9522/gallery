@@ -5,7 +5,7 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17  
+> **Last reconciled:** 2026-11-17 (PR #33 local validation confirmed)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `wave-3e-media-sharing-tts`  
 > **Current change:** [PR #33 — Wave 3E: route agent speech through Gallery TTS](https://github.com/bv9522/gallery/pull/33)  
@@ -120,7 +120,7 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [x] Assign speech recognition to Gallery's existing AsrServiceProvider; retain user-started hold-to-dictate and no model-triggered microphone activation.
 - [x] Assign speech synthesis to Gallery's existing TtsServiceProvider; do not add a Termux TTS model route.
 - [IN PROGRESS — PR #33] Add agent `speak_text` through the existing TtsPlaybackViewModel/TtsPlaybackController and Agent Chat action channel; exact text is shown in scoped approval; 1–1,000 character bound; preserve saved engine/voice/language.
-- [ ] Run local unit tests and Shizuku debug build for PR #33. Current head: `007918a96f2015162c54c5fa49eb954cc1aec602`. User is rerunning with JAVA_HOME set to Android Studio JBR.
+- [x] Run `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` for PR #33; user confirmed both tasks completed with `BUILD SUCCESSFUL` using Android Studio JBR 25.0.4. Unit-test task: 18m 51s (43 tasks); debug build: 8m 13s (50 tasks, 33 up-to-date). Build warnings remain non-fatal. Validated head: `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`.
 - [ ] Device-test speech with each supported configured engine, voice/language persistence, approval denial, playback failure, and cancellation.
 
 #### 5B — Contacts and clipboard
@@ -224,7 +224,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3B notifications/scheduling | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #30 |
 | Wave 3C telephony/user-mediated actions | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #31 |
 | Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
-| Wave 3E agent TTS | IN PROGRESS; local validation pending | PR #33 draft/open; head `007918a96f2015162c54c5fa49eb954cc1aec602`; downloads/media/sharing remain |
+| Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; validated head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`; downloads/media/sharing remain |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | PLANNED | No implementation PR in current chain |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
