@@ -36,6 +36,7 @@ import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.data.DownloadRepository
 import com.google.ai.edge.gallery.runtime.runtimeHelper
 import com.google.ai.edge.gallery.shizuku.ShizukuShellClient
 import com.google.ai.edge.gallery.shizuku.ShizukuManagerPackageResolver
@@ -162,6 +163,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
 class NativeAgentRuntimeExecutor(
   private val agentTools: AgentTools,
   private val fallbackExecutor: AgentRuntimeExecutor,
+  private val downloadRepository: DownloadRepository? = null,
 ) : AgentRuntimeExecutor {
 
   private val stateLock = Any()
@@ -376,6 +378,7 @@ class NativeAgentRuntimeExecutor(
             AndroidNativeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
+              downloadOperations = downloadRepository,
             ),
             DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
