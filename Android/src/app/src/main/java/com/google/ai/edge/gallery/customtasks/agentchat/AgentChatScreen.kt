@@ -141,12 +141,12 @@ fun AgentChatScreen(
   navigateUp: () -> Unit,
   agentTools: AgentTools,
   viewModel: AgentChatViewModel = hiltViewModel(),
-  ttsPlaybackViewModel: TtsPlaybackViewModel = hiltViewModel(),
   skillManagerViewModel: SkillManagerViewModel = hiltViewModel(),
   mcpManagerViewModel: McpManagerViewModel = hiltViewModel(),
   initialQuery: String? = null,
 ) {
   val context = LocalContext.current
+  val ttsPlaybackViewModel: TtsPlaybackViewModel = hiltViewModel()
   val scope = rememberCoroutineScope()
   agentTools.context = context
   agentTools.skillsProvider = skillManagerViewModel.skillManager
