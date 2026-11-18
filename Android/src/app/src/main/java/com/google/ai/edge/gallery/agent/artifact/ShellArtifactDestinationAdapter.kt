@@ -10,7 +10,6 @@ import com.google.ai.edge.gallery.termux.TermuxRunCommandClient
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.util.Base64
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +32,7 @@ class ShellArtifactDestinationAdapter(
   override suspend fun describe(request: ArtifactCreateRequest): String {
     val destination = request.destination as? ArtifactDestinationSpec.ShellPath
       ?: throw IllegalArgumentException("Shell adapter received a non-shell destination.")
-    require(destination.backend != ShellExecutionBackend.TERMUX_RISH) {
+    require(ShellArtifactTransferPolicy.supportsBinaryOutput(destination.backend)) {
       "TERMUX_RISH binary artifact output is unavailable until remote stdin forwarding is verified."
     }
     return destination.backend.name + " path " + destination.absolutePath
@@ -61,7 +60,7 @@ class ShellArtifactDestinationAdapter(
           result
         }
       }
-      require(staged.length() == metadata.bytesWritten && staged.length() in 1L..MAX_STAGED_ARTIFACT_BYTES) {
+      require(staged.length() == metadata.bytesWritten && staged.length() in 1L..ShellArtifactTransferPolicy.MAX_STAGED_ARTIFACT_BYTES) {
         "Staged artifact length does not match the verified output metadata."
       }
       withTimeout(TRANSFER_TIMEOUT_MS) {
@@ -122,12 +121,12 @@ class ShellArtifactDestinationAdapter(
       }
 
       FileInputStream(staged).use { input ->
-        val buffer = ByteArray(TERMUX_RAW_CHUNK_BYTES)
+        val buffer = ByteArray(ShellArtifactTransferPolicy.TERMUX_RAW_CHUNK_BYTES)
         var first = true
         while (true) {
           val count = input.read(buffer)
           if (count < 0) break
-          val encoded = Base64.getEncoder().encodeToString(buffer.copyOf(count))
+          val encoded = ShellArtifactTransferPolicy.encodeTermuxChunk(buffer, count)
           termux.appendBinaryFileChunk(temporaryPath, encoded, first)
           first = false
         }
@@ -176,8 +175,6 @@ class ShellArtifactDestinationAdapter(
   private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
   private companion object {
-    const val TERMUX_RAW_CHUNK_BYTES = 180 * 1_024
-    const val MAX_STAGED_ARTIFACT_BYTES = 50L * 1_024L * 1_024L
     const val TRANSFER_TIMEOUT_MS = 120_000L
     const val CLEANUP_TIMEOUT_MS = 5_000L
   }
