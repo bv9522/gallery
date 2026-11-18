@@ -148,6 +148,11 @@ class AccessibilityScreenInspectionPolicyTest {
       editable = true, password = false, currentText = "",
     ))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText",
+      plainText or android.text.InputType.TYPE_TEXT_FLAG_IME_MULTI_LINE,
+      editable = true, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
       "android.widget.TextView", plainText, editable = true, password = false, currentText = "",
     ))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
