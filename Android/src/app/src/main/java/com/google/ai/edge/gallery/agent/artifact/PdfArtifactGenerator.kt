@@ -44,7 +44,6 @@ class PdfArtifactGenerator : ArtifactGenerator {
           }
           renderer.addGap(10f)
         }
-        if (pageIndex < document.pages.lastIndex) renderer.addGap(12f)
       }
       renderer.finish()
       pdf.writeTo(output)
@@ -54,19 +53,16 @@ class PdfArtifactGenerator : ArtifactGenerator {
     }
   }
 
+  fun validatePayload(payload: JsonObject) { parse(payload) }
+
   private fun parse(payload: JsonObject): PdfDocumentContent {
-    val allowed = setOf("title", "author", "pages")
+    val allowed = setOf("title", "pages")
     val unknown = payload.keySet() - allowed
     require(unknown.isEmpty()) { "Unsupported PDF payload field(s): ${unknown.sorted().joinToString()}." }
     val title = payload.get("title")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
       ?: throw IllegalArgumentException("PDF payload requires a string title.")
     require(title.isNotBlank() && title.length <= MAX_TITLE_CHARS) {
       "PDF title must contain 1–$MAX_TITLE_CHARS characters."
-    }
-    payload.get("author")?.let {
-      require(it.isJsonPrimitive && it.asJsonPrimitive.isString && it.asString.length <= MAX_AUTHOR_CHARS) {
-        "PDF author must be a string of at most $MAX_AUTHOR_CHARS characters."
-      }
     }
     val pages = payload.get("pages")?.takeIf { it.isJsonArray }?.asJsonArray
       ?: throw IllegalArgumentException("PDF payload requires a pages array.")
@@ -174,6 +170,8 @@ class PdfArtifactGenerator : ArtifactGenerator {
 
     fun addGap(points: Float) { cursorY += points }
 
+    fun newPage() { startPage() }
+
     fun finish() {
       finishPage()
     }
@@ -207,7 +205,6 @@ class PdfArtifactGenerator : ArtifactGenerator {
     const val MAX_OUTPUT_BYTES = 10L * 1024L * 1024L
     const val MAX_PAGES = 100
     const val MAX_TITLE_CHARS = 200
-    const val MAX_AUTHOR_CHARS = 120
     const val MAX_BLOCK_CHARS = 8_000
     const val MAX_BLOCKS_PER_SECTION = 100
     const val MAX_TOTAL_CHARACTERS = 100_000
