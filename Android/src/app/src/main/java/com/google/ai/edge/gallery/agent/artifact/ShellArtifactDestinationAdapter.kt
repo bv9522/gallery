@@ -120,8 +120,8 @@ class ShellArtifactDestinationAdapter(
   ) {
     val temporaryPath = siblingTemporaryPath(destinationPath)
     var finalized = false
+    val quotedTemp = shellQuote(temporaryPath)
     try {
-      val quotedTemp = shellQuote(temporaryPath)
       val quotedTarget = shellQuote(destinationPath)
       val targetPolicy = if (overwrite) {
         "[ ! -e $quotedTarget ] || [ -f $quotedTarget ]"
