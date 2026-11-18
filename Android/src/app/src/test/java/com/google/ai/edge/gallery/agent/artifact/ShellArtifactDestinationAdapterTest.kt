@@ -21,7 +21,7 @@ class ShellArtifactDestinationAdapterTest {
   @Test fun termuxStreamsMultipleBoundedChunksAndVerifiesTheDestination() = runBlocking {
     val directory = Files.createTempDirectory("artifact-termux-test").toFile()
     val bytes = ByteArray(500_000) { (it % 239).toByte() }
-    val termux = FakeTermuxBinaryWriter(bytes)
+    val termux = FakeTermuxBinaryWriter()
     val adapter = adapter(directory, termux = termux)
 
     try {
@@ -59,7 +59,7 @@ class ShellArtifactDestinationAdapterTest {
   @Test fun failedTermuxChunkAttemptsSameIdentityCleanupAndRemovesPrivateStage() = runBlocking {
     val directory = Files.createTempDirectory("artifact-cleanup-test").toFile()
     val bytes = ByteArray(400_000) { it.toByte() }
-    val termux = FakeTermuxBinaryWriter(bytes, failAfterFirstChunk = true)
+    val termux = FakeTermuxBinaryWriter(failAfterFirstChunk = true)
     val adapter = adapter(directory, termux = termux)
 
     try {
@@ -76,9 +76,29 @@ class ShellArtifactDestinationAdapterTest {
     }
   }
 
+  @Test fun cancellationCleansTheTermuxTemporaryFileAndPrivateStage() = runBlocking {
+    val directory = Files.createTempDirectory("artifact-cancel-test").toFile()
+    val bytes = ByteArray(400_000) { it.toByte() }
+    val termux = FakeTermuxBinaryWriter(cancelAfterFirstChunk = true)
+    val adapter = adapter(directory, termux = termux)
+
+    try {
+      try {
+        adapter.write(request(ShellExecutionBackend.TERMUX), producer(bytes))
+        throw AssertionError("Expected the injected cancellation.")
+      } catch (_: CancellationException) {
+        // Expected.
+      }
+      assertTrue(termux.cleanupAttempted)
+      assertTrue(directory.listFiles().orEmpty().isEmpty())
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
   @Test fun rishIsRejectedBeforeAnyBinaryTransportIsInvoked() = runBlocking {
     val directory = Files.createTempDirectory("artifact-rish-test").toFile()
-    val termux = FakeTermuxBinaryWriter(byteArrayOf(1, 2, 3))
+    val termux = FakeTermuxBinaryWriter()
     val adapter = adapter(directory, termux = termux)
     try {
       try {
@@ -96,7 +116,7 @@ class ShellArtifactDestinationAdapterTest {
 
   private fun adapter(
     directory: File,
-    termux: FakeTermuxBinaryWriter = FakeTermuxBinaryWriter(byteArrayOf()),
+    termux: FakeTermuxBinaryWriter = FakeTermuxBinaryWriter(),
     shizuku: FakeShizukuBinaryWriter = FakeShizukuBinaryWriter(),
   ) = ShellArtifactDestinationAdapter(directory, termux, shizuku)
 
@@ -121,8 +141,8 @@ class ShellArtifactDestinationAdapterTest {
       .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
   private class FakeTermuxBinaryWriter(
-    private val expected: ByteArray,
     private val failAfterFirstChunk: Boolean = false,
+    private val cancelAfterFirstChunk: Boolean = false,
   ) : TermuxBinaryArtifactWriter {
     val received = ByteArrayOutputStream()
     val commands = mutableListOf<String>()
@@ -141,6 +161,9 @@ class ShellArtifactDestinationAdapterTest {
       chunkCount++
       if (failAfterFirstChunk && chunkCount == 1) {
         throw IllegalStateException("Injected chunk failure.")
+      }
+      if (cancelAfterFirstChunk && chunkCount == 1) {
+        throw CancellationException("Injected transfer cancellation.")
       }
     }
 
