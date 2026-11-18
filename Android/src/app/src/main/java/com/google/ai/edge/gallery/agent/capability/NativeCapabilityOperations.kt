@@ -178,6 +178,8 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun listLaunchableApps(): List<NativeLaunchableApp>
   suspend fun launchApp(packageName: String): NativeCapabilityActionResult
   suspend fun openUrl(url: String): NativeCapabilityActionResult
+  suspend fun openWifiSettings(): NativeCapabilityActionResult =
+    throw UnsupportedOperationException("Wi-Fi settings handoff is unavailable.")
   suspend fun dialPhoneNumber(phoneNumber: String): NativeCapabilityActionResult
   suspend fun composeSms(phoneNumber: String, message: String): NativeCapabilityActionResult
   suspend fun authenticateBiometric(reason: String): Boolean
