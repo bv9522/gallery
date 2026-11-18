@@ -57,6 +57,19 @@ data class NativeTelephonyInfo(
   val simState: String,
 )
 
+data class NativeCallLogEntry(
+  val cachedName: String?,
+  val number: String?,
+  val callType: String,
+  val dateMs: Long,
+  val durationSeconds: Long,
+)
+
+data class NativeCallLogSnapshot(
+  val entries: List<NativeCallLogEntry>,
+  val truncated: Boolean,
+)
+
 data class NativeKeystoreCiphertext(
   val alias: String,
   val ivBase64: String,
@@ -118,6 +131,8 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun getDeviceInfo(): NativeDeviceInfo
   fun getBatteryStatus(): NativeBatteryStatus
   fun getTelephonyInfo(): NativeTelephonyInfo
+  suspend fun readCallLog(): NativeCallLogSnapshot =
+    throw UnsupportedOperationException("Call-log reading is unavailable.")
   fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus
   fun getAudioDevices(): List<NativeAudioDevice>
   fun getDisplayBrightness(): NativeDisplayBrightness
