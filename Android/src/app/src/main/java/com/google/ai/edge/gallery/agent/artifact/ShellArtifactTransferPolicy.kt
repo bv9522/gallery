@@ -9,8 +9,8 @@ import java.util.Base64
 
 /** Pure limits and backend policy shared by the shell artifact adapter and its unit tests. */
 internal object ShellArtifactTransferPolicy {
-  const val TERMUX_RAW_CHUNK_BYTES = 180 * 1_024
-  const val MAX_TERMUX_STDIN_CHARS = 256 * 1_024
+  const val TERMUX_RAW_CHUNK_BYTES = 96 * 1_024
+  const val MAX_TERMUX_STDIN_CHARS = 128 * 1_024
   const val MAX_STAGED_ARTIFACT_BYTES = 50L * 1_024L * 1_024L
 
   fun supportsBinaryOutput(backend: ShellExecutionBackend): Boolean =
