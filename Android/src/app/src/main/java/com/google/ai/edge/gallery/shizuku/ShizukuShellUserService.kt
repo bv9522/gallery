@@ -187,10 +187,16 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         putString(KEY_BINARY_MIME_TYPE, mimeType)
         putString(KEY_BINARY_PATH, targetFile.absolutePath)
       }
-    } catch (error: Exception) {
-      if (targetReserved) target?.let { runCatching { it.delete() } }
-      temporary?.let { runCatching { it.delete() } }
-      return errorBundle(error.message ?: error.javaClass.simpleName)
+    } catch (error: Throwable) {
+      val reservationRemoved = if (targetReserved) {
+        target?.let { file -> runCatching { file.delete() || !file.exists() }.getOrDefault(false) } ?: false
+      } else true
+      val temporaryRemoved = temporary?.let { file ->
+        runCatching { file.delete() || !file.exists() }.getOrDefault(false)
+      } ?: true
+      val cleanupWarning = if (reservationRemoved && temporaryRemoved) "" else
+        " Cleanup of a partial reservation or temporary file could not be confirmed."
+      return errorBundle((error.message ?: error.javaClass.simpleName) + cleanupWarning)
     } finally {
       runCatching { input.close() }
     }
