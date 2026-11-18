@@ -113,7 +113,7 @@ internal object AccessibilityScreenInspectionPolicy {
   fun isSafeInputText(value: String): Boolean =
     value.isNotEmpty() &&
       value.length <= MAX_INPUT_TEXT_CHARS &&
-      value.none { it.isISOControl() || it == '\\n' || it == '\\r' } &&
+      value.none { it.isISOControl() } &&
       !containsSensitiveText(value)
 
   fun isValidSelection(start: Int, end: Int, textLength: Int): Boolean =
