@@ -1966,5 +1966,5 @@
     <item quantity="other">%d languages supported</item>
   </plurals>
 
-    <string name="accessibility_service_description">Optional, read-only access to the visible app window when you explicitly request screen inspection. Sensitive screens are excluded; no screenshots or background monitoring are collected.</string>
+    <string name="accessibility_service_description">Android grants this service broad ability to view active app windows. Gallery only inspects the current visible window when you explicitly request it, excludes sensitive screens, collects no screenshots or background history, and can be disabled anytime in Android settings.</string>
 </resources>
