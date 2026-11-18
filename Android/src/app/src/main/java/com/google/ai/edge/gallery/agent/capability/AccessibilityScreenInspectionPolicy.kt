@@ -104,7 +104,7 @@ internal object AccessibilityScreenInspectionPolicy {
     if (
       inputClass != android.text.InputType.TYPE_CLASS_TEXT ||
       variation != android.text.InputType.TYPE_TEXT_VARIATION_NORMAL ||
-      inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
+      (inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
     ) return false
     val value = currentText.orEmpty()
     return value.length <= MAX_INPUT_TEXT_CHARS && !containsSensitiveText(value)
