@@ -32,6 +32,19 @@ import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
   @Test
+  fun readCallLogDelegatesToTheNativeAdapterOnlyForTheExplicitOperation() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val result = tool.execute(arguments("read_call_log"))
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("MISSED"))
+    assertTrue(result.content.contains("555-0100"))
+    assertTrue(adapter.discoveryCalls.contains("read_call_log"))
+  }
+
+  @Test
   fun readNotificationsDelegatesOnlyWhenCapabilityIsAvailable() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter = adapter)
@@ -814,6 +827,14 @@ class AndroidNativeCapabilityToolTest {
       phoneType = "GSM",
       simState = "READY",
     )
+
+    override suspend fun readCallLog(): NativeCallLogSnapshot {
+      discoveryCalls += "read_call_log"
+      return NativeCallLogSnapshot(
+        entries = listOf(NativeCallLogEntry("Alex Example", "555-0100", "MISSED", 1_800_000_000_000L, 0L)),
+        truncated = false,
+      )
+    }
 
     override fun getBatteryStatus() = NativeBatteryStatus(
       percent = 50,
