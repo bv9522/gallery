@@ -15,7 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Explicit, read-only semantic inspection of the currently visible application window. */
+/** Explicit, bounded screen inspection and separately approved semantic UI actions. */
 class AccessibilityScreenInspectionTool internal constructor(
   private val adapter: AndroidAccessibilityScreenAdapter,
   private val authorizer: NativeCapabilityAuthorizer,
@@ -170,12 +170,13 @@ class AccessibilityScreenInspectionTool internal constructor(
         appendLine("role=${element.role}")
         element.label?.let { appendLine("label=$it") }
         appendLine("clickable=${element.clickable}")
+        appendLine("long_clickable=${element.longClickable}")
         appendLine("scrollable=${element.scrollable}")
         appendLine("enabled=${element.enabled}")
         if (element.selected) appendLine("selected=true")
         element.checked?.let { appendLine("checked=$it") }
       }
-      appendLine("note=Handles expire after 30 seconds and are inspection references only; UI actions are not implemented in this slice.")
+      appendLine("note=Handles expire after 30 seconds. This active-window inspection is read-only; use inspect_external to obtain one-shot handles for separately approved semantic actions.")
     }.trimEnd())
   }
 
