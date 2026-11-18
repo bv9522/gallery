@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #42 opened; semantic text entry and selection onboarded; validation deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (PR #43 opened; on-demand active notification reading onboarded; validation deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-5d-semantic-text-input` (stacked on `wave-5c-semantic-ui-actions`)  
-> **Current change:** [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), draft/open/unmerged, stacked on [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
+> **Current implementation branch:** `wave-6a-notification-content-read` (stacked on `wave-5d-semantic-text-input`)  
+> **Current change:** [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), draft/open/unmerged, stacked on [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -134,7 +134,8 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [x] PR #30 local unit tests and Shizuku debug build confirmed by user.
 - [CODE / DEVICE ACCEPTANCE PENDING — PR #30] Gallery-owned notification posting, bounded listing/dismissal, channel operations, reminder schedule/list/cancel using existing AlarmManager/DataStore/receivers.
 - [ ] Device-test Android notification permission, disabled channels/global notifications, reboot recovery, local wall-clock scheduling, cancellation, and 50-reminder cap.
-- [DEFERRED] Reading other apps' notifications: requires user-enabled NotificationListenerService special access; never silently enabled.
+- [CODE / VALIDATION PENDING — PR #43] On-demand read of up to 20 currently active notifications from other apps through the existing user-enabled NotificationListenerService. Every read requires explicit user intent and separate one-time `NOTIFICATION_READ` approval; only app labels and bounded title/body text are returned. No notification callbacks are collected, no history is read, no background monitoring occurs, and no notification content is persisted.
+- [ ] Device-test notification-listener enable/disable, listener reconnection, private/empty notification payloads, app-label fallback, approval denial, and active-notification bounds.
 
 #### 5D — Telephony and user-mediated communication
 - [x] PR #31 local unit tests and Shizuku debug build confirmed by user.
@@ -153,7 +154,7 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [CODE / VALIDATION DEFERRED — PR #35] `media_play` requires a fresh search handle and one-time approval, then opens the selected video in Gallery's own Media3 player. It does not launch an external ACTION_VIEW intent and does not expose cross-app media-session controls.
 - [CODE / VALIDATION DEFERRED — PR #37] `media_sessions.list` reads up to 10 active cross-app media sessions through `MediaSessionManager` only after the user enables Gallery's notification-listener special access. It returns bounded app/track metadata, playback state, supported actions, and 2-minute opaque handles. It does not inspect/store notifications or expose package names/session tokens.
 - [CODE / VALIDATION DEFERRED — PR #37] `media_sessions.control` supports only advertised PLAY, PAUSE, NEXT, PREVIOUS, and SEEK actions; SEEK requires a known track duration and an in-range integer position. Every inspection/control requires one-time approval. Handles are refreshed by each list call, revalidated against the active session, and consumed after successful dispatch.
-- [CODE / VALIDATION DEFERRED — PR #37] `media_sessions.open_settings` is available only when explicitly requested; it opens Android notification-listener settings but does not grant access. Provider status reports `PERMISSION_REQUIRED` until the user enables Gallery manually. Gallery's listener service does not read, store, or summarize notifications.
+- [CODE / VALIDATION DEFERRED — PR #37] `media_sessions.open_settings` is available only when explicitly requested; it opens Android notification-listener settings but does not grant access. Provider status reports `PERMISSION_REQUIRED` until the user enables Gallery manually. The listener service performs no callback collection or background monitoring; PR #43 adds only explicit on-demand active-notification snapshots after separate `NOTIFICATION_READ` approval, with no history or persistence.
 - [CODE / VALIDATION DEFERRED — PR #36] `share_content.share_text` approves the exact bounded text (1–4,000 characters) and opens Android's ACTION_SEND chooser. `share_file` accepts only a document ID plus a persisted SAF tree URI already granted to Gallery; it verifies the file metadata, requires a known size up to 25 MiB, and grants temporary read access through ACTION_SEND/ClipData. The user chooses the receiving app and completes or cancels; opening the chooser is not evidence of delivery.
 - [x] Add bounded argument-validation tests and document the exact chooser, approval, SAF-grant, temporary-read, and non-delivery semantics. Tests/builds/device checks for PR #36 remain unexecuted under the owner-directed deferral; consolidated validation remains later.
 
@@ -241,7 +242,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
-| Wave 5 Accessibility/UI automation | PLANNED | No implementation PR in current chain |
+| Wave 5 Accessibility/UI automation | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #39–#42; notification-read extension PR #43 is the current slice |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
@@ -266,6 +267,7 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #35 — media discovery, visual indexing, and Gallery-owned video playback (**tests added; execution deferred by owner instruction**).
 - PR #36 — user-mediated text and SAF file sharing through Android's ACTION_SEND chooser (**tests added; execution deferred by owner instruction**).
 - PR #37 — active cross-app media-session discovery/control through opt-in notification-listener special access (**tests added; execution deferred by owner instruction**).
+- PR #43 — on-demand active notification content read through the same manually enabled listener (**tests added; execution deferred by owner instruction**).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
