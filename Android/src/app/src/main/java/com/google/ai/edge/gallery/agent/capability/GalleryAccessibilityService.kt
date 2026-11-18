@@ -113,7 +113,7 @@ class GalleryAccessibilityService : AccessibilityService() {
 
   /** Captures only the supplied AccessibilityWindowInfo ID; there is deliberately no display fallback. */
   internal suspend fun captureWindowJpeg(windowId: Int): Result<ByteArray> {
-    if (Build.VERSION.SDK_INT < 34) {
+    if (!AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(Build.VERSION.SDK_INT)) {
       return Result.failure(UnsupportedOperationException(
         "Window-specific screenshots require Android API 34 or newer; full-display capture is not used."
       ))
