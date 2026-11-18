@@ -41,6 +41,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,6 +54,8 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -78,6 +82,13 @@ import androidx.compose.ui.text.fromHtml
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -104,6 +115,7 @@ import com.google.ai.edge.gallery.tools.PermissionResult
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.SkillProgressToolAction
 import com.google.ai.edge.gallery.tools.SpeakTextToolAction
+import com.google.ai.edge.gallery.tools.PlayMediaToolAction
 import com.google.ai.edge.gallery.ui.common.BaseGalleryWebViewClient
 import com.google.ai.edge.gallery.ui.common.tts.TtsPlaybackViewModel
 import com.google.ai.edge.gallery.ui.common.GalleryWebView
@@ -171,6 +183,7 @@ fun AgentChatScreen(
   }
   var currentPhotoCaptureAction by remember { mutableStateOf<CapturePhotoToolAction?>(null) }
   var currentDocumentTreeAction by remember { mutableStateOf<OpenDocumentTreeToolAction?>(null) }
+  var currentMediaPlaybackAction by remember { mutableStateOf<PlayMediaToolAction?>(null) }
   var askInfoInputValue by remember { mutableStateOf("") }
   var webViewRef: WebView? by remember { mutableStateOf(null) }
   val chatWebViewClient = remember { ChatWebViewClient(context = context) }
@@ -332,6 +345,9 @@ fun AgentChatScreen(
         for (action in actionChannel) {
           Log.d(TAG, "Handling action: $action")
           when (action) {
+            is PlayMediaToolAction -> {
+              currentMediaPlaybackAction = action
+            }
             is SpeakTextToolAction -> {
               try {
                 if (!ttsPlaybackViewModel.controller.isAvailable) {
@@ -547,6 +563,13 @@ fun AgentChatScreen(
             }
           }
         }
+      }
+
+      currentMediaPlaybackAction?.let { action ->
+        AgentMediaPlaybackDialog(
+          action = action,
+          onDismiss = { currentMediaPlaybackAction = null },
+        )
       }
 
       GalleryWebView(
@@ -963,3 +986,64 @@ private tailrec fun Context.findFragmentActivity(): FragmentActivity? =
     is ContextWrapper -> baseContext.findFragmentActivity()
     else -> null
   }
+@Composable
+private fun AgentMediaPlaybackDialog(
+  action: PlayMediaToolAction,
+  onDismiss: () -> Unit,
+) {
+  val context = LocalContext.current
+  val player = remember(action.contentUri) { ExoPlayer.Builder(context).build() }
+  var playbackError by remember(action.contentUri) { mutableStateOf<String?>(null) }
+
+  DisposableEffect(player) {
+    onDispose { player.release() }
+  }
+
+  DisposableEffect(action) {
+    onDispose {
+      if (!action.result.isCompleted) action.result.complete(false)
+    }
+  }
+
+  LaunchedEffect(player, action.contentUri) {
+    try {
+      player.setMediaItem(MediaItem.fromUri(action.contentUri))
+      player.prepare()
+      player.playWhenReady = true
+      player.play()
+      action.result.complete(true)
+    } catch (error: Exception) {
+      playbackError = error.message ?: "Gallery could not open this media item."
+      action.result.complete(false)
+    }
+  }
+
+  Dialog(onDismissRequest = onDismiss) {
+    Surface(
+      shape = RoundedCornerShape(20.dp),
+      color = MaterialTheme.colorScheme.surface,
+    ) {
+      Column(Modifier.padding(16.dp)) {
+        Text(action.displayName, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.size(12.dp))
+        AndroidView(
+          factory = { viewContext ->
+            PlayerView(viewContext).apply {
+              this.player = player
+              useController = true
+            }
+          },
+          update = { it.player = player },
+          modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+        )
+        playbackError?.let {
+          Spacer(Modifier.size(8.dp))
+          Text(it, color = MaterialTheme.colorScheme.error)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+          TextButton(onClick = onDismiss) { Text("Close") }
+        }
+      }
+    }
+  }
+}
