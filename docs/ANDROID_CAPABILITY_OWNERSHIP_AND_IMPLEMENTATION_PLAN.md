@@ -372,8 +372,8 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Planned; do not treat UsbManager as a mass-storage filesystem |
 | Screen capture / visual screen understanding | Android AccessibilityService + LiteRT-LM multimodal tool result | Draft in PR #40: API 34+ window-only capture, one visible external window, explicit SCREEN_CAPTURE approval, conservative sensitive-screen gate, 1,280 px / 2 MiB bounds, in-memory Gemma image input; no display-wide fallback or persistent screenshot file |
-| Live semantic UI tree | Android AccessibilityService | Planned |
-| Semantic tap / click / long-press / swipe | Android AccessibilityService | Planned |
+| Live semantic UI tree | Android AccessibilityService | Draft in PRs #39–#41: bounded read-only active-window inspection plus one external-window inspection path with short-lived opaque handles; validation deferred |
+| Semantic click / long-press / scroll | Android AccessibilityService | Draft in PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD with per-action approval, one-shot handles, and exact node/window revalidation; swipe remains planned |
 | Semantic text entry / selection | Android AccessibilityService | Planned |
 | Coordinate gesture fallback | Unified shell router only when explicitly requested/authorized | Existing shell capability; not a second semantic UI provider |
 
