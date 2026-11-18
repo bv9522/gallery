@@ -24,6 +24,8 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
+private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
 interface ShellBinaryArtifactTransport {
   suspend fun write(
     request: ArtifactCreateRequest,
@@ -84,7 +86,6 @@ class ShellArtifactDestinationAdapter(
 
   private companion object {
     const val PREFLIGHT_TIMEOUT_MS = 5_000L
-    fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
   }
 }
 
