@@ -107,7 +107,7 @@ class AccessibilityScreenInspectionTool internal constructor(
       appendLine(
         "detail=" + when {
           !imageInputSupported -> "The selected model or runtime configuration does not support image input."
-          android.os.Build.VERSION.SDK_INT < 34 -> "Window-specific screenshot API requires Android API 34 or newer; no full-display fallback is used."
+          !AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT) -> "Window-specific screenshot API requires Android API 34 or newer; no full-display fallback is used."
           availability == ProviderAvailability.AVAILABLE -> "Requires one-time approval and exactly one safe, visible external app window alongside Gallery."
           else -> "Gallery accessibility service must be enabled and connected."
         }
