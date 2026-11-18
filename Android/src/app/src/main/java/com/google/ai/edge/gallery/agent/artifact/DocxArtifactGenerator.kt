@@ -284,7 +284,7 @@ class DocxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
             require(isXml10Text(it)) { "DOCX table cell contains characters not permitted in XML 1.0." }
           }
         }
-      }) }
+      })
     }
 
     private fun isXml10Text(value: String): Boolean {
