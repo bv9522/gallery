@@ -28,6 +28,8 @@ data class AgentMessage(
   val toolArguments: JsonObject? = null,
   val toolSucceeded: Boolean? = null,
   val userContents: Contents? = null,
+  /** Transient image data attached to a tool response; cleared immediately after model prefill. */
+  val toolImageBytes: ByteArray? = null,
   val extraContext: Map<String, Any> = emptyMap(),
 ) {
   enum class Role { USER, ASSISTANT, TOOL }
