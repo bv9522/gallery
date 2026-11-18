@@ -162,7 +162,7 @@ class AccessibilityScreenInspectionPolicyTest {
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("password123"))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("my bank account"))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("user@example.com"))
-    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("line one\\nline two"))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText(listOf("line one", "line two").joinToString(System.lineSeparator())))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("x".repeat(257)))
   }
 
