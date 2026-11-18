@@ -30,6 +30,7 @@ internal object AndroidControlArguments {
     "cancel_download" to setOf("operation", "download_handle"),
     "media_search" to setOf("operation", "query", "media_kind", "search_mode", "limit"),
     "media_index" to setOf("operation"),
+    "media_play" to setOf("operation", "media_handle"),
     "device_info" to setOf("operation"),
     "telephony_info" to setOf("operation"),
     "dial_phone" to setOf("operation", "phone_number"),
@@ -137,6 +138,15 @@ internal object AndroidControlArguments {
         ?.asString.orEmpty()
       if (!handle.matches(Regex("^dl_[0-9a-f]{32}$"))) {
         return "download_handle must be copied exactly from the most recent download_status result."
+      }
+    }
+
+    if (operation == "media_play") {
+      val handle = arguments.get("media_handle")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (!handle.matches(Regex("^media_[0-9a-f]{32}$"))) {
+        return "media_handle must be copied exactly from the latest media_search result."
       }
     }
 
