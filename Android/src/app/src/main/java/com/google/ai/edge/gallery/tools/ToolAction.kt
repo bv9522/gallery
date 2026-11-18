@@ -183,7 +183,7 @@ class AskRemoteImageGenerationPermissionAction(
   val result: CompletableDeferred<Boolean> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.ASK_REMOTE_IMAGE_GENERATION_PERMISSION)
 
-//** Requests a foreground system biometric prompt, optionally bound to a Keystore cipher. */
+/** Requests a foreground system biometric prompt, optionally bound to a Keystore cipher. */
 class AuthenticateBiometricToolAction(
   val title: String,
   val subtitle: String,
