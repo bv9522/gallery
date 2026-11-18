@@ -45,7 +45,17 @@ import kotlinx.coroutines.ensureActive
  * RUN_COMMAND invocation. GNU timeout is a final safety net if Android MCP is killed before it can
  * issue cleanup.
  */
-class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
+interface TermuxBinaryArtifactWriter {
+  override suspend fun appendBinaryFileChunk(
+    temporaryPath: String,
+    encodedChunk: String,
+    firstChunk: Boolean,
+    timeoutMs: Long = 15_000L,
+  )
+  suspend fun runBinaryTransferCommand(command: String, timeoutMs: Long = 15_000L): String
+}
+
+class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBinaryArtifactWriter {
   private val appContext = context.applicationContext
 
   override suspend fun execute(
@@ -236,7 +246,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
   }
 
   /** Runs one short, bounded verification/finalization command as the explicitly selected Termux identity. */
-  suspend fun runBinaryTransferCommand(command: String, timeoutMs: Long = BINARY_CHUNK_TIMEOUT_MS): String {
+  override suspend fun runBinaryTransferCommand(command: String, timeoutMs: Long): String {
     require(command.isNotBlank() && command.length <= 4_096 && '\u0000' !in command)
     ensureTermuxReady()
     val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, timeoutMs, MIN_OUTPUT_CHARS)
