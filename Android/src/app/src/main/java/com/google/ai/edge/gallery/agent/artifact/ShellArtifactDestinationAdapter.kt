@@ -52,6 +52,9 @@ class ShellArtifactDestinationAdapter(
     require(ShellArtifactTransferPolicy.supportsBinaryOutput(destination.backend)) {
       "TERMUX_RISH binary artifact output is unavailable until remote stdin forwarding is verified."
     }
+    require(destination.absolutePath.substringAfterLast('/') == request.fileName) {
+      "Shell destination leaf must exactly match the approved filename."
+    }
     require(stagingDirectory.exists() || stagingDirectory.mkdirs()) {
       "The private artifact staging directory is unavailable."
     }
