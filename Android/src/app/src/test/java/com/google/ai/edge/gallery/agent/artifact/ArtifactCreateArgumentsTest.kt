@@ -80,6 +80,13 @@ class ArtifactCreateArgumentsTest {
     assertTrue(ArtifactCreateArguments.parse(unknown) is ArtifactArgumentsParseResult.Invalid)
   }
 
+  @Test fun rejectsControlCharactersAndTrailingSeparatorsInShellPaths() {
+    val controlPath = shellRequest("/storage/emulated/0/bad\nfolder/report.pdf")
+    val trailingSeparator = shellRequest("/storage/emulated/0/report.pdf/")
+    assertTrue(ArtifactCreateArguments.parse(controlPath) is ArtifactArgumentsParseResult.Invalid)
+    assertTrue(ArtifactCreateArguments.parse(trailingSeparator) is ArtifactArgumentsParseResult.Invalid)
+  }
+
   private fun safRequest(name: String) = JsonObject().apply {
     addProperty("format", "pdf")
     addProperty("file_name", name)
