@@ -248,6 +248,18 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun wifiSettingsHandoffTakesNoArguments() {
+    val valid = JsonObject().apply { addProperty("operation", "wifi_open_settings") }
+    val unexpected = JsonObject().apply {
+      addProperty("operation", "wifi_open_settings")
+      addProperty("enabled", false)
+    }
+
+    assertNull(AndroidControlArguments.validate(valid))
+    assertTrue(AndroidControlArguments.validate(unexpected).orEmpty().contains("Accepted arguments: operation"))
+  }
+
+  @Test
   fun unsupportedOperationListsValidChoices() {
     val arguments = JsonObject().apply { addProperty("operation", "volume") }
 
