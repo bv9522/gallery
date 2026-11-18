@@ -9,6 +9,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.MediaController
+import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.SystemClock
@@ -59,7 +60,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
   private val handles = ConcurrentHashMap<String, SessionEntry>()
 
   private data class SessionEntry(
-    val token: MediaController.Token,
+    val token: MediaSession.Token,
     val snapshot: ActiveMediaSessionSnapshot,
     val expiresAtMs: Long,
   )
