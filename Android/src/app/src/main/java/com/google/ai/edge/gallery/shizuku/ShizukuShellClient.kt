@@ -57,7 +57,7 @@ interface ShizukuShellExecutor {
  * survive consecutive tool calls. This class does not grant root access.
  */
 interface ShizukuBinaryArtifactWriter {
-  override suspend fun writeBinaryFile(
+  suspend fun writeBinaryFile(
     sourceFile: File,
     destinationPath: String,
     overwrite: Boolean,
@@ -178,7 +178,7 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor, ShizukuBinary
    * Streams a staged artifact through a one-shot PFD pipe. The Binder transaction carries only a
    * file descriptor and bounded metadata, never the artifact bytes in a Binder parcel.
    */
-  suspend fun writeBinaryFile(
+  override suspend fun writeBinaryFile(
     sourceFile: File,
     destinationPath: String,
     overwrite: Boolean,
