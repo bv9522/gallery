@@ -39,6 +39,15 @@ import com.google.ai.edge.gallery.agent.capability.GalleryMediaLibraryOperations
 import com.google.ai.edge.gallery.agent.capability.ShareContentCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
+import com.google.ai.edge.gallery.agent.artifact.ArtifactFormat
+import com.google.ai.edge.gallery.agent.artifact.ArtifactGenerationTool
+import com.google.ai.edge.gallery.agent.artifact.ArtifactGeneratorRegistry
+import com.google.ai.edge.gallery.agent.artifact.ArtifactDestinationRegistry
+import com.google.ai.edge.gallery.agent.artifact.DestinationType
+import com.google.ai.edge.gallery.agent.artifact.DefaultArtifactGenerationEngine
+import com.google.ai.edge.gallery.agent.artifact.ChannelArtifactGenerationApprovalRequester
+import com.google.ai.edge.gallery.agent.artifact.PdfArtifactGenerator
+import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.DownloadRepository
@@ -393,6 +402,12 @@ class NativeAgentRuntimeExecutor(
           },
           authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
         )
+        val artifactContext = checkNotNull(context) { "Agent application context is unavailable." }
+        val artifactEngine = DefaultArtifactGenerationEngine(
+          generators = ArtifactGeneratorRegistry(listOf(PdfArtifactGenerator())),
+          destinations = ArtifactDestinationRegistry(listOf(SafArtifactDestinationAdapter(artifactContext))),
+          approvalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel),
+        )
         val runtimeTools = AgentToolRegistry(
           listOf(
             UnifiedShellTool(router, approval),
@@ -423,6 +438,11 @@ class NativeAgentRuntimeExecutor(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
               client = TermuxRunCommandClient(checkNotNull(context)),
+            ),
+            ArtifactGenerationTool(
+              engine = artifactEngine,
+              supportedFormats = setOf(ArtifactFormat.PDF),
+              supportedDestinations = setOf(DestinationType.SAF),
             ),
           )
         )
