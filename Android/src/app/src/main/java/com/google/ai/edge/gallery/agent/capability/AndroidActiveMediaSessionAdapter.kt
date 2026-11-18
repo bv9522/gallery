@@ -35,6 +35,16 @@ data class ActiveMediaSessionControlResult(val success: Boolean, val message: St
 
 enum class ActiveMediaSessionAction { PLAY, PAUSE, NEXT, PREVIOUS, SEEK }
 
+object ActiveMediaSessionTextPolicy {
+  fun sanitize(value: String?, maxChars: Int): String? {
+    if (value == null) return null
+    val normalized = buildString {
+      value.forEach { append(if (it.isISOControl()) ' ' else it) }
+    }.replace(Regex("\\s+"), " ").trim().take(maxChars)
+    return normalized.takeIf { it.isNotEmpty() }
+  }
+}
+
 object ActiveMediaSessionActionPolicy {
   fun isSupported(action: ActiveMediaSessionAction, playbackActions: Long): Boolean =
     when (action) {
@@ -95,10 +105,10 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
       val handle = "ms_" + UUID.randomUUID().toString().replace("-", "").take(16)
       val snapshot = ActiveMediaSessionSnapshot(
         handle = handle,
-        appLabel = label.take(MAX_LABEL_CHARS),
-        title = metadata?.getString(MediaMetadata.METADATA_KEY_TITLE)?.take(MAX_METADATA_CHARS),
-        artist = metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)?.take(MAX_METADATA_CHARS),
-        album = metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM)?.take(MAX_METADATA_CHARS),
+        appLabel = ActiveMediaSessionTextPolicy.sanitize(label, MAX_LABEL_CHARS) ?: "Media app",
+        title = ActiveMediaSessionTextPolicy.sanitize(metadata?.getString(MediaMetadata.METADATA_KEY_TITLE), MAX_METADATA_CHARS),
+        artist = ActiveMediaSessionTextPolicy.sanitize(metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST), MAX_METADATA_CHARS),
+        album = ActiveMediaSessionTextPolicy.sanitize(metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM), MAX_METADATA_CHARS),
         playbackState = playbackStateName(playback.state),
         positionMs = position,
         durationMs = duration,
