@@ -161,7 +161,7 @@ class PdfArtifactGenerator(context: Context? = null) : ArtifactGenerator {
         }
         cell.asString.also { require(it.length <= MAX_CELL_CHARS) { "Table cell exceeds $MAX_CELL_CHARS characters." } }
       }
-    }) }
+    })
   }
 
   private data class PdfDocumentContent(val title: String, val pages: List<PdfSection>)
