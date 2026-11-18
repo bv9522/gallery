@@ -94,7 +94,7 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
         Result.success(SemanticScreenSnapshot(elements, snapshot.truncated))
       }
       is AccessibilityWindowSnapshot.Excluded ->
-        Result.failure(IllegalStateException("Screen inspection blocked: \${snapshot.reason}"))
+        Result.failure(IllegalStateException("Screen inspection blocked: ${snapshot.reason}"))
       is AccessibilityWindowSnapshot.Unavailable ->
         Result.failure(IllegalStateException(snapshot.reason))
       null ->
