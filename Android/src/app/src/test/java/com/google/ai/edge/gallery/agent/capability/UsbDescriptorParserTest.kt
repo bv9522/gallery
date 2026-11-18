@@ -54,7 +54,7 @@ class UsbDescriptorParserTest {
 
   @Test
   fun capsDescriptorCountAndMarksTruncation() {
-    val raw = ByteArray(130) { index -> if (index % 2 == 0) 2 else 0x30 }
+    val raw = ByteArray(130) { index -> if (index % 2 == 0) 2.toByte() else 0x30.toByte() }
 
     val result = UsbDescriptorParser.parse(raw, 1, 2)
 
