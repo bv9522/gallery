@@ -164,17 +164,13 @@ class AccessibilityScreenInspectionTool internal constructor(
   }
 
   private suspend fun capture(): AgentToolResult {
-    if (!imageInputSupported) {
-      return AgentToolResult(
-        "The selected model or runtime configuration does not support image input; no screenshot was captured.",
-        false,
-      )
-    }
-    if (android.os.Build.VERSION.SDK_INT < 34) {
-      return AgentToolResult(
-        "Window-specific screenshot capture requires Android API 34 or newer. Full-display capture is not used.",
-        false,
-      )
+    if (!windowCaptureSupported) {
+      val reason = if (!imageInputSupported) {
+        "The selected model or runtime configuration does not support image input."
+      } else {
+        "Window-specific screenshot capture requires Android API 34 or newer; full-display capture is not used."
+      }
+      return AgentToolResult(reason + " No screenshot was captured.", false)
     }
     if (adapter.enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
       return AgentToolResult(
