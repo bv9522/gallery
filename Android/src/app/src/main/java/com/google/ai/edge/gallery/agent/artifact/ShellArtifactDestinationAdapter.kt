@@ -52,9 +52,11 @@ class ShellArtifactDestinationAdapter(
     require(stagingDirectory.exists() || stagingDirectory.mkdirs()) {
       "The private artifact staging directory is unavailable."
     }
-    stagingDirectory.listFiles()
-      ?.filter { it.isFile && it.name.startsWith("gallery-artifact-") }
-      ?.forEach { stale ->
+    val staleStagingFiles = stagingDirectory.listFiles()
+      ?: throw IllegalStateException("Could not inspect the private artifact staging quota.")
+    staleStagingFiles
+      .filter { it.isFile && it.name.startsWith("gallery-artifact-") }
+      .forEach { stale ->
         check(stale.delete() || !stale.exists()) {
           "A previous private artifact staging file could not be cleaned."
         }
