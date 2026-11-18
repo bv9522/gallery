@@ -281,7 +281,7 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
     }
   }
 
-  fun describeTextInputTarget(handle: String): AccessibilityTextInputTarget? {
+  internal fun describeTextInputTarget(handle: String): AccessibilityTextInputTarget? {
     if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) return null
     val fingerprint = handles[handle] ?: return null
     if (!fingerprint.textInputCapable || fingerprint.expiresAtMs <= android.os.SystemClock.elapsedRealtime()) {
@@ -297,7 +297,7 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
   }
 
   /** Consumes an input handle before revalidating and dispatching exactly one text operation. */
-  suspend fun performSemanticTextAction(
+  internal suspend fun performSemanticTextAction(
     handle: String,
     action: AccessibilityTextAction,
     inputText: String? = null,
@@ -322,7 +322,7 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
     service.performSemanticTextAction(fingerprint, action, inputText, selectionStart, selectionEnd)
   }
 
-  fun describeActionTarget(handle: String): AccessibilityActionTarget? {
+  internal fun describeActionTarget(handle: String): AccessibilityActionTarget? {
     if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) return null
     val fingerprint = handles[handle] ?: return null
     if (!fingerprint.actionable || fingerprint.expiresAtMs <= android.os.SystemClock.elapsedRealtime()) {
@@ -339,7 +339,7 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
   }
 
   /** Consumes a one-shot handle and revalidates the exact external node immediately before action. */
-  suspend fun performSemanticAction(
+  internal suspend fun performSemanticAction(
     handle: String,
     action: AccessibilitySemanticAction,
   ): Result<String> = withContext(Dispatchers.Main.immediate) {
