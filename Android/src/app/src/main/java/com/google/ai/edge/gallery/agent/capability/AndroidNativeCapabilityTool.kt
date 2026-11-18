@@ -867,8 +867,8 @@ class AndroidNativeCapabilityTool internal constructor(
         observation.copy(
           capabilityAvailability =
             observation.capabilityAvailability +
-              (AndroidCapability.DOWNLOAD_MANAGEMENT to downloadAvailability),
-              (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED),
+              (AndroidCapability.DOWNLOAD_MANAGEMENT to downloadAvailability) +
+              (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED) +
               (AndroidCapability.MEDIA_PLAYBACK to if (mediaOperations != null && mediaPlaybackRequester != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED),
         )
       )
@@ -896,7 +896,7 @@ class AndroidNativeCapabilityTool internal constructor(
   private suspend fun availabilityFailure(capability: AndroidCapability): AgentToolResult? {
     val observation = adapter.inspect()
     val capabilityAvailability = observation.capabilityAvailability +
-      (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED),
+      (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED) +
       (AndroidCapability.MEDIA_PLAYBACK to if (mediaOperations != null && mediaPlaybackRequester != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED)
     val routedObservation = observation.copy(capabilityAvailability = capabilityAvailability)
     val resolution = registry.resolve(capability, listOf(routedObservation))
