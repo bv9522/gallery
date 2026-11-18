@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-18  
 **Repository baseline:** Stage 10 architecture PR #48, stacked after Wave 6E PR #47  
-**Status:** Complete for dependency/API selection; shell binary-stream implementation remains a Stage 10I engineering gate.  
+**Status:** Dependency/API selection complete. Stage 10I code now implements Termux bounded RUN_COMMAND stdin chunks and Shizuku PFD pipe transfer; TERMUX_RISH remains gated on end-to-end stdin proof. Tests/build/device acceptance remain deferred to Stage 10J.  
 **Validation:** Documentation/source inspection only. No Gradle tests, builds, instrumentation tests, or device checks were run.
 
 ## Build and platform baseline
@@ -48,9 +48,9 @@ Relevant Android API: https://developer.android.com/reference/android/content/Co
 
 The current `ShellExecutionRequest` accepts command text only (maximum 8,192 characters at the router contract); `ShellExecutionTransport` has no input-stream parameter. The shell route cannot safely accept a complete arbitrary binary artifact embedded in a command string.
 
-- **TERMUX:** The official RUN_COMMAND contract exposes `EXTRA_STDIN` for command stdin on Termux >= 0.109 and documents an approximate 500 KB combined Intent-extra ceiling. The user's installed Termux beta is newer than that baseline, but Gallery's current `TermuxRunCommandClient` does not yet set the stdin extra. Stage 10I should add a bounded, chunked transfer path with generous headroom below the Intent ceiling, explicit backend selection, destination-side hashing/length verification, and atomic finalization. Do not send unbounded artifact bytes in one Intent.
-- **SHIZUKU:** The current `IShizukuShellService` AIDL contract accepts command strings and results only. `ShizukuShellUserService` explicitly notes that interactive command stdin is not supported. Add a dedicated file-transfer method using a `ParcelFileDescriptor` pipe (or equivalent bounded streaming primitive), not a large Binder byte array; the service must write under the Shizuku shell identity and enforce path/size/timeout limits.
-- **TERMUX_RISH:** This route currently wraps a command in `rish -c` through Termux RUN_COMMAND. Do not assume Termux stdin is forwarded through rish into the Shizuku-side command. Prove the end-to-end stdin/pipe semantics and cancellation behavior before marking binary output available. If it cannot be made reliable without changing identity, report it unavailable for binary artifact output rather than silently falling back to TERMUX or SHIZUKU.
+- **TERMUX:** The official RUN_COMMAND contract exposes `EXTRA_STDIN` for command stdin on Termux >= 0.109 and documents an approximate 500 KB combined Intent-extra ceiling. Stage 10I now sets `RUN_COMMAND_STDIN` and explicitly selects `RUN_COMMAND_RUNNER=app-shell`; raw 180 KiB chunks base64-encode below the configured 256 KiB stdin bound. The destination verifies byte count/SHA-256 before same-directory finalization. Runtime protocol, Intent-size, cancellation, and device checks remain Stage 10J.
+- **SHIZUKU:** The command session remains text-only, but Stage 10I adds a separate `writeBinaryFile` AIDL method using a one-shot `ParcelFileDescriptor` pipe. The shell-UID UserService writes a bounded same-directory temporary file, checks path/size/timeout/SHA-256, and atomically finalizes; runtime PFD marshalling, permissions, cancellation, and device checks remain Stage 10J.
+- **TERMUX_RISH:** This route currently wraps a command in `rish -c` through Termux RUN_COMMAND. Do not assume Termux stdin is forwarded through rish into the Shizuku-side command. Stage 10I deliberately reports this destination unavailable until end-to-end stdin/pipe semantics and cancellation are proven. It never falls back to TERMUX or SHIZUKU.
 
 Official Termux RUN_COMMAND contract: https://github.com/termux/termux-app/wiki/RUN_COMMAND-Intent  
 Android ParcelFileDescriptor reference: https://developer.android.com/reference/android/os/ParcelFileDescriptor

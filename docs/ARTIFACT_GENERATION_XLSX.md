@@ -5,7 +5,7 @@
 
 ## Model-facing payload
 
-The generic `artifact_create` tool now advertises PDF, DOCX, and XLSX. SAF remains the only enabled destination.
+The generic `artifact_create` tool now advertises PDF, DOCX, XLSX, PPTX, ZIP, and local image transforms, with SAF and explicit TERMUX/SHIZUKU shell destinations. TERMUX_RISH binary output remains unavailable pending stdin-forwarding proof.
 
 XLSX payload is a strict JSON object containing `sheets`:
 - 1–20 worksheets

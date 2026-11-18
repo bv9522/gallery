@@ -5,9 +5,9 @@
 
 ## Local image processing
 
-The generic `artifact_create` tool advertises `format=image` for local resize/crop/rotate/convert only. The source must be a file inside a persisted Gallery SAF read grant, identified by a current `document_tree` tree URI and document ID. The destination is the existing separately approved SAF output folder.
+The generic `artifact_create` tool advertises `format=image` for local resize/crop/rotate/convert only. The source must be a file inside a persisted Gallery SAF read grant, identified by a current `document_tree` tree URI and document ID. The destination may be the separately approved SAF output folder or an explicitly selected TERMUX/SHIZUKU shell path through the Stage 10I binary adapters; TERMUX_RISH is not available for binary output.
 
-Supported source and output formats: PNG, JPEG, and WebP. Output MIME is selected from the output filename extension and verified against the SAF provider's returned MIME type.
+Supported source and output formats: PNG, JPEG, and WebP. Output MIME is selected from the output filename extension and validated by the generator; SAF additionally verifies the provider-reported MIME type.
 
 Optional transforms:
 - `resize_width` + `resize_height`: both required, 1–4,096 px
