@@ -35,10 +35,10 @@ class ShellArtifactDestinationAdapter(
     val destination = request.destination as? ArtifactDestinationSpec.ShellPath
       ?: throw IllegalArgumentException("Shell adapter received a non-shell destination.")
     require(ShellArtifactTransferPolicy.supportsBinaryOutput(destination.backend)) {
+      "TERMUX_RISH binary artifact output is unavailable until remote stdin forwarding is verified."
+    }
     require(destination.absolutePath.substringAfterLast('/') == request.fileName) {
       "Shell destination leaf must exactly match the approved filename."
-    }
-      "TERMUX_RISH binary artifact output is unavailable until remote stdin forwarding is verified."
     }
     return destination.backend.name + " path " + destination.absolutePath
   }
@@ -154,10 +154,10 @@ class ShellArtifactDestinationAdapter(
       val expectedHash = metadata.sha256
       val movePolicy = if (overwrite) {
         "[ ! -L $quotedTarget ] && { [ ! -e $quotedTarget ] || [ -f $quotedTarget ]; } && " +
-          "mv -f -- $quotedTemp $quotedTarget || exit 24; "
+          "mv -fT -- $quotedTemp $quotedTarget || exit 24; "
       } else {
         "[ ! -e $quotedTarget ] && [ ! -L $quotedTarget ] && " +
-          "mv -n -- $quotedTemp $quotedTarget && [ ! -e $quotedTemp ] || exit 25; "
+          "mv -nT -- $quotedTemp $quotedTarget && [ ! -e $quotedTemp ] || exit 25; "
       }
       val finalize =
         "actual_size=\$(wc -c < $quotedTemp | tr -d '[:space:]'); " +
