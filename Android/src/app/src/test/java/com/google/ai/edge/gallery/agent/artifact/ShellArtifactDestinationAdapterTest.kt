@@ -18,6 +18,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ShellArtifactDestinationAdapterTest {
+  @Test fun describeRejectsPathLeafThatDoesNotMatchTheApprovedFilename() = runBlocking {
+    val directory = Files.createTempDirectory("artifact-description-test").toFile()
+    val adapter = adapter(directory)
+    try {
+      val mismatched = request(ShellExecutionBackend.TERMUX).copy(
+        destination = ArtifactDestinationSpec.ShellPath(
+          ShellExecutionBackend.TERMUX,
+          "/storage/emulated/0/Documents/other.pdf",
+        ),
+      )
+      try {
+        adapter.describe(mismatched)
+        throw AssertionError("Expected mismatched destination filename to be rejected.")
+      } catch (_: IllegalArgumentException) {
+        // Expected before the approval prompt is constructed.
+      }
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
   @Test fun termuxStreamsMultipleBoundedChunksAndVerifiesTheDestination() = runBlocking {
     val directory = Files.createTempDirectory("artifact-termux-test").toFile()
     val bytes = ByteArray(500_000) { (it % 239).toByte() }
