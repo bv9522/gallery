@@ -82,6 +82,25 @@ data class NativeSmsInboxSnapshot(
   val truncated: Boolean,
 )
 
+data class NativeUsbDescriptor(
+  val length: Int,
+  val descriptorType: Int,
+  val interfaceNumber: Int? = null,
+  val alternateSetting: Int? = null,
+  val endpointAddress: Int? = null,
+  val endpointAttributes: Int? = null,
+  val maxPacketSize: Int? = null,
+  val interval: Int? = null,
+)
+
+data class NativeUsbDescriptorSnapshot(
+  val vendorId: Int,
+  val productId: Int,
+  val descriptorBytes: Int,
+  val descriptors: List<NativeUsbDescriptor>,
+  val truncated: Boolean,
+)
+
 data class NativeKeystoreCiphertext(
   val alias: String,
   val ivBase64: String,
@@ -214,6 +233,8 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
     importance: Int,
   ): NativeCapabilityActionResult
   suspend fun getUsbDevices(): List<NativeUsbDevice>
+  suspend fun readUsbDescriptors(handle: String): NativeUsbDescriptorSnapshot =
+    throw UnsupportedOperationException("USB descriptor inspection is unavailable.")
   suspend fun recordAudio(durationMs: Long): String
   suspend fun capturePhoto(): String
   suspend fun setWallpaper(contentUri: String, target: String): NativeCapabilityActionResult
