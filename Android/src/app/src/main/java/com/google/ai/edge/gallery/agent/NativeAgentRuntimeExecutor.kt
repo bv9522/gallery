@@ -32,9 +32,12 @@ import com.google.ai.edge.gallery.agent.coordinator.TermuxRishShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
+import com.google.ai.edge.gallery.agent.capability.ChannelNativeCapabilityAuthorizer
+import com.google.ai.edge.gallery.agent.capability.GalleryMediaLibraryOperations
 import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
+import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.DownloadRepository
 import com.google.ai.edge.gallery.runtime.runtimeHelper
@@ -169,6 +172,7 @@ class NativeAgentRuntimeExecutor(
   private val agentTools: AgentTools,
   private val fallbackExecutor: AgentRuntimeExecutor,
   private val downloadRepository: DownloadRepository? = null,
+  private val customTasks: Set<CustomTask> = emptySet(),
 ) : AgentRuntimeExecutor {
 
   private val stateLock = Any()
@@ -377,6 +381,11 @@ class NativeAgentRuntimeExecutor(
         val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
         val actionChannel = config.actionChannel ?: agentTools.sendActionChannel
         val approval = ChannelShellExecutionApprovalPolicy(actionChannel)
+        val mediaOperations = GalleryMediaLibraryOperations(
+          context = checkNotNull(this@NativeAgentRuntimeExecutor.context),
+          customTasks = customTasks,
+          authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
+        )
         val runtimeTools = AgentToolRegistry(
           listOf(
             UnifiedShellTool(router, approval),
@@ -384,6 +393,7 @@ class NativeAgentRuntimeExecutor(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
               downloadOperations = downloadRepository,
+              mediaOperations = mediaOperations,
             ),
             DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
