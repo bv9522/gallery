@@ -43,11 +43,8 @@ class ArtifactGenerationEngineTest {
       ): ArtifactDestinationWriteResult {
         onWrite()
         val bytes = ByteArrayOutputStream()
-        val mimeType = producer.write(bytes)
-        return ArtifactDestinationWriteResult(
-          "Granted Documents folder",
-          ArtifactOutputMetadata(mimeType, bytes.size().toLong(), "0".repeat(64)),
-        )
+        val metadata = producer.write(bytes)
+        return ArtifactDestinationWriteResult("Granted Documents folder", metadata)
       }
     }
     return DefaultArtifactGenerationEngine(
