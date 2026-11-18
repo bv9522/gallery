@@ -158,7 +158,7 @@ class GalleryMediaLibraryOperations(
     }
 
     pruneExpiredHandles()
-    val visualUsed = visualIndex?.results?.isNotEmpty() == true
+    val visualUsed = visualIndex?.indexAvailable == true
     val visualAvailable = visualIndex?.indexAvailable == true
     val note = when {
       mediaStoreSearch.permissionRequired -> "Android photo/video permission is not granted. Search is limited to any existing visual-index matches and persisted user-granted storage folders; open Smart Album to grant media-library access."
