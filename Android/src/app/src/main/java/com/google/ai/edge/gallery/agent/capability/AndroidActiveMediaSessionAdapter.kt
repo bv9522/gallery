@@ -41,7 +41,7 @@ object ActiveMediaSessionActionPolicy {
           (playbackActions and PlaybackState.ACTION_PLAY_PAUSE) != 0L
       ActiveMediaSessionAction.PAUSE ->
         (playbackActions and PlaybackState.ACTION_PAUSE) != 0L ||
-          playbackActions and PlaybackState.ACTION_PLAY_PAUSE != 0L
+          (playbackActions and PlaybackState.ACTION_PLAY_PAUSE) != 0L
       ActiveMediaSessionAction.NEXT -> (playbackActions and PlaybackState.ACTION_SKIP_TO_NEXT) != 0L
       ActiveMediaSessionAction.PREVIOUS -> (playbackActions and PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L
       ActiveMediaSessionAction.SEEK -> (playbackActions and PlaybackState.ACTION_SEEK_TO) != 0L
@@ -120,7 +120,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
     requireAccess()
     val entry = handles[handle]
       ?: return ActiveMediaSessionControlResult(false, "Session handle is unknown or expired. Run media_sessions list again.")
-    if (entry.expiresAtMs < System.currentTimeMillis()) {
+    if (entry.expiresAtMs < SystemClock.elapsedRealtime()) {
       handles.remove(handle, entry)
       return ActiveMediaSessionControlResult(false, "Session handle expired. Run media_sessions list again.")
     }
