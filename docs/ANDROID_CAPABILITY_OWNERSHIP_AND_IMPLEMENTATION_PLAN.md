@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #43 opened; on-demand active notification reading onboarded; validation deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (PR #44 opened; call-log reading onboarded after notification content read; validation deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-6a-notification-content-read` (stacked on `wave-5d-semantic-text-input`)  
-> **Current change:** [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), draft/open/unmerged, stacked on [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
+> **Current implementation branch:** `wave-6b-call-log-read` (stacked on `wave-6a-notification-content-read`)  
+> **Current change:** [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), draft/open/unmerged, stacked on [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -140,7 +140,9 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 #### 5D — Telephony and user-mediated communication
 - [x] PR #31 local unit tests and Shizuku debug build confirmed by user.
 - [CODE / DEVICE ACCEPTANCE PENDING — PR #31] Non-identifying telephony metadata only (phone type/SIM state); ACTION_DIAL and ACTION_SENDTO SMS composer; user places call or presses Send.
-- [DEFERRED] Call-log reads and SMS inbox reads pending separate restricted-permission/default-role/policy review. No silent calls or SMS sending.
+- [CODE / VALIDATION PENDING — PR #44] `read_call_log` reads at most 20 recent entries with cached caller name/number, call type, timestamp, and duration. Every read requires explicit user intent, one-time `CALL_LOG_READ` approval, and `READ_CALL_LOG` permission requested only after approval. Android/installer eligibility restrictions fail closed; Gallery never changes the default dialer role or bypasses permission policy.
+- [DEFERRED] SMS inbox reads remain pending separate `READ_SMS` restricted-permission/default-role/policy review; no SMS inbox permission is requested by PR #44.
+- [ ] Device-test call-log permission prompt/installer eligibility, denied permission, empty/blocked numbers, ordering, 20-entry cap, and truncation.
 
 #### 5E — Biometric authentication and secure keys
 - [x] PR #32 local unit tests and Shizuku debug build confirmed by user after FragmentActivity host correction.
@@ -237,7 +239,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Bluetooth GATT | CODE / VALIDATION PENDING | PR #26–#27 |
 | Wave 3A contacts/clipboard | CODE / VALIDATION PENDING | PR #28–#29 |
 | Wave 3B notifications/scheduling | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #30 |
-| Wave 3C telephony/user-mediated actions | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #31 |
+| Wave 3C telephony/user-mediated actions | CODE / VALIDATION PENDING; device acceptance pending | PR #31 local tests/build user-confirmed; PR #44 call-log read tests added, not run |
 | Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
@@ -268,6 +270,7 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #36 — user-mediated text and SAF file sharing through Android's ACTION_SEND chooser (**tests added; execution deferred by owner instruction**).
 - PR #37 — active cross-app media-session discovery/control through opt-in notification-listener special access (**tests added; execution deferred by owner instruction**).
 - PR #43 — on-demand active notification content read through the same manually enabled listener (**tests added; execution deferred by owner instruction**).
+- PR #44 — approved bounded call-log read using `READ_CALL_LOG`, requested only after one-time approval and subject to Android/installer eligibility (**tests added; execution deferred by owner instruction**).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
@@ -350,7 +353,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | App launch | Native Kotlin (launch intents) | Implemented |
 | URL open | Native Kotlin (ACTION_VIEW) | Implemented |
 | Contacts read | Native Kotlin (ContactsContract) | Draft in PR #28: scoped name/text search, READ_CONTACTS requested only after approval, maximum 20 results with at most 3 phone numbers and 3 email addresses each; local validation and device acceptance pending |
-| Call-log read | Native Kotlin (CallLog provider) | Planned; restricted permission and privacy review |
+| Call-log read | Native Kotlin (CallLog provider) | Draft in PR #44: last 20 entries, caller name/number, type, timestamp, duration; one-time approval and `READ_CALL_LOG` requested only after approval; Android/installer restrictions fail closed |
 | Telephony/device/network metadata | Native Kotlin (TelephonyManager) | Draft in PR #31: phone type and SIM state only; excludes subscriber IDs, phone numbers, carrier identifiers, and cell-location data; local validation pending |
 | SMS inbox/list | Native Kotlin (Telephony provider where permitted) | Planned; not implemented; Android restricts READ_SMS to qualifying/default SMS roles |
 | SMS compose/send | Native Kotlin (ACTION_SENDTO composer) | Draft in PR #31: scoped approval opens a prefilled composer; user must press Send; no SEND_SMS permission or silent send |
@@ -532,7 +535,7 @@ version compatibility must be verified on-device before an operation is marked i
 - Adds dial_phone through ACTION_DIAL. The exact destination is shown in scoped approval, then Android opens the dialer; the user must review and place the call. No CALL_PHONE permission or direct call is used.
 - Adds compose_sms through ACTION_SENDTO with an smsto: URI and a bounded prefilled message. Scoped approval displays the exact recipient and message; Android opens the SMS composer and the user must press Send. No SEND_SMS permission or silent send is used.
 - Phone numbers are limited to 3–20 digits, an optional leading plus, and common formatting punctuation. SMS composer text is limited to 1,600 characters. Provider discovery checks whether suitable system activities exist and never launches them.
-- Call-log reads and SMS inbox reads remain Planned pending separate permission, default-role, and policy review. No READ_CALL_LOG or READ_SMS permission is declared by this slice.
+- PR #44 adds bounded call-log reads with `READ_CALL_LOG` requested only after one-time approval; Android/installer restrictions fail closed and Gallery does not change the default dialer role. SMS inbox reads remain Planned pending separate `READ_SMS` restricted-permission/default-role/policy review; PR #44 does not request `READ_SMS`.
 
 
 ### Wave 3D — Biometric authentication and Gallery-owned Keystore (PR #32; local validation passed)
