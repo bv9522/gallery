@@ -28,7 +28,7 @@ Every model-independent capability has exactly one selected owner in the capabil
 | Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
-| Semantic UI inspection and future UI automation | Android AccessibilityService | Explicitly enabled service; bounded active-window tree reads; screenshots and UI actions remain separate future slices |
+| Semantic UI inspection, bounded window capture, and future UI automation | Android AccessibilityService | Explicitly enabled service; bounded tree reads and API 34+ window-only screenshots after one-time approval; UI actions remain separate future slices |
 
 Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
 Termux:API is a distinct capability owner only for the bounded command families assigned in the
@@ -70,9 +70,20 @@ The capability catalog assigns exactly one owner to every declared capability. T
 - Traversal is breadth-first, capped at 120 nodes and depth 12. A changing, incomplete, or over-limit tree is rejected in full. Output is limited to 32 semantic elements; each sanitized label is capped at 120 characters.
 - Every editable/password field, sensitive-screen keyword, detected email/phone/long numeric identifier, protected app category, Android Settings/system/permission window, or missing active window blocks the whole inspection. This is a conservative heuristic, not a guarantee that every third-party app labels sensitive content correctly.
 - Results contain semantic roles, bounded labels, basic visible/enabled/selected/checkable state, and random opaque `ui_` handles with a 30-second lifetime. Handles are not coordinates or node IDs and cannot trigger actions in this slice.
-- Package names, resource/view IDs, coordinates, screenshots, hidden/off-screen content, notification text, and editable field values are never returned. No taps, gestures, typing, background monitoring, or screenshots are implemented.
+- Package names, resource/view IDs, coordinates, hidden/off-screen content, notification text, and editable field values are never returned. Screenshots are passed only as bounded multimodal image content to the local model; no screenshot file, taps, gestures, typing, or background monitoring is implemented.
 - The Android Accessibility special-access screen warns about the broad capability Android grants. Gallery does not enable or disable the service automatically; the user manually controls it in Settings. The settings handoff itself requires scoped one-time approval.
 - Pure policy tests were added; all tests/builds and S21 acceptance remain deferred until the capability onboarding campaign is complete.
+
+## Accessibility provider — Wave 5B bounded visual understanding (PR #40 draft)
+
+- Adds `screen_inspect capture` as an explicit one-shot operation. It requires API 34+, manually enabled Gallery AccessibilityService, one-time `SCREEN_CAPTURE` approval, and exactly one visible non-Gallery application window alongside Gallery; split-screen is the expected user arrangement.
+- Interactive application windows are enumerated only during the request. Missing roots, unknown package identity, multiple external windows, no external window, empty/truncated/incomplete hierarchies, sensitive packages, editable/password fields, sensitive text, and detected personal identifiers fail closed.
+- Captures only the selected window ID through `takeScreenshotOfWindow`. It never calls the API 30 display-wide screenshot method, MediaProjection, or any full-display fallback. Older Android versions report unsupported.
+- The screenshot is bounded to 1,280 px on the longest side, 2 MiB JPEG, and a 10-second capture timeout. The hardware buffer and temporary bitmaps are released; no file is written.
+- The agent loop adds a bounded image field to tool results and tool messages. LiteRT-LM receives `Content.ImageBytes` and `Content.ToolResponse` in the same `Message.tool(Contents)`, allowing Gemma to reason over actual screenshot pixels during the tool-result turn. The existing Gemma 4 E2B allowlist declares image support; Gallery already configures the vision backend and uses `Content.ImageBytes` for user attachments.
+- Image budgets reject oversized payloads instead of truncating them. Raw screenshot bytes are zeroed and references removed after inference and on failure/reset/turn-limit paths. LiteRT-LM may retain the visual representation in the in-memory conversation until that conversation is reset; no persistent screenshot file or background capture is created.
+- The heuristic sensitive-screen gate is deliberately conservative but cannot guarantee recognition of every sensitive visual in every third-party app. The approval prompt tells the user to verify the target screen is appropriate. No tap, gesture, typing, or app-switching capability is added.
+- Unit tests are added for multimodal coordinator delivery, image-budget enforcement, and transient-byte erasure. Tests/builds and S21 device acceptance remain deferred under the consolidated validation plan.
 
 ## Remaining capability groups
 
