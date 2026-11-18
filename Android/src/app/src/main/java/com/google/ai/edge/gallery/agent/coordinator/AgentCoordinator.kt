@@ -118,14 +118,10 @@ class AgentCoordinator(
           conversationMessages.toList(),
         )
       } catch (cancelled: CancellationException) {
-        while (conversationMessages.size > previousSize) {
-          conversationMessages.removeAt(conversationMessages.lastIndex)
-        }
+        rollbackTo(previousSize)
         throw cancelled
       } catch (error: Exception) {
-        while (conversationMessages.size > previousSize) {
-          conversationMessages.removeAt(conversationMessages.lastIndex)
-        }
+        rollbackTo(previousSize)
         throw error
       }
     }
@@ -182,8 +178,9 @@ class AgentCoordinator(
     }
     val boundedImage = result.imageBytes?.let(resultBudget::constrainImage)
     val imageRejected = result.imageBytes != null && boundedImage == null
+    if (imageRejected) result.imageBytes?.fill(0)
     val boundedContent = resultBudget.constrain(
-      if (imageRejected) result.content + "\\nImage payload omitted because the multimodal result budget was exceeded."
+      if (imageRejected) result.content + "\nImage payload omitted because the multimodal result budget was exceeded."
       else result.content
     )
     return result.copy(
@@ -191,6 +188,13 @@ class AgentCoordinator(
       isSuccessful = result.isSuccessful && !imageRejected,
       imageBytes = boundedImage,
     )
+  }
+
+  /** Erases image payloads from a failed/cancelled turn before rolling history back. */
+  private fun rollbackTo(previousSize: Int) {
+    while (conversationMessages.size > previousSize) {
+      conversationMessages.removeAt(conversationMessages.lastIndex).toolImageBytes?.fill(0)
+    }
   }
 
   /** Raw screenshot bytes must not remain in coordinator history after LiteRT-LM consumes them. */
