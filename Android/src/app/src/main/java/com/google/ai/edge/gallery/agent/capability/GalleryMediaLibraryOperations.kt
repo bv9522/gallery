@@ -204,9 +204,6 @@ class GalleryMediaLibraryOperations(
     val grantedTreeCount = resolver.persistedUriPermissions.count { permission ->
       DocumentsContract.isTreeUri(permission.uri) && permission.isReadPermission
     }
-    if (!mediaStoreAccess && grantedTreeCount == 0) {
-      throw SecurityException("No readable MediaStore library or persisted storage-folder grant is available.")
-    }
     if (!authorizer.authorize(
         AndroidCapability.MEDIA_SCAN,
         "Build or update Gallery's local visual media index using EmbeddingGemma-2. This analyzes all photos/videos currently permitted through MediaStore and up to $MAX_TREE_INDEX_ASSETS media files across currently read-granted storage folders (grants found: $grantedTreeCount). Indexing may use CPU/GPU resources and run as background work. No media is uploaded."
@@ -221,11 +218,12 @@ class GalleryMediaLibraryOperations(
       0
     }
     val treeScan = scanGrantedTrees(query = null, mediaKind = "ANY", maxMatches = MAX_TREE_INDEX_ASSETS)
-    if (treeScan.assets.isEmpty() && !hasMediaStoreReadAccess()) {
-      throw SecurityException("Gallery has no Android photo/video permission and no media files were found in persisted storage grants. Open Smart Album to grant photo/video access or grant a storage folder through document_tree request_access.")
-    }
     if (treeScan.assets.isNotEmpty()) {
       photoLibrary.addCustomAssets(treeScan.assets)
+    }
+    val availableAssetCount = photoLibrary.fetchAllAssetIdentifiers().size
+    if (availableAssetCount == 0) {
+      throw IllegalStateException("Gallery could not find readable photos or videos to index. Grant photo/video access in Smart Album or select a storage folder through document_tree request_access.")
     }
 
     SmartAlbumIndexingWorker.enqueue(
@@ -242,6 +240,7 @@ class GalleryMediaLibraryOperations(
       append("Visual media indexing was queued using EmbeddingGemma-2. ")
       append("Gallery will reuse its existing Smart Album worker and vector database. ")
       append("MediaStore photos/videos visible: $mediaStoreCount. ")
+      append("Gallery-readable media available to the indexer: $availableAssetCount. ")
       append("User-granted storage files discovered: ${treeScan.assets.size}.")
       if (treeScan.truncated) append(" The storage scan reached its safety limit; some files were not added.")
       append(" Indexing runs in the background; search can use completed records as they become available. ")
