@@ -88,20 +88,20 @@ class ActiveMediaSessionCapabilityTool internal constructor(
     val result = adapter.listActiveSessions()
     if (result.sessions.isEmpty()) return AgentToolResult("No active media sessions with playback state were found.")
     return AgentToolResult(buildString {
-      appendLine("returned=\${result.sessions.size}")
-      appendLine("limit=\${AndroidActiveMediaSessionAdapter.MAX_SESSIONS}")
-      appendLine("truncated=\${result.truncated}")
+      appendLine("returned=${result.sessions.size}")
+      appendLine("limit=${AndroidActiveMediaSessionAdapter.MAX_SESSIONS}")
+      appendLine("truncated=${result.truncated}")
       result.sessions.forEachIndexed { index, session ->
-        appendLine("session=\${index + 1}")
-        appendLine("session_handle=\${session.handle}")
-        appendLine("app=\${session.appLabel}")
+        appendLine("session=${index + 1}")
+        appendLine("session_handle=${session.handle}")
+        appendLine("app=${session.appLabel}")
         session.title?.let { appendLine("title=$it") }
         session.artist?.let { appendLine("artist=$it") }
         session.album?.let { appendLine("album=$it") }
-        appendLine("playback_state=\${session.playbackState}")
+        appendLine("playback_state=${session.playbackState}")
         session.positionMs?.let { appendLine("position_ms=$it") }
         session.durationMs?.let { appendLine("duration_ms=$it") }
-        appendLine("supported_actions=\${session.supportedActions.joinToString(",")}")
+        appendLine("supported_actions=${session.supportedActions.joinToString(",")}")
       }
       if (result.truncated) appendLine("note=Additional sessions may be active; only the first 10 were returned.")
     }.trimEnd())
@@ -113,9 +113,9 @@ class ActiveMediaSessionCapabilityTool internal constructor(
     val position = arguments.get("position_ms")?.asLong
     val summary = adapter.describeHandle(handle)
       ?: return AgentToolResult("Session handle is unknown or expired. Run media_sessions list again.", false)
-    val detail = "Dispatch \${action.name} to \${summary.appLabel}" +
+    val detail = "Dispatch ${action.name} to ${summary.appLabel}" +
       (summary.title?.let { " — $it" } ?: "") +
-      if (action == ActiveMediaSessionAction.SEEK) " at \${position} ms." else "."
+      if (action == ActiveMediaSessionAction.SEEK) " at ${position} ms." else "."
     if (!authorizer.authorize(AndroidCapability.MEDIA_SESSION_CONTROL, detail)) {
       return AgentToolResult("Media-session control was not approved.", false)
     }
@@ -183,7 +183,7 @@ internal object MediaSessionArguments {
         if (position == null || !position.isJsonPrimitive || !position.asJsonPrimitive.isNumber) {
           return "SEEK requires integer position_ms."
         }
-        if (position.asLong < 0L) return "position_ms must be zero or greater."
+        if (position.asString.toLongOrNull()?.let { it < 0L } != false) return "position_ms must be zero or greater."
       } else if (position != null) {
         return "position_ms is accepted only with SEEK."
       }
