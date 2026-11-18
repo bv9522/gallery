@@ -31,7 +31,7 @@ class ArtifactGenerationTool(
       "Shell destinations require an explicit TERMUX or SHIZUKU backend and an absolute path accessible to that identity. TERMUX_RISH binary output is unavailable until remote stdin forwarding is verified. " +
       "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
       "Local image operations are bounded on-device resize/crop/rotate/convert/compose/annotate. Image generation uses a configured provider: Firebase Gemini remote generation is available only when Firebase is configured and always requires one-time disclosure and approval before prompt/source upload; no on-device generative provider is registered. " +
-      "PDF and DOCX accept up to four embedded SAF images per document; PPTX accepts one per slide and four per presentation. Embedded sources must be selected from a persisted Gallery read grant."
+      "PDF accepts up to eight embedded SAF images per document; DOCX accepts four per document; PPTX accepts one per slide and four per presentation. Embedded sources must be selected from a persisted Gallery read grant."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
