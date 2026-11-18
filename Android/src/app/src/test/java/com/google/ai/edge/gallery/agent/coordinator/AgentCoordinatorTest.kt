@@ -21,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -250,6 +251,75 @@ class AgentCoordinatorTest {
     val result = coordinator.run("Read the large result.")
 
     assertEquals(AgentRunStatus.COMPLETED, result.status)
+  }
+
+  @Test
+  fun multimodalToolImageIsPassedToModelAndErasedAfterPrefill() = runBlocking {
+    val imageBytes = byteArrayOf(1, 2, 3, 4)
+    val imageTool = object : AgentTool {
+      override val name = "capture"
+      override val description = "Capture a bounded image."
+      override suspend fun execute(arguments: JsonObject) =
+        AgentToolResult("Screenshot attached.", imageBytes = imageBytes)
+    }
+    var turn = 0
+    var modelObservedBytes: ByteArray? = null
+    val model = AgentModel { history ->
+      turn++
+      if (turn == 1) {
+        AgentModelResponse.ToolCall("capture", JsonObject(), "capture-1")
+      } else {
+        val toolMessage = history.last()
+        assertEquals(AgentMessage.Role.TOOL, toolMessage.role)
+        assertTrue(toolMessage.toolImageBytes!!.contentEquals(byteArrayOf(1, 2, 3, 4)))
+        modelObservedBytes = toolMessage.toolImageBytes
+        AgentModelResponse.FinalAnswer("I inspected the screenshot.")
+      }
+    }
+
+    val result = AgentCoordinator(model, AgentToolRegistry(listOf(imageTool)))
+      .run("Describe the visible app.")
+
+    assertEquals(AgentRunStatus.COMPLETED, result.status)
+    assertTrue(imageBytes.all { it == 0.toByte() })
+    assertTrue(modelObservedBytes!!.all { it == 0.toByte() })
+    assertNull(result.messages.single { it.role == AgentMessage.Role.TOOL }.toolImageBytes)
+  }
+
+  @Test
+  fun overBudgetImageIsRejectedAndErasedBeforeModelReceivesToolResult() = runBlocking {
+    val imageBytes = byteArrayOf(1, 2, 3, 4)
+    val imageTool = object : AgentTool {
+      override val name = "capture"
+      override val description = "Capture an image."
+      override suspend fun execute(arguments: JsonObject) =
+        AgentToolResult("Screenshot attached.", imageBytes = imageBytes)
+    }
+    var turn = 0
+    val model = AgentModel { history ->
+      turn++
+      if (turn == 1) {
+        AgentModelResponse.ToolCall("capture", JsonObject(), "capture-2")
+      } else {
+        val toolMessage = history.last()
+        assertNull(toolMessage.toolImageBytes)
+        assertFalse(toolMessage.toolSucceeded == true)
+        assertTrue(toolMessage.content.contains("image budget"))
+        AgentModelResponse.FinalAnswer("The image was rejected.")
+      }
+    }
+
+    val result = AgentCoordinator(
+      model = model,
+      tools = AgentToolRegistry(listOf(imageTool)),
+      resultBudget = AgentToolResultBudget(
+        maxImageBytesPerTool = 3,
+        maxImageBytesPerTurn = 3,
+      ),
+    ).run("Inspect this image.")
+
+    assertEquals(AgentRunStatus.COMPLETED, result.status)
+    assertTrue(imageBytes.all { it == 0.toByte() })
   }
 
   private fun testTool(toolName: String) = object : AgentTool {
