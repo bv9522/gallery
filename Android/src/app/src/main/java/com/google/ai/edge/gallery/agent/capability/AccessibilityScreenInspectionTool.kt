@@ -450,10 +450,10 @@ internal object AccessibilityScreenInspectionArguments {
     }
     if (operation == "select_text") {
       val startValue = arguments.get("selection_start")
-        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asString?.toIntOrNull()
         ?: return "select_text requires integer selection_start."
       val endValue = arguments.get("selection_end")
-        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asString?.toIntOrNull()
         ?: return "select_text requires integer selection_end."
       if (
         startValue < 0 ||
