@@ -143,11 +143,7 @@ internal class ArtifactImageSourceLoader(context: Context) {
           width = bitmapForOutput.width,
           height = bitmapForOutput.height,
           altText = request.altText.ifBlank {
-            metadata.first.filter { char ->
-              val code = char.code
-              code == 0x9 || code == 0xA || code == 0xD ||
-                code in 0x20..0xD7FF || code in 0xE000..0xFFFD || code in 0x10000..0x10FFFF
-            }.take(MAX_ALT_TEXT_CHARS).ifBlank { "Embedded image" }
+            sanitizeXml10Text(metadata.first).take(MAX_ALT_TEXT_CHARS).ifBlank { "Embedded image" }
           },
         )
       } finally {
@@ -158,6 +154,18 @@ internal class ArtifactImageSourceLoader(context: Context) {
     } finally {
       if (!oriented.isRecycled) oriented.recycle()
       if (decoded !== oriented && !decoded.isRecycled) decoded.recycle()
+    }
+  }
+
+  private fun sanitizeXml10Text(value: String): String = buildString(value.length) {
+    var index = 0
+    while (index < value.length) {
+      val codePoint = value.codePointAt(index)
+      val valid = codePoint == 0x9 || codePoint == 0xA || codePoint == 0xD ||
+        codePoint in 0x20..0xD7FF || codePoint in 0xE000..0xFFFD ||
+        codePoint in 0x10000..0x10FFFF
+      if (valid) appendCodePoint(codePoint)
+      index += Character.charCount(codePoint)
     }
   }
 
