@@ -482,7 +482,7 @@ class GalleryMediaLibraryOperations(
     private const val MAX_TREE_DEPTH = 8
     private const val MAX_TREE_VISITED_NODES = 10_000
     private const val MAX_TREE_SEARCH_MATCHES = 100
-    private const val MAX_TREE_INDEX_ASSETS = 5_000
+    private const val MAX_TREE_INDEX_ASSETS = 1_000
     private const val MAX_STORED_HANDLES = 100
     private const val HANDLE_TTL_MS = 5 * 60 * 1_000L
     private const val MAX_DURATION_MS = 24 * 60 * 60 * 1_000L
