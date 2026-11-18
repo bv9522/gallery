@@ -540,9 +540,18 @@ class AndroidNativeCapabilityAdapter(
       }
       else -> ProviderAvailability.AVAILABLE
     }
-    capabilities[AndroidCapability.SMS_READ] = ProviderAvailability.UNSUPPORTED
-    details[AndroidCapability.SMS_READ] =
-      "SMS inbox access is not implemented; Android restricts READ_SMS to qualifying/default SMS roles."
+    capabilities[AndroidCapability.SMS_READ] = when {
+      !hasTelephony -> {
+        details[AndroidCapability.SMS_READ] = "This device does not expose telephony SMS inbox access."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !hasRuntimePermission(Manifest.permission.READ_SMS) -> {
+        details[AndroidCapability.SMS_READ] =
+          "READ_SMS permission is required; discovery did not request it. Android/installer or default-role eligibility may restrict access."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
 
     val notificationManager = appContext.getSystemService(NotificationManager::class.java)
     val notificationsEnabled = NotificationManagerCompat.from(appContext).areNotificationsEnabled()
@@ -1273,6 +1282,61 @@ class AndroidNativeCapabilityAdapter(
     val notificationId = UUID.randomUUID().toString().hashCode()
     manager.notify(notificationId, notification)
     return NativeCapabilityActionResult(true, "Notification posted with ID $notificationId.")
+  }
+
+  override suspend fun readSmsInbox(): NativeSmsInboxSnapshot {
+    if (!authorizer.authorize(
+        AndroidCapability.SMS_READ,
+        "Read up to $MAX_SMS_INBOX_ITEMS recent received SMS inbox entries, including sender address/number, message text preview, timestamp, and read/unread state. SMS content is private. Android may deny READ_SMS to apps that are not eligible for this restricted permission.",
+      )
+    ) {
+      throw SecurityException("SMS inbox reading was not approved.")
+    }
+    ensureRuntimePermission(Manifest.permission.READ_SMS)
+    return withContext(Dispatchers.IO) {
+      val projection = arrayOf(
+        android.provider.Telephony.Sms.ADDRESS,
+        android.provider.Telephony.Sms.BODY,
+        android.provider.Telephony.Sms.DATE,
+        android.provider.Telephony.Sms.READ,
+      )
+      val cursor = appContext.contentResolver.query(
+        android.provider.Telephony.Sms.Inbox.CONTENT_URI,
+        projection,
+        null,
+        null,
+        "${android.provider.Telephony.Sms.DATE} DESC LIMIT ${MAX_SMS_INBOX_ITEMS + 1}",
+      ) ?: throw IllegalStateException("Android could not read the SMS inbox.")
+      cursor.use { rows ->
+        val entries = mutableListOf<NativeSmsInboxEntry>()
+        var truncated = false
+        val senderIndex = rows.getColumnIndexOrThrow(android.provider.Telephony.Sms.ADDRESS)
+        val bodyIndex = rows.getColumnIndexOrThrow(android.provider.Telephony.Sms.BODY)
+        val dateIndex = rows.getColumnIndexOrThrow(android.provider.Telephony.Sms.DATE)
+        val readIndex = rows.getColumnIndexOrThrow(android.provider.Telephony.Sms.READ)
+        while (rows.moveToNext()) {
+          if (entries.size >= MAX_SMS_INBOX_ITEMS) {
+            truncated = true
+            break
+          }
+          val date = rows.getLong(dateIndex)
+          if (date <= 0L) continue
+          entries += NativeSmsInboxEntry(
+            sender = NotificationContentPolicy.sanitize(
+              rows.getString(senderIndex),
+              MAX_SMS_SENDER_CHARS,
+            ),
+            bodyPreview = NotificationContentPolicy.sanitize(
+              rows.getString(bodyIndex),
+              MAX_SMS_BODY_PREVIEW_CHARS,
+            ),
+            dateMs = date,
+            isRead = rows.getInt(readIndex) != 0,
+          )
+        }
+        NativeSmsInboxSnapshot(entries = entries, truncated = truncated)
+      }
+    }
   }
 
   override suspend fun readCallLog(): NativeCallLogSnapshot {
@@ -2491,6 +2555,9 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
     const val MAX_NOTIFICATION_CHANNELS = 20
     const val MAX_ACTIVE_NOTIFICATIONS = 50
+    const val MAX_SMS_INBOX_ITEMS = 20
+    const val MAX_SMS_SENDER_CHARS = 64
+    const val MAX_SMS_BODY_PREVIEW_CHARS = 240
     const val MAX_CALL_LOG_ITEMS = 20
     const val MAX_CALL_LOG_NAME_CHARS = 80
     const val MAX_CALL_LOG_NUMBER_CHARS = 32
