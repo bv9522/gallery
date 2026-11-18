@@ -117,6 +117,7 @@ class AndroidNativeCapabilityTool internal constructor(
   private val speechAuthorizer: NativeCapabilityAuthorizer? = null,
   private val downloadOperations: AgentDownloadOperations? = null,
   private val downloadAuthorizer: NativeCapabilityAuthorizer? = null,
+  private val mediaOperations: GalleryMediaLibraryOperations? = null,
 ) : AgentTool {
   private val issuedDownloadSnapshots = ConcurrentHashMap<String, AgentDownloadSnapshot>()
 
@@ -125,6 +126,7 @@ class AndroidNativeCapabilityTool internal constructor(
     actionChannel: SendChannel<ToolAction>,
     registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
     downloadOperations: AgentDownloadOperations? = null,
+    mediaOperations: GalleryMediaLibraryOperations? = null,
   ) : this(
     AndroidNativeCapabilityAdapter(
       context = context.applicationContext,
@@ -138,6 +140,7 @@ class AndroidNativeCapabilityTool internal constructor(
     ChannelNativeCapabilityAuthorizer(actionChannel),
     downloadOperations,
     ChannelNativeCapabilityAuthorizer(actionChannel),
+    mediaOperations,
   )
 
   override val name: String = "android_control"
@@ -151,7 +154,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
       "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
-      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, download_status, cancel_download. " +
+      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, download_status, cancel_download, media_search, media_index. " +
       "download_status returns at most 20 active Gallery model downloads with short-lived opaque handles. " +
       "cancel_download requires a handle from the latest status result and one-time approval for that exact download. " +
       "No worker IDs, tags, URLs, tokens, or filesystem paths are exposed. Notifications " +
@@ -178,9 +181,19 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "download_status", "cancel_download", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index",
             ).forEach { add(it) }
           })
+        })
+        add("media_kind", JsonObject().apply {
+          addProperty("type", "string")
+          add("enum", JsonArray().apply { listOf("ANY", "IMAGE", "VIDEO").forEach { add(it) } })
+          addProperty("description", "Optional media filter for media_search; defaults to ANY.")
+        })
+        add("search_mode", JsonObject().apply {
+          addProperty("type", "string")
+          add("enum", JsonArray().apply { listOf("AUTO", "NAME", "VISUAL").forEach { add(it) } })
+          addProperty("description", "AUTO combines visual and filename search, NAME searches filenames only, VISUAL requests semantic visual search.")
         })
         add("download_handle", JsonObject().apply {
           addProperty("type", "string")
@@ -370,6 +383,8 @@ class AndroidNativeCapabilityTool internal constructor(
         "status" -> status()
         "download_status" -> downloadStatus()
         "cancel_download" -> cancelDownload(arguments)
+        "media_search" -> mediaSearch(arguments)
+        "media_index" -> mediaIndex()
         "device_info" -> read(AndroidCapability.DEVICE_INFO) {
           NativeCapabilityResultFormatter.deviceInfo(adapter.getDeviceInfo())
         }
@@ -682,6 +697,37 @@ class AndroidNativeCapabilityTool internal constructor(
     }
   }
 
+  private suspend fun mediaSearch(arguments: JsonObject): AgentToolResult {
+    val operations = mediaOperations ?: return failure("Gallery media search is unavailable.")
+    val unavailable = availabilityFailure(AndroidCapability.MEDIA_SCAN)
+    if (unavailable != null) return unavailable
+    val query = arguments.string("query") ?: return failure("media_search requires query.")
+    val mediaKind = arguments.string("media_kind") ?: "ANY"
+    val mode = arguments.string("search_mode") ?: "AUTO"
+    val limit = if (arguments.has("limit")) {
+      arguments.int("limit") ?: return failure("media_search limit must be an integer.")
+    } else GalleryMediaLibraryOperations.DEFAULT_RESULT_LIMIT
+    return try {
+      AgentToolResult(Gson().toJson(operations.search(query, mediaKind, mode, limit)))
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      failure(error.message ?: "Media search failed.")
+    }
+  }
+
+  private suspend fun mediaIndex(): AgentToolResult {
+    val operations = mediaOperations ?: return failure("Gallery media indexing is unavailable.")
+    val unavailable = availabilityFailure(AndroidCapability.MEDIA_SCAN)
+    if (unavailable != null) return unavailable
+    return try {
+      AgentToolResult(operations.startIndexing())
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      failure(error.message ?: "Media indexing could not be started.")
+    }
+  }
   private suspend fun downloadStatus(): AgentToolResult {
     val operations = downloadOperations
       ?: return failure("Gallery download management is unavailable.")
@@ -767,6 +813,7 @@ class AndroidNativeCapabilityTool internal constructor(
           capabilityAvailability =
             observation.capabilityAvailability +
               (AndroidCapability.DOWNLOAD_MANAGEMENT to downloadAvailability),
+              (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED),
         )
       )
     )
@@ -792,7 +839,10 @@ class AndroidNativeCapabilityTool internal constructor(
 
   private suspend fun availabilityFailure(capability: AndroidCapability): AgentToolResult? {
     val observation = adapter.inspect()
-    val resolution = registry.resolve(capability, listOf(observation))
+    val capabilityAvailability = observation.capabilityAvailability +
+      (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED)
+    val routedObservation = observation.copy(capabilityAvailability = capabilityAvailability)
+    val resolution = registry.resolve(capability, listOf(routedObservation))
     if (resolution.selectedProviderId == CapabilityProviderId.ANDROID_NATIVE) return null
     val detail = resolution.candidates.firstOrNull()?.detail
     return failure(
