@@ -4,10 +4,7 @@
  */
 package com.google.ai.edge.gallery.agent.capability
 
-import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
-import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.JsonObject
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,7 +18,7 @@ class AccessibilityControlCapabilityToolTest {
     val tool = AccessibilityControlCapabilityTool(access, FakeAuthorizer(approved = false))
     val result = tool.execute(args("status"))
 
-    assertFalse(!result.isSuccessful)
+    assertTrue(result.isSuccessful)
     assertTrue(result.content.contains("disabled"))
     assertEquals(0, access.openCount)
   }
@@ -32,8 +29,8 @@ class AccessibilityControlCapabilityToolTest {
     val result = AccessibilityControlCapabilityTool(access, FakeAuthorizer(true))
       .execute(args("status"))
 
-    assertFalse(result.isError)
-    assertTrue(result.text.contains("enabled"))
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("enabled"))
     assertTrue(result.text.contains("does not inspect"))
   }
 
@@ -43,7 +40,7 @@ class AccessibilityControlCapabilityToolTest {
     val result = AccessibilityControlCapabilityTool(access, FakeAuthorizer(false))
       .execute(args("open_settings"))
 
-    assertTrue(result.isError)
+    assertFalse(result.isSuccessful)
     assertEquals(0, access.openCount)
   }
 
@@ -61,7 +58,7 @@ class AccessibilityControlCapabilityToolTest {
   @Test
   fun unknownArgumentsAndOperationsAreRejected() = runBlocking {
     val tool = AccessibilityControlCapabilityTool(FakeAccess(false), FakeAuthorizer(true))
-    assertTrue(tool.execute(args("status").apply { addProperty("extra", true) }).isSuccessful)
+    assertFalse(tool.execute(args("status").apply { addProperty("extra", true) }).isSuccessful)
     assertFalse(tool.execute(args("tap")).isSuccessful)
   }
 
