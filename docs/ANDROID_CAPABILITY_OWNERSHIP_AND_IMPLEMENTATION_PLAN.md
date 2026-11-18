@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #33 local validation confirmed)  
+> **Last reconciled:** 2026-11-17 (Wave 3E media discovery/playback implementation added; per-slice test/build execution deferred)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-3e-gallery-download-management` (documentation checkpoint stacked on `wave-3e-media-sharing-tts`)  
-> **Current change:** [PR #34 — Wave 3E: define safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), draft/open; PR #33 remains open beneath it.  
+> **Current implementation branch:** `wave-3e-media-library-playback` (stacked on `wave-3e-gallery-download-management`)  
+> **Current change:** Wave 3E media search/indexing/Gallery-owned playback, stacked on [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34); media PR #35 is being prepared. PRs #33–#34 remain draft/open/unmerged.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -25,6 +25,8 @@
 A PR being open, a commit existing, or code compiling is never by itself proof of device acceptance. All implementation PRs
 remain draft/open/unmerged until explicitly approved for integration. No PR is to be merged or closed without the owner's
 explicit approval.
+
+**Owner-directed validation deferral (2026-11-17):** continue implementing capability slices and add their tests, but do not run Gradle tests, builds, or S21/device acceptance per slice. Save execution of the accumulated test suite and builds until all planned capabilities are onboarded. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
 
 **Progress-update rule:** after every implementation slice, update (1) this ledger, (2) the capability row/status in the
 ownership matrix, (3) the provider matrix if ownership/readiness changed, and (4) the relevant PR description. Record the
@@ -145,12 +147,13 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [ ] Device-test strong biometric prompt, cancel/failure paths, hardware-backed key availability, enrollment invalidation, key deletion, and ciphertext recovery expectations.
 
 #### 5F — Downloads, media, and sharing (remaining Wave 3E)
-- [ ] Gallery-owned download creation, status/progress, cancellation, and bounded result reporting; choose DownloadManager vs app-owned downloader based on lifecycle needs.
-- [ ] Media scan/index lookup through MediaScannerConnection/MediaStore; bounded query and permission behavior.
-- [ ] Gallery-initiated media playback through existing Gallery media infrastructure; define start/stop/status/error semantics.
-- [ ] Active media-session discovery/control as a distinct capability from Gallery-initiated playback; report unavailable unless the user explicitly grants any required notification-listener special access.
+- [x] Gallery-owned download status/progress and exact-worker cancellation through the existing DownloadRepository/WorkManager path (PR #34); bounded opaque handles and scoped cancellation approval. User confirmed the local unit-test task and Shizuku debug build passed; device acceptance remains pending.
+- [IN PROGRESS — media branch / PR #35 being prepared] Bounded `media_search` across MediaStore-visible internal/removable media and persisted user-granted SAF trees. AUTO combines filename search with the existing EmbeddingGemma-2 Smart Album visual index; NAME is filename-only; VISUAL requests semantic visual search. Results contain five-minute opaque handles, not paths or content URIs.
+- [IN PROGRESS — media branch / PR #35 being prepared] `media_index` reuses the existing SmartAlbumIndexingWorker and EmbeddingGemma-2 vector database. It indexes permitted MediaStore photos/videos and up to 1,000 media files discovered per pass in already-granted SAF trees; indexing requires one-time approval and remains on-device. SAF discovery is bounded to depth 8 / 10,000 visited nodes.
+- [IN PROGRESS — media branch / PR #35 being prepared] `media_play` requires a fresh search handle and one-time approval, then opens the selected video in Gallery's own Media3 player. It does not launch an external ACTION_VIEW intent and does not expose cross-app media-session controls.
+- [ ] Active media-session discovery/control remains distinct from Gallery-initiated playback; do not expose it unless the user explicitly grants any required notification-listener special access.
 - [ ] User-mediated text/file sharing through ACTION_SEND/chooser; user selects target app and completes share.
-- [ ] Local tests, documentation, and device acceptance for each operation.
+- [ ] Add/maintain tests and documentation for each operation. Per-slice test/build execution is deferred until all capability onboarding is complete; consolidated S21 acceptance remains later.
 
 **Wave 3 exit gate:** all Gallery-owned capabilities have a single owner, scoped approval/permission contract, bounded lifecycle, local validation,
 and documented device-acceptance plan. Sensitive capabilities not meeting the gate remain unavailable rather than being silently broadened.
