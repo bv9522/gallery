@@ -50,6 +50,32 @@ class AgentToolResultBudgetTest {
   }
 
   @Test
+  fun imagePayloadIsAcceptedOnlyWithinPerToolAndPerTurnLimits() {
+    val budget = AgentToolResultBudget(
+      maxImageBytesPerTool = 4,
+      maxImageBytesPerTurn = 5,
+    )
+    val first = byteArrayOf(1, 2, 3, 4)
+    val second = byteArrayOf(5, 6)
+
+    assertTrue(budget.constrainImage(first) === first)
+    assertTrue(budget.constrainImage(second) == null)
+    assertTrue(budget.constrainImage(byteArrayOf(7, 8, 9, 10, 11)) == null)
+  }
+
+  @Test
+  fun imageBudgetResetsForTheNextUserTurn() {
+    val budget = AgentToolResultBudget(
+      maxImageBytesPerTool = 4,
+      maxImageBytesPerTurn = 4,
+    )
+    budget.constrainImage(byteArrayOf(1, 2, 3, 4))
+    budget.reset()
+
+    assertTrue(budget.constrainImage(byteArrayOf(5, 6, 7, 8)) != null)
+  }
+
+  @Test
   fun budgetResetsForTheNextUserTurn() {
     val budget = AgentToolResultBudget(maxCharsPerTool = 80, maxCharsPerTurn = 80)
     budget.constrain("a".repeat(80))
