@@ -69,8 +69,12 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
       inSampleSize = sampleSize
       inPreferredConfig = Bitmap.Config.ARGB_8888
     }
-    var current = openBounded(sourceUri).use { BitmapFactory.decodeStream(it, null, options) }
-      ?: throw IllegalArgumentException("Android could not decode the selected image.")
+    var current = try {
+      openBounded(sourceUri).use { BitmapFactory.decodeStream(it, null, options) }
+        ?: throw IllegalArgumentException("Android could not decode the selected image.")
+    } catch (memory: OutOfMemoryError) {
+      throw IllegalStateException("Insufficient memory to decode the bounded source image.", memory)
+    }
     try {
       if (transform.cropWidth != null) {
         val scaleX = bounds.outWidth.toDouble() / current.width
@@ -119,6 +123,8 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
         if (bitmapForOutput !== current) bitmapForOutput.recycle()
       }
       return outputMime
+    } catch (memory: OutOfMemoryError) {
+      throw IllegalStateException("Insufficient memory to complete the bounded image transform.", memory)
     } finally {
       current.recycle()
     }
