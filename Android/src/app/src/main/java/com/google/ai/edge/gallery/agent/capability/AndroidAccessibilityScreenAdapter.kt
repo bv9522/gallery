@@ -108,6 +108,80 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
     }
   }
 
+  /**
+   * Captures one external visible app window only after its accessibility hierarchy passes the
+   * existing sensitive-screen policy. The same package/window must still be uniquely visible after
+   * capture; otherwise the image is erased and rejected.
+   */
+  suspend fun captureExternalWindow(): Result<ByteArray> = withContext(Dispatchers.Main.immediate) {
+    handles.clear()
+    if (android.os.Build.VERSION.SDK_INT < 34) {
+      return@withContext Result.failure(
+        UnsupportedOperationException(
+          "Window-specific screenshots require Android API 34 or newer. Full-display capture is not used."
+        )
+      )
+    }
+    if (enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return@withContext Result.failure(
+        IllegalStateException("Gallery accessibility service is not enabled and connected.")
+      )
+    }
+    val service = AccessibilityServiceInstance.current
+      ?: return@withContext Result.failure(
+        IllegalStateException("Gallery accessibility service disconnected before capture.")
+      )
+    val before = service.inspectExternalVisibleWindow()
+    val target = before as? AccessibilityWindowSnapshot.Ready
+      ?: return@withContext Result.failure(
+        IllegalStateException(
+          when (before) {
+            is AccessibilityWindowSnapshot.Excluded -> "Screen capture blocked: ${before.reason}"
+            is AccessibilityWindowSnapshot.Unavailable -> before.reason
+            else -> "The external screen could not be safely classified."
+          }
+        )
+      )
+    if (target.elements.isEmpty() || target.truncated) {
+      return@withContext Result.failure(
+        IllegalStateException(
+          "The visible app window has no complete, safely classifiable accessibility hierarchy; capture was blocked."
+        )
+      )
+    }
+    val windowIds = target.elements.map { it.windowId }.distinct()
+    if (windowIds.size != 1) {
+      return@withContext Result.failure(
+        IllegalStateException("The visible app window identity is inconsistent; capture was blocked.")
+      )
+    }
+    val windowId = windowIds.single()
+    val imageBytes = service.captureWindowJpeg(windowId).getOrElse { error ->
+      return@withContext Result.failure(error)
+    }
+    val after = service.inspectExternalVisibleWindow()
+    val stillSameWindow = after is AccessibilityWindowSnapshot.Ready &&
+      after.packageName == target.packageName &&
+      !after.truncated &&
+      after.elements.isNotEmpty() &&
+      after.elements.map { it.windowId }.distinct() == listOf(windowId)
+    if (
+      AccessibilityServiceInstance.current !== service ||
+      enabledServiceAvailability() != ProviderAvailability.AVAILABLE ||
+      !stillSameWindow ||
+      imageBytes.isEmpty() ||
+      imageBytes.size > GalleryAccessibilityService.MAX_SCREENSHOT_BYTES
+    ) {
+      imageBytes.fill(0)
+      return@withContext Result.failure(
+        IllegalStateException(
+          "The target window changed or could not be revalidated after capture; the screenshot was discarded."
+        )
+      )
+    }
+    Result.success(imageBytes)
+  }
+
   fun isHandleFresh(handle: String): Boolean {
     if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) return false
     val fingerprint = handles[handle] ?: return false
