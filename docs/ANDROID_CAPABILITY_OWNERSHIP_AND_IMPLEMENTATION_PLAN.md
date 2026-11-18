@@ -5,12 +5,11 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #46 opened; read-only USB descriptor inspection onboarded after notification, call-log, and SMS reads; validation deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (PR #47 adds the user-mediated Wi-Fi settings handoff; source-level ownership audit reconciled; validation remains deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-6d-usb-descriptor-io` (stacked on `wave-6c-sms-inbox-read`)  
+> **Current implementation branch:** `wave-6e-wifi-settings-handoff-and-ownership-audit` (stacked on `wave-6d-usb-descriptor-io`)  
 > **Current change:** [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), draft/open/unmerged, stacked on [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
-> **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
-> Waves 1–5 implementation and the final ownership audit are complete.
+> **Overall state:** The four optional capability families are onboarded in draft PRs #43–#46. The Wi-Fi settings handoff and source-level ownership reconciliation are in PR #47. Do not begin consolidated S21 acceptance until PR #47 and the final documentation audit are complete.
 
 ## How to read and maintain this roadmap
 
@@ -95,8 +94,9 @@ The finished system must have:
 - [x] Record the official Termux:API command inventory and decide which commands are reused, replaced by native APIs, or not exposed.
 - [x] Separate shell path-based filesystem operations from Gallery-owned SAF document-tree operations.
 - [x] Audit speech, notification, telephony, biometric, and media ownership to prevent duplicate routes.
-- [ ] Final audit across every catalog ID against implementation, Android permission, provider discovery, approval, and actual device behavior.
-- [ ] Remove or explicitly label any transitional diagnostics/legacy routes that no longer belong to the selected owner.
+- [x] Source-level ownership audit: every AndroidCapability enum value is assigned exactly one provider by CapabilityCatalog; CapabilityRegistry rejects missing owners, duplicate owners, duplicate declarations, and unknown provider mappings.
+- [x] Reconcile known transitional diagnostics/legacy routes; Termux:API battery/volume/flashlight overlap remains diagnostic-only, with native ownership retained.
+- [ ] Verify permission timing, approval behavior, provider discovery, and actual device behavior during consolidated S21 acceptance (Stage 8).
 
 **Historical PR trail:** PRs #12–#15 establish Termux:API, catalog ownership, native system capabilities, and ownership rebalance; PR #29
 reconciles readiness and ownership. Ownership documentation is maintained in this file and the provider matrix.
@@ -111,7 +111,7 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [CODE / VALIDATION PENDING] Native Bluetooth bonded-device listing and bounded BLE scan; native USB host device/interface enumeration (PR #20).
 - [CODE / VALIDATION PENDING — PR #46] Read-only USB device/configuration/interface/endpoint descriptor inspection using a fresh 30-second one-shot handle, per-device Android USB permission prompt, and separate `USB_DEVICE_IO` approval. No arbitrary endpoint transfers or writes are exposed; USB mass storage remains on SAF.
 - [CODE / VALIDATION PENDING] Native Bluetooth GATT service/characteristic inspection and bounded one-shot read/write (PRs #26–#27).
-- [ ] Decide and implement user-mediated Wi-Fi enable/settings flow if still required; do not promise forbidden silent toggles.
+- [CODE / VALIDATION PENDING — PR #47] wifi_open_settings uses Settings.Panel.ACTION_WIFI with Settings.ACTION_WIFI_SETTINGS fallback, requires one-time WIFI_CONTROL approval, and leaves the actual Wi-Fi change to the user. No silent toggle or privileged fallback is attempted.
 - [ ] Verify every selected Termux:API command exists on the installed companion/package version, has correct permission behavior, bounded output, and cleanup.
 - [ ] Device-test Bluetooth permission states, scan cancellation, GATT compatibility, NFC tag UX, infrared hardware availability, sensor/location/Wi-Fi data quality, USB enumeration, per-device USB permission prompt/denial, descriptor reads, device disconnect/reconnect, and handle expiry.
 
@@ -181,11 +181,11 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 - [x] Define the opt-in AccessibilityService contract, manual enable/disable lifecycle, and explicit settings handoff.
 - [x] Implement bounded, explicitly approved window-specific screenshot capture and multimodal Gemma handoff (Wave 5B / PR #40 draft; validation deferred).
 - [x] Implement read-only semantic UI tree inspection with bounded traversal, sanitized labels, opaque short-lived element handles, and sensitive-screen exclusions (PR #39 draft; validation deferred).
-- [IN PROGRESS — PR #41] Add semantic click, long-click, and forward/backward scroll through fresh opaque handles, exact external-window/node revalidation, and one-time approval for each action. Swipe/coordinate gestures remain a separate future slice.
-- [IN PROGRESS — PR #42] Add plain-text-only entry into empty ordinary single-line fields and explicit bounded text selection through one-shot handles, exact app/window/node revalidation, and separate UI_TEXT_INPUT approval.
+- [x] CODE COMPLETE — PR #41 adds approved semantic click, long-click, and forward/backward scroll through fresh opaque handles, exact external-window/node revalidation, and one-time approval for each action. Coordinate gestures remain on the existing unified shell route only when explicitly requested/authorized.
+- [x] CODE COMPLETE — PR #42 adds plain-text-only entry into empty ordinary single-line fields and explicit bounded text selection through one-shot handles, exact app/window/node revalidation, and separate UI_TEXT_INPUT approval.
 - [ ] Keep coordinate gesture fallback on the existing unified shell route only when explicitly requested/authorized; do not duplicate semantic operations.
-- [IN PROGRESS — PR #41] Per-action approval, one-shot handle consumption, stale-node rejection, app/window identity checks, and sensitive/incomplete hierarchy exclusions are implemented for click/long-click/scroll.
-- [IN PROGRESS — PR #42] Text entry is limited to empty ordinary single-line plain-text EditText fields (maximum 256 characters); selection uses explicit end-exclusive character offsets. Current field contents are not returned. Password, numeric, email, URI, multiline, sensitive, and uncertain fields fail closed.
+- [x] CODE COMPLETE — PR #41 per-action approval, one-shot handle consumption, stale-node rejection, app/window identity checks, and sensitive/incomplete hierarchy exclusions are implemented for click/long-click/scroll.
+- [x] CODE COMPLETE — PR #42 text entry is limited to empty ordinary single-line plain-text EditText fields (maximum 256 characters); selection uses explicit end-exclusive character offsets. Current field contents are not returned. Password, numeric, email, URI, multiline, sensitive, and uncertain fields fail closed.
 - [ ] Add integration tests for service unavailable/disabled, permission denial, node churn, app transitions, timeouts, and bounded results. PR #41 adds pure argument/action-policy tests, but no tests are run under the consolidated validation plan.
 - [ ] Device-test accessibility enablement, screen capture restrictions, multiple apps, keyboard behavior, and safe failure.
 
@@ -246,7 +246,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
-| Wave 5 Accessibility/UI automation | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #39–#42; optional capability follow-ons PR #43–#46 are in progress |
+| Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
@@ -274,7 +274,8 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #43 — on-demand active notification content read through the same manually enabled listener (**tests added; execution deferred by owner instruction**).
 - PR #44 — approved bounded call-log read using `READ_CALL_LOG`, requested only after one-time approval and subject to Android/installer eligibility (**tests added; execution deferred by owner instruction**).
 - PR #45 — approved bounded SMS inbox read using `READ_SMS`, requested only after one-time approval and subject to Android/installer/default-SMS-role eligibility (**tests added; execution deferred by owner instruction**).
-- PR #46 — read-only USB descriptor inspection using one-shot handles, per-device Android permission, and `USB_DEVICE_IO` approval; no arbitrary endpoint transfers or writes (**tests added; execution deferred by owner instruction**).
+- PR #46 — read-only USB descriptor inspection using one-shot handles, per-device Android permission, and USB_DEVICE_IO approval; no arbitrary endpoint transfers or writes (tests added; execution deferred).
+- PR #47 — approved wifi_open_settings handoff; opens Android Wi-Fi panel or settings fallback, never toggles Wi-Fi silently (tests added; execution deferred).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
@@ -345,7 +346,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Continuous location updates | Termux:API (termux-location) | Planned; not exposed until bounded-session cancellation and cleanup are verified |
 | Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Planned; draft handler in PR #16 uses a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Planned; draft handler in PR #16 reads only the last scan with a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
-| Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
+| Wi-Fi settings handoff | Native Kotlin (Settings.Panel / Settings.ACTION_WIFI_SETTINGS) | CODE / VALIDATION PENDING — PR #47: one-time WIFI_CONTROL approval; user makes any change; no silent toggle |
 | Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Draft implementation in the preceding onboarding branch; current-head local validation and S21 acceptance pending |
 | Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN + CONNECT) | Draft implementation in the preceding onboarding branch; separate capability ID, 1–10 second low-power scan, bounded results, cancellation-safe stop; validation pending |
 | Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Draft in PRs #26–27: short-lived connection, bounded service/characteristic discovery, one-shot characteristic read/write by full UUID, 512-byte value cap, explicit approval and cancellation-safe close; local validation and device acceptance pending |
@@ -364,29 +365,29 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Draft in PR #31: scoped approval opens dialer with number; user must place call; no CALL_PHONE permission |
 | Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
 | Notifications created by this app | Native Kotlin (NotificationManager) | Draft in PR #30: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; user-confirmed unit tests and debug build passed; device acceptance pending |
-| Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
+| Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | CODE / VALIDATION PENDING — PR #43: explicit user-enabled special access plus one-time approval per on-demand active-notification read; no history/background collection/persistence |
 | Notification channel management | Native Kotlin (NotificationManager) | Draft in PR #30: bounded channel listing and approval-gated channel creation; user-confirmed unit tests and debug build passed; channel settings remain user-controlled in Android settings |
 | Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
 | Basic speech recognition | Native Kotlin (Gallery AsrServiceProvider: Android SpeechRecognizer, ML Kit, MediaPipe) | Phase 9A: existing hold-to-dictate UI already uses native ASR engines; model-initiated recording is intentionally not exposed |
-| Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; model-triggered speech action remains a separate integration task |
+| Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; speak_text integrated through existing playback controller in PR #33 (local tests/build user-confirmed; device acceptance pending) |
 | Biometric authentication | Native Kotlin (BiometricPrompt) | PR #32: foreground strong-biometric prompt via Gallery action channel; returns only success/failure; no biometric data is exposed; user-confirmed local unit tests and debug build passed; device acceptance pending |
 | Secure key operations | Native Kotlin (Android Keystore) | PR #32: non-exportable AES-256-GCM keys; key use requires strong biometric authentication; user-confirmed local unit tests and debug build passed; device acceptance pending |
-| Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
-| Media scan / index | Native Kotlin (MediaScannerConnection / MediaStore) | Planned |
-| Media playback initiated by the app | Native Kotlin (existing media stack or platform MediaPlayer) | Planned |
+| Download management | Native Kotlin (Gallery DownloadRepository / WorkManager) | CODE / VALIDATION PENDING — PR #34: bounded status and exact-worker cancellation through existing Gallery queue |
+| Media scan / index | Native Kotlin (MediaStore + SmartAlbumIndexingWorker / EmbeddingGemma-2) | CODE / VALIDATION DEFERRED — PR #35: reuses Gallery visual index and granted SAF trees; bounded indexing |
+| Media playback initiated by the app | Native Kotlin (Gallery Media3 player) | CODE / VALIDATION DEFERRED — PR #35: fresh search handle and one-time approval; Gallery-owned playback |
 | Active media-session control | Native Kotlin (MediaSessionManager) | CODE / VALIDATION DEFERRED — PR #37; user-opt-in notification-listener special access, one-time approval, bounded session handles and controls |
-| Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
+| Share text/files | Native Kotlin (ACTION_SEND / chooser + SAF grants) | CODE / VALIDATION DEFERRED — PR #36: exact-content approval, user-selected receiver, temporary read grant; no delivery claim |
 | Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
 | App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Draft in PR #30: approved schedule/list/cancel operations reuse Gallery's existing scheduler; user-confirmed unit tests and debug build passed; WorkManager remains for deferrable jobs, not exact-time notification alarms |
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
-| User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
+| User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | CODE / VALIDATION PENDING — PRs #23–#25: persisted user grants, bounded file operations and cross-tree transfer |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Draft in PRs #23–25: user-granted SAF tree access and bounded file operations/transfers; validation/device acceptance pending; UsbManager is not a mass-storage filesystem |
 | Screen capture / visual screen understanding | Android AccessibilityService + LiteRT-LM multimodal tool result | Draft in PR #40: API 34+ window-only capture, one visible external window, explicit SCREEN_CAPTURE approval, conservative sensitive-screen gate, 1,280 px / 2 MiB bounds, in-memory Gemma image input; no display-wide fallback or persistent screenshot file |
 | Live semantic UI tree | Android AccessibilityService | Draft in PRs #39–#41: bounded read-only active-window inspection plus one external-window inspection path with short-lived opaque handles; validation deferred |
-| Semantic click / long-press / scroll | Android AccessibilityService | Draft in PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD with per-action approval, one-shot handles, and exact node/window revalidation; swipe remains planned |
-| Semantic text entry / selection | Android AccessibilityService | Draft in PR #42: safe normal single-line text fields only; empty-field entry up to 256 characters; bounded selection ranges; per-operation UI_TEXT_INPUT approval and exact target revalidation |
+| Semantic click / long-press / scroll | Android AccessibilityService | CODE / VALIDATION DEFERRED — PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD; coordinate gesture fallback remains on existing shell route |
+| Semantic text entry / selection | Android AccessibilityService | CODE / VALIDATION DEFERRED — PR #42: safe normal single-line text fields only; empty-field entry up to 256 characters; bounded selection ranges; per-operation UI_TEXT_INPUT approval and exact target revalidation |
 | Coordinate gesture fallback | Unified shell router only when explicitly requested/authorized | Existing shell capability; not a second semantic UI provider |
 
 ## Termux:API command inventory and disposition
