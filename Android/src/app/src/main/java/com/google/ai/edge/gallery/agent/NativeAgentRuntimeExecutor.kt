@@ -54,6 +54,7 @@ import com.google.ai.edge.gallery.agent.artifact.ZipArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafZipExtractionHandler
 import com.google.ai.edge.gallery.agent.artifact.ImageArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
+import com.google.ai.edge.gallery.agent.artifact.ShellArtifactDestinationAdapter
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.DownloadRepository
@@ -181,7 +182,8 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
   )
   append(
     "ARTIFACT GENERATION RULES: Use artifact_create only when the user explicitly asks to create a file or artifact. " +
-      "The currently exposed formats are PDF and editable DOCX; the currently exposed destination is a persisted Gallery SAF document tree. " +
+      "The currently exposed formats are PDF, DOCX, XLSX, PPTX, ZIP, and bounded local image transforms. Destinations are a persisted Gallery SAF document tree or an explicitly selected shell path under TERMUX or SHIZUKU identity. " +
+      "For shell output, backend must be explicitly TERMUX or SHIZUKU; TERMUX_RISH binary output is unavailable until remote stdin forwarding is verified. Never silently switch identity. SAF grants never imply shell path access. " +
       "If no suitable tree grant exists, first use document_tree grants to inspect existing grants or request_access to let the user choose a folder; never invent a content URI or filesystem path. " +
       "For PDF use a .pdf filename and a structured payload with title and pages sections; each section may contain heading, paragraphs, bullet_items, and a table of string rows. " +
       "For DOCX use a .docx filename and a structured payload with title, optional header/footer, and sections; each section may contain heading, paragraphs, bullet_items, and a table of string rows. " +
@@ -191,10 +193,11 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "For ZIP creation use operation='create', a .zip filename, and a payload entries array of {path, content} UTF-8 text files. Paths must be relative and unique. " +
       "For ZIP extraction use operation='extract', payload.source_tree_uri and payload.source_document_id from a current document_tree grants/list result, and choose a SAF destination folder using its current tree grant/document ID. Extraction preflights the archive and requires separate one-time approval; it rejects unsafe paths, duplicates, existing targets, more than 500 entries, more than 50 MiB expanded content, individual files over 10 MiB, and known compression ratios above 100:1. It never creates or follows symlinks and cleans partial output when possible. " +
       "For local image processing use format=image, an output filename ending in .png, .jpg, .jpeg, or .webp, and payload.source_tree_uri/source_document_id from a current document_tree result. Optional transforms are resize_width+resize_height, crop_x+crop_y+crop_width+crop_height, rotation_degrees (0/90/180/270), and quality (1–100). Format conversion is selected by the output extension. Gallery reads only the selected persisted SAF image source, bounds input/dimensions/decode/output, and processes locally; no image data is uploaded. No generative-image provider is currently registered, so do not claim image generation is available. " +
-      "The operation shows the exact filename and destination for one-time approval before creating the file. " +
+      "For shell destinations, use an absolute path whose final component exactly matches file_name and whose parent already exists under the selected backend identity. Termux uses bounded RUN_COMMAND stdin chunks; Shizuku uses a dedicated PFD pipe. Both verify byte length and SHA-256 before same-directory atomic finalization and attempt partial-file cleanup. " +
+      "The operation shows the exact filename, destination, backend identity, and overwrite behavior for one-time approval before creating the file. " +
       "Existing files are never silently replaced; choose a new filename if one already exists. " +
       "The generated PDF is local and its bytes are not returned to the model. " +
-      "DOCX, XLSX, PPTX, ZIP, image processing, shell destinations, and remote image generation must not be claimed as available until their adapters are registered. " +
+      "Remote image generation is not registered and must not be claimed as available. TERMUX_RISH binary output remains unavailable; report that limitation rather than substituting another backend. " +
       "Never upload generated content or source material to a remote provider without a separate explicit disclosure and consent."
   )
 }
@@ -432,7 +435,16 @@ class NativeAgentRuntimeExecutor(
           generators = ArtifactGeneratorRegistry(
             listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator(), ImageArtifactGenerator(artifactContext)),
           ),
-          destinations = ArtifactDestinationRegistry(listOf(SafArtifactDestinationAdapter(artifactContext))),
+          destinations = ArtifactDestinationRegistry(
+            listOf(
+              SafArtifactDestinationAdapter(artifactContext),
+              ShellArtifactDestinationAdapter(
+                stagingDirectory = File(artifactContext.cacheDir, "artifact-staging"),
+                termux = TermuxRunCommandClient(artifactContext),
+                shizuku = checkNotNull(shizukuClient) { "Shizuku shell client is unavailable." },
+              ),
+            ),
+          ),
           approvalRequester = artifactApprovalRequester,
         )
         val zipExtractionHandler = SafZipExtractionHandler(artifactContext, artifactApprovalRequester)
@@ -470,7 +482,7 @@ class NativeAgentRuntimeExecutor(
             ArtifactGenerationTool(
               engine = artifactEngine,
               supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX, ArtifactFormat.XLSX, ArtifactFormat.PPTX, ArtifactFormat.ZIP, ArtifactFormat.IMAGE),
-              supportedDestinations = setOf(DestinationType.SAF),
+              supportedDestinations = setOf(DestinationType.SAF, DestinationType.SHELL),
               zipExtractionHandler = zipExtractionHandler,
             ),
           )
