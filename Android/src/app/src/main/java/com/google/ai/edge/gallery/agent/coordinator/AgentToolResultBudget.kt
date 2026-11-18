@@ -27,16 +27,31 @@ package com.google.ai.edge.gallery.agent.coordinator
 class AgentToolResultBudget(
   private val maxCharsPerTool: Int = DEFAULT_MAX_CHARS_PER_TOOL,
   private val maxCharsPerTurn: Int = DEFAULT_MAX_CHARS_PER_TURN,
+  private val maxImageBytesPerTool: Int = DEFAULT_MAX_IMAGE_BYTES_PER_TOOL,
+  private val maxImageBytesPerTurn: Int = DEFAULT_MAX_IMAGE_BYTES_PER_TURN,
 ) {
   private var usedChars: Int = 0
+  private var usedImageBytes: Int = 0
 
   init {
     require(maxCharsPerTool > 0) { "Per-tool result budget must be positive." }
     require(maxCharsPerTurn > 0) { "Per-turn result budget must be positive." }
+    require(maxImageBytesPerTool > 0) { "Per-tool image budget must be positive." }
+    require(maxImageBytesPerTurn > 0) { "Per-turn image budget must be positive." }
   }
 
   fun reset() {
     usedChars = 0
+    usedImageBytes = 0
+  }
+
+  /** Accepts an image as an indivisible payload; images are rejected rather than truncated. */
+  fun constrainImage(imageBytes: ByteArray): ByteArray? {
+    if (imageBytes.isEmpty() || imageBytes.size > maxImageBytesPerTool) return null
+    val remaining = (maxImageBytesPerTurn - usedImageBytes).coerceAtLeast(0)
+    if (imageBytes.size > remaining) return null
+    usedImageBytes += imageBytes.size
+    return imageBytes
   }
 
   fun constrain(content: String): String {
@@ -72,5 +87,7 @@ class AgentToolResultBudget(
   companion object {
     const val DEFAULT_MAX_CHARS_PER_TOOL = 6_000
     const val DEFAULT_MAX_CHARS_PER_TURN = 12_000
+    const val DEFAULT_MAX_IMAGE_BYTES_PER_TOOL = 2 * 1_024 * 1_024
+    const val DEFAULT_MAX_IMAGE_BYTES_PER_TURN = 2 * 1_024 * 1_024
   }
 }
