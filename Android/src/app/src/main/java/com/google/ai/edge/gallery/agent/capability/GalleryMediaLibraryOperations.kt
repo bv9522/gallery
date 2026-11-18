@@ -236,9 +236,17 @@ class GalleryMediaLibraryOperations(
 
   fun resolvePlaybackHandle(handle: String): AgentMediaPlaybackReference? {
     if (!handle.matches(Regex("^media_[0-9a-f]{32}$"))) return null
-    val stored = references.remove(handle) ?: return null
-    if (stored.expiresAtMs <= System.currentTimeMillis()) return null
+    val stored = references[handle] ?: return null
+    if (stored.expiresAtMs <= System.currentTimeMillis()) {
+      references.remove(handle, stored)
+      return null
+    }
     return AgentMediaPlaybackReference(stored.uri, stored.displayName, stored.isVideo)
+  }
+
+  fun consumePlaybackHandle(handle: String): Boolean {
+    val stored = references.remove(handle) ?: return false
+    return stored.expiresAtMs > System.currentTimeMillis()
   }
 
   private suspend fun searchMediaStoreByName(
