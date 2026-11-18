@@ -23,6 +23,9 @@ import com.google.ai.edge.gallery.notifications.NotificationScheduleManager
 import com.google.ai.edge.gallery.services.tts.TtsMemoryTrimCallbacks
 import com.google.ai.edge.gallery.ui.theme.ThemeSettings
 import com.google.firebase.FirebaseApp
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -49,7 +52,15 @@ class GalleryApplication : Application() {
     // Load saved theme.
     ThemeSettings.themeOverride.value = dataStoreRepository.readTheme()
 
-    FirebaseApp.initializeApp(this)
+    FirebaseApp.initializeApp(this)?.let { firebaseApp ->
+      val appCheck = FirebaseAppCheck.getInstance(firebaseApp)
+      if (BuildConfig.DEBUG) {
+        // Firebase Console must allow-list the debug token emitted by the local debug build.
+        appCheck.installAppCheckProviderFactory(DebugAppCheckProviderFactory.getInstance())
+      } else {
+        appCheck.installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
+      }
+    }
     firebaseAnalytics?.setAnalyticsCollectionEnabled(dataStoreRepository.readFirebaseAnalytics())
   }
 }
