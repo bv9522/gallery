@@ -71,10 +71,10 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
 
   fun listActiveSessions(): ActiveMediaSessionList {
     requireAccess()
+    handles.clear()
     val controllers = (manager ?: error("Android MediaSessionManager is unavailable."))
       .getActiveSessions(component)
-      .filter { it.packageName != appContext.packageName }
-    handles.clear()
+      .filter { it.packageName != appContext.packageName && it.playbackState != null }
     val now = SystemClock.elapsedRealtime()
     val sessions = controllers.take(MAX_SESSIONS).mapNotNull { controller ->
       val playback = controller.playbackState ?: return@mapNotNull null
