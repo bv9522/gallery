@@ -221,12 +221,7 @@ class AccessibilityScreenInspectionTool internal constructor(
     val action = AccessibilitySemanticAction.valueOf(arguments.get("action").asString)
     val target = adapter.describeActionTarget(handle)
       ?: return AgentToolResult("Element handle is unknown, expired, or not an external action target. Run inspect_external again.", false)
-    val supported = when (action) {
-      AccessibilitySemanticAction.CLICK -> target.clickable
-      AccessibilitySemanticAction.LONG_CLICK -> target.longClickable
-      AccessibilitySemanticAction.SCROLL_FORWARD,
-      AccessibilitySemanticAction.SCROLL_BACKWARD -> target.scrollable
-    }
+    val supported = target.supports(action)
     if (!supported) {
       return AgentToolResult("The selected element did not advertise the requested action during inspection. No action was dispatched.", false)
     }
