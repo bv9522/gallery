@@ -1,6 +1,5 @@
 package com.google.ai.edge.gallery.agent.artifact
 
-import android.content.Context
 import android.content.pm.PackageManager
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
