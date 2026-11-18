@@ -139,6 +139,9 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       }
       require(mimeType in SUPPORTED_BINARY_MIME_TYPES) { "Unsupported binary artifact MIME type." }
       val targetFile = resolveSafeBinaryTarget(targetPath)
+      require(mimeMatchesExtension(mimeType, targetFile.name)) {
+        "Binary target extension does not match its declared MIME type."
+      }
       target = targetFile
       require(!targetFile.exists() && !Files.isSymbolicLink(targetFile.toPath())) {
         "The target already exists or is a symbolic link; overwrite is not supported."
@@ -214,6 +217,21 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       "Binary target parent must already exist and be writable by the selected shell identity."
     }
     return File(parent, raw.name)
+  }
+
+  private fun mimeMatchesExtension(mimeType: String, name: String): Boolean {
+    val extension = name.substringAfterLast('.', "").lowercase()
+    return when (mimeType) {
+      "application/pdf" -> extension == "pdf"
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> extension == "docx"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> extension == "xlsx"
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> extension == "pptx"
+      "application/zip" -> extension == "zip"
+      "image/png" -> extension == "png"
+      "image/jpeg" -> extension == "jpg" || extension == "jpeg"
+      "image/webp" -> extension == "webp"
+      else -> false
+    }
   }
 
   private fun hasExpectedSignature(file: File, mimeType: String): Boolean {
