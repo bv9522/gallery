@@ -66,6 +66,15 @@ class ArtifactCreateArgumentsTest {
     assertTrue(ArtifactCreateArguments.parse(args) is ArtifactArgumentsParseResult.Invalid)
   }
 
+  @Test fun rejectsShellPathsWithControlCharactersOrRepeatedSeparators() {
+    val control = shellRequest("/storage/emulated/0/Documents/bad\nname.pdf")
+    val repeated = shellRequest("/storage//emulated/0/Documents/report.pdf")
+    val backslash = shellRequest("/storage/emulated/0/Documents\\\\report.pdf")
+    assertTrue(ArtifactCreateArguments.parse(control) is ArtifactArgumentsParseResult.Invalid)
+    assertTrue(ArtifactCreateArguments.parse(repeated) is ArtifactArgumentsParseResult.Invalid)
+    assertTrue(ArtifactCreateArguments.parse(backslash) is ArtifactArgumentsParseResult.Invalid)
+  }
+
   @Test fun rejectsPathTraversalAndMismatchedLeafName() {
     val traversal = shellRequest("/storage/emulated/0/../report.pdf")
     val mismatched = shellRequest("/storage/emulated/0/other.pdf")

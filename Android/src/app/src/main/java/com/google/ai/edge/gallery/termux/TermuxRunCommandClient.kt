@@ -201,6 +201,52 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     }
   }
 
+  /**
+   * Runs one bounded command with a bounded stdin string using Termux RUN_COMMAND's stdin extra.
+   * This is reserved for short binary-transfer chunks (base64 encoded by the caller), not general
+   * interactive shell sessions.
+   */
+  suspend fun executeWithStdin(
+    command: String,
+    stdin: String,
+    workingDirectory: String = DEFAULT_TERMUX_WORKDIR,
+    timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+    maxOutputChars: Int = MIN_OUTPUT_CHARS,
+  ): TermuxShellResult {
+    require(command.isNotBlank() && command.length <= MAX_COMMAND_LENGTH && '\\u0000' !in command) {
+      "Command must be non-empty, NUL-free, and no longer than $MAX_COMMAND_LENGTH characters."
+    }
+    require(stdin.length <= MAX_STDIN_CHARS && '\\u0000' !in stdin) {
+      "RUN_COMMAND stdin exceeds the $MAX_STDIN_CHARS character chunk limit."
+    }
+    require(workingDirectory.isNotBlank() && '\\u0000' !in workingDirectory) {
+      "Working directory must be a non-empty path without NUL characters."
+    }
+    require(timeoutMs in MIN_TIMEOUT_MS..MAX_TIMEOUT_MS) {
+      "Timeout must be between $MIN_TIMEOUT_MS and $MAX_TIMEOUT_MS ms."
+    }
+    require(maxOutputChars in MIN_OUTPUT_CHARS..MAX_OUTPUT_CHARS) {
+      "Output limit must be between $MIN_OUTPUT_CHARS and $MAX_OUTPUT_CHARS characters."
+    }
+    ensureTermuxStdinSupported()
+    ensureTermuxReady()
+    return invokeTermux(command, workingDirectory, timeoutMs, maxOutputChars, stdin)
+  }
+
+  private fun ensureTermuxStdinSupported() {
+    val versionName = try {
+      @Suppress("DEPRECATION")
+      appContext.packageManager.getPackageInfo(TERMUX_PACKAGE, 0).versionName.orEmpty()
+    } catch (error: PackageManager.NameNotFoundException) {
+      throw IllegalStateException("Termux is not installed. Install and initialize Termux first.")
+    }
+    val parts = versionName.substringBefore('-').split('.').mapNotNull { it.toIntOrNull() }
+    val supported = parts.size >= 2 && (parts[0] > 0 || parts[1] >= MIN_STDIN_TERMUX_MINOR)
+    check(supported) {
+      "Termux $MIN_STDIN_TERMUX_VERSION or newer is required for RUN_COMMAND stdin binary transfer; found '$versionName'."
+    }
+  }
+
   private suspend fun awaitCompletion(directory: String): SupervisorState {
     while (true) {
       val command =
@@ -344,6 +390,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     workingDirectory: String,
     timeoutMs: Long,
     maxOutputChars: Int,
+    stdin: String? = null,
   ): TermuxShellResult {
     val (requestId, deferred) = TermuxCommandResultReceiver.register()
     val callbackIntent = Intent(appContext, TermuxCommandResultReceiver::class.java)
@@ -366,6 +413,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       putExtra(EXTRA_COMMAND_LABEL, "Android MCP process supervisor")
       putExtra(EXTRA_COMMAND_DESCRIPTION, "Supervised command control request.")
       putExtra(EXTRA_PENDING_INTENT, callback)
+      stdin?.let { putExtra(EXTRA_STDIN, it) }
     }
 
     try {
@@ -476,6 +524,10 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     private const val EXTRA_COMMAND_LABEL = "com.termux.RUN_COMMAND_COMMAND_LABEL"
     private const val EXTRA_COMMAND_DESCRIPTION = "com.termux.RUN_COMMAND_COMMAND_DESCRIPTION"
     private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
+    private const val EXTRA_STDIN = "com.termux.RUN_COMMAND_STDIN"
+    private const val MAX_STDIN_CHARS = 180_000
+    private const val MIN_STDIN_TERMUX_VERSION = "0.109.0"
+    private const val MIN_STDIN_TERMUX_MINOR = 109
 
     internal const val EXTRA_PLUGIN_RESULT_BUNDLE = "result"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT = "stdout"

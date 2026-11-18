@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - phase-6-unified-execution-runtime
+      - 'stage-10*'
     paths:
       - 'Android/**'
       - '.github/workflows/build_android.yaml'
@@ -13,6 +14,7 @@ on:
     branches:
       - main
       - phase-6-unified-execution-runtime
+      - 'stage-10*'
     paths:
       - 'Android/**'
       - '.github/workflows/build_android.yaml'

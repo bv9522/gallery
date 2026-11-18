@@ -76,7 +76,7 @@ data class ArtifactGenerationResult(
 )
 
 fun interface ArtifactOutputProducer {
-  fun write(output: OutputStream): ArtifactOutputMetadata
+  suspend fun write(output: OutputStream): ArtifactOutputMetadata
 }
 
 interface ArtifactGenerator {

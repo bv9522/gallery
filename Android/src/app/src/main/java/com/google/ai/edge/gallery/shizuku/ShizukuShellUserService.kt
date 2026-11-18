@@ -17,15 +17,20 @@
 package com.google.ai.edge.gallery.shizuku
 
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
 import java.io.BufferedWriter
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.nio.file.Files
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -108,6 +113,154 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     }
     return result
   }
+
+  /**
+   * Streams a binary artifact from the app through a Binder file descriptor into a shell-owned
+   * temporary sibling file. It verifies size, digest, MIME/signature, then atomically publishes
+   * with a no-clobber hard link. Existing targets are never replaced.
+   */
+  override fun writeBinaryFile(
+    targetPath: String,
+    input: ParcelFileDescriptor,
+    maxBytes: Long,
+    mimeType: String,
+    timeoutMs: Long,
+  ): Bundle {
+    var temporary: File? = null
+    var target: File? = null
+    var targetReserved = false
+    val startedAt = System.nanoTime()
+    try {
+      require(maxBytes in 1L..MAX_BINARY_WRITE_BYTES) {
+        "Binary write limit must be between 1 and $MAX_BINARY_WRITE_BYTES bytes."
+      }
+      require(timeoutMs in MIN_TIMEOUT_MS..MAX_TIMEOUT_MS) {
+        "Binary write timeout must be between $MIN_TIMEOUT_MS and $MAX_TIMEOUT_MS ms."
+      }
+      require(mimeType in SUPPORTED_BINARY_MIME_TYPES) { "Unsupported binary artifact MIME type." }
+      val targetFile = resolveSafeBinaryTarget(targetPath)
+      require(mimeMatchesExtension(mimeType, targetFile.name)) {
+        "Binary target extension does not match its declared MIME type."
+      }
+      target = targetFile
+      require(!targetFile.exists() && !Files.isSymbolicLink(targetFile.toPath())) {
+        "The target already exists or is a symbolic link; overwrite is not supported."
+      }
+      val parent = targetFile.parentFile ?: throw IllegalArgumentException("Target has no parent directory.")
+      val temporaryFile = File.createTempFile(".android-mcp-artifact-", ".part", parent)
+      temporary = temporaryFile
+      val digest = MessageDigest.getInstance("SHA-256")
+      var bytesWritten = 0L
+      ParcelFileDescriptor.AutoCloseInputStream(input).use { source ->
+        FileOutputStream(temporaryFile).use { destination ->
+          val buffer = ByteArray(BINARY_BUFFER_BYTES)
+          while (true) {
+            if (System.nanoTime() - startedAt > TimeUnit.MILLISECONDS.toNanos(timeoutMs)) {
+              throw IllegalStateException("Shizuku binary transfer exceeded its time limit.")
+            }
+            val count = source.read(buffer)
+            if (count < 0) break
+            bytesWritten += count
+            require(bytesWritten <= maxBytes) { "Binary artifact exceeds the $maxBytes byte limit." }
+            digest.update(buffer, 0, count)
+            destination.write(buffer, 0, count)
+          }
+          destination.flush()
+          destination.fd.sync()
+        }
+      }
+      require(bytesWritten > 0L) { "Binary artifact is empty." }
+      require(hasExpectedSignature(temporaryFile, mimeType)) {
+        "Binary artifact signature does not match the declared MIME type."
+      }
+      // Reserve the final leaf atomically without replacing an existing file. The complete
+      // temporary file is then published with a same-directory atomic rename over our reservation.
+      require(targetFile.createNewFile()) { "The target appeared during transfer; refusing to overwrite it." }
+      targetReserved = true
+      Os.rename(temporaryFile.absolutePath, targetFile.absolutePath)
+      temporary = null
+      targetReserved = false
+      return Bundle().apply {
+        putBoolean(KEY_BINARY_SUCCESS, true)
+        putLong(KEY_BINARY_BYTES, bytesWritten)
+        putString(KEY_BINARY_SHA256, digest.digest().toHexString())
+        putString(KEY_BINARY_MIME_TYPE, mimeType)
+        putString(KEY_BINARY_PATH, targetFile.absolutePath)
+      }
+    } catch (error: Throwable) {
+      val reservationRemoved = if (targetReserved) {
+        target?.let { file -> runCatching { file.delete() || !file.exists() }.getOrDefault(false) } ?: false
+      } else true
+      val temporaryRemoved = temporary?.let { file ->
+        runCatching { file.delete() || !file.exists() }.getOrDefault(false)
+      } ?: true
+      val cleanupWarning = if (reservationRemoved && temporaryRemoved) "" else
+        " Cleanup of a partial reservation or temporary file could not be confirmed."
+      return errorBundle((error.message ?: error.javaClass.simpleName) + cleanupWarning)
+    } finally {
+      runCatching { input.close() }
+    }
+  }
+
+  private fun resolveSafeBinaryTarget(path: String): File {
+    require(path.startsWith('/') && path.length <= MAX_BINARY_PATH_CHARS &&
+      '\\u0000' !in path && '\\\\' !in path) {
+      "Binary target must be a bounded absolute path."
+    }
+    val segments = path.split('/')
+    require(segments.drop(1).all { segment ->
+      segment.isNotBlank() && segment != "." && segment != ".." && segment.none { it.isISOControl() }
+    }) {
+      "Binary target contains an unsafe path segment."
+    }
+    val raw = File(path)
+    require(raw.name.isNotBlank() && raw.name != "." && raw.name != ".." &&
+      raw.name.length <= MAX_BINARY_FILE_NAME_CHARS && raw.name.none { it.isISOControl() }) {
+      "Binary target filename is invalid."
+    }
+    val parent = raw.parentFile?.canonicalFile
+      ?: throw IllegalArgumentException("Binary target parent is invalid.")
+    require(parent.isDirectory && parent.canWrite()) {
+      "Binary target parent must already exist and be writable by the selected shell identity."
+    }
+    return File(parent, raw.name)
+  }
+
+  private fun mimeMatchesExtension(mimeType: String, name: String): Boolean {
+    val extension = name.substringAfterLast('.', "").lowercase()
+    return when (mimeType) {
+      "application/pdf" -> extension == "pdf"
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> extension == "docx"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" -> extension == "xlsx"
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> extension == "pptx"
+      "application/zip" -> extension == "zip"
+      "image/png" -> extension == "png"
+      "image/jpeg" -> extension == "jpg" || extension == "jpeg"
+      "image/webp" -> extension == "webp"
+      else -> false
+    }
+  }
+
+  private fun hasExpectedSignature(file: File, mimeType: String): Boolean {
+    val prefix = ByteArray(12)
+    val count = FileInputStream(file).use { it.read(prefix) }
+    if (count < 4) return false
+    return when (mimeType) {
+      "application/pdf" -> count >= 5 && prefix.copyOfRange(0, 5).contentEquals("%PDF-".toByteArray())
+      "image/png" -> count >= 8 && prefix.copyOfRange(0, 8).contentEquals(
+        byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a),
+      )
+      "image/jpeg" -> count >= 3 && prefix[0] == 0xff.toByte() && prefix[1] == 0xd8.toByte() && prefix[2] == 0xff.toByte()
+      "image/webp" -> count >= 12 &&
+        String(prefix, 0, 4, StandardCharsets.US_ASCII) == "RIFF" &&
+        String(prefix, 8, 4, StandardCharsets.US_ASCII) == "WEBP"
+      else -> count >= 4 && prefix[0] == 0x50.toByte() && prefix[1] == 0x4b.toByte() &&
+        prefix[2] == 0x03.toByte() && prefix[3] == 0x04.toByte()
+    }
+  }
+
+  private fun ByteArray.toHexString(): String =
+    joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
   override fun closeSession(sessionId: String) {
     sessions.remove(sessionId)?.close()
@@ -391,6 +544,11 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     const val KEY_OUTPUT_TRUNCATED = "output_truncated"
     const val KEY_ERROR = "error"
     const val KEY_PROCESS_MAY_STILL_BE_RUNNING = "process_may_still_be_running"
+    const val KEY_BINARY_SUCCESS = "binary_success"
+    const val KEY_BINARY_BYTES = "binary_bytes"
+    const val KEY_BINARY_SHA256 = "binary_sha256"
+    const val KEY_BINARY_MIME_TYPE = "binary_mime_type"
+    const val KEY_BINARY_PATH = "binary_path"
 
     private const val PROCESS_GROUP_HANDSHAKE_TIMEOUT_MS = 2_000L
     private const val MAX_SESSIONS = 3
@@ -398,6 +556,20 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     private const val MAX_TIMEOUT_MS = 120_000L
     private const val MIN_OUTPUT_CHARS = 1_024
     private const val MAX_OUTPUT_CHARS = 128 * 1_024
+    private const val MAX_BINARY_WRITE_BYTES = 100L * 1024L * 1024L
+    private const val MAX_BINARY_PATH_CHARS = 1_024
+    private const val MAX_BINARY_FILE_NAME_CHARS = 255
+    private const val BINARY_BUFFER_BYTES = 32 * 1_024
+    private val SUPPORTED_BINARY_MIME_TYPES = setOf(
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "application/zip",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    )
     private val sessions = java.util.concurrent.ConcurrentHashMap<String, ShellSession>()
   }
 }
