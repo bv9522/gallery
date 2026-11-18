@@ -114,6 +114,8 @@ class TermuxShellBinaryArtifactTransport(
         command =
           "command -v base64 >/dev/null 2>&1 && command -v sha256sum >/dev/null 2>&1 && " +
             "command -v wc >/dev/null 2>&1 && command -v mv >/dev/null 2>&1 && " +
+            "command -v sync >/dev/null 2>&1 && command -v rm >/dev/null 2>&1 && " +
+            "command -v tr >/dev/null 2>&1 && command -v cut >/dev/null 2>&1 && " +
             "command -v timeout >/dev/null 2>&1 && test -d ${shellQuote(parent)} && " +
             "test -w ${shellQuote(parent)} && test ! -e ${shellQuote(target)} && " +
             "(umask 077; set -C; : > ${shellQuote(temporary)}) && printf READY",
@@ -172,7 +174,7 @@ class TermuxShellBinaryArtifactTransport(
           "digest=\$(sha256sum ${shellQuote(temporary)} | cut -d ' ' -f1); " +
           "if [ \"\$size\" != ${shellQuote(metadata.bytesWritten.toString())} ] || " +
           "[ \"\$digest\" != ${shellQuote(metadata.sha256)} ]; then rm -f -- ${shellQuote(temporary)}; exit 91; fi; " +
-          "if [ -e ${shellQuote(target)} ]; then rm -f -- ${shellQuote(temporary)}; exit 92; fi; " +
+          "sync; if [ -e ${shellQuote(target)} ]; then rm -f -- ${shellQuote(temporary)}; exit 92; fi; " +
           "mv -n -- ${shellQuote(temporary)} ${shellQuote(target)}; " +
           "if [ -e ${shellQuote(temporary)} ] || [ ! -f ${shellQuote(target)} ]; then " +
           "rm -f -- ${shellQuote(temporary)}; exit 93; fi; " +
