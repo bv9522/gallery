@@ -29,7 +29,7 @@
 - Adds a dedicated writeBinaryFile AIDL method. The Binder transaction carries a ParcelFileDescriptor and bounded metadata, never an artifact-sized byte array.
 - The app creates a one-shot pipe, streams the staged file into its write end, and invokes the Shizuku UserService with the read end.
 - The UserService runs under the Shizuku shell identity (uid 2000, not root), validates the absolute path, existing parent, target type, overwrite flag, byte ceiling, timeout, and expected SHA-256.
-- The service copies in 32 KiB chunks into a randomly named temporary file in the destination folder, flushes and syncs it, verifies the byte count/hash, then renames it into place.
+- The service copies in 32 KiB chunks into a randomly named temporary file in the destination folder, flushes and syncs it, verifies the byte count/hash, and rejects symlinks and non-regular targets. Explicit overwrite uses same-directory rename; no-overwrite uses atomic hard-link creation followed by temporary-link removal, and fails closed on filesystems without hard-link support.
 - The service deletes its temporary file on incomplete transfer or verification failure. Closing the pipe on cancellation signals EOF so incomplete transfers fail verification and clean up.
 - The target path must be writable by the Shizuku shell identity. A Gallery SAF grant does not confer this access.
 
