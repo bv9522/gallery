@@ -691,6 +691,7 @@ class AndroidNativeCapabilityToolTest {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter)
 
+    val wifiSettings = tool.execute(arguments("wifi_open_settings"))
     val devices = tool.execute(arguments("audio_devices"))
     val brightness = tool.execute(arguments("display_brightness"))
     val setBrightness = tool.execute(arguments("set_display_brightness").apply {
@@ -708,6 +709,7 @@ class AndroidNativeCapabilityToolTest {
       addProperty("held", false)
     })
 
+    assertTrue(wifiSettings.isSuccessful)
     assertTrue(devices.isSuccessful)
     assertTrue(brightness.isSuccessful)
     assertTrue(setBrightness.isSuccessful)
@@ -717,6 +719,7 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(releaseWakeLock.isSuccessful)
     assertEquals(
       listOf(
+        "wifi_open_settings",
         "set_display_brightness:120",
         "vibrate:250",
         "set_wake_lock:true:30000",
@@ -933,6 +936,11 @@ class AndroidNativeCapabilityToolTest {
 
     override suspend fun openUrl(url: String): NativeCapabilityActionResult {
       mutations += "open_url:$url"
+      return actionResult
+    }
+
+    override suspend fun openWifiSettings(): NativeCapabilityActionResult {
+      mutations += "wifi_open_settings"
       return actionResult
     }
 

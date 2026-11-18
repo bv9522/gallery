@@ -129,6 +129,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "last and provider gps, network, or passive. Never request sensor streams or location updates; " +
       "those long-running modes are not exposed. Use wifi_connection_info for current connection data " +
       "and wifi_last_scan for the last scan only; it does not trigger a new scan and may be stale. " +
+      "Use android_control wifi_open_settings only when the user asks to open Wi-Fi controls or change Wi-Fi; it requires one-time WIFI_CONTROL approval and opens Android's Wi-Fi panel/settings for the user to act. Never claim or attempt a silent Wi-Fi toggle. " +
       "Treat permission errors distinctly " +
       "and never claim a command is available merely because its binary exists. Use infrared_frequencies " +
       "to inspect supported carrier frequencies before infrared_transmit; transmission accepts only a " +

@@ -5,12 +5,11 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #46 opened; read-only USB descriptor inspection onboarded after notification, call-log, and SMS reads; validation deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (capability onboarding and source-level ownership audit complete; consolidated test planning opened; test/build/device execution not yet started)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-6d-usb-descriptor-io` (stacked on `wave-6c-sms-inbox-read`)  
-> **Current change:** [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), draft/open/unmerged, stacked on [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
-> **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
-> Waves 1–5 implementation and the final ownership audit are complete.
+> **Current implementation branch:** `wave-6e-wifi-settings-handoff-and-ownership-audit` (stacked on `wave-6d-usb-descriptor-io`)  
+> **Current change:** [PR #47 — Wave 6E user-mediated Wi-Fi settings handoff and ownership audit](https://github.com/bv9522/gallery/pull/47), draft/open/unmerged, stacked on [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
+> **Overall state:** Capability onboarding and the final source-level ownership/documentation audit are complete in the stacked draft PR chain #39–#47. Stage 8 is now unlocked. Consolidated test planning is in progress; no accumulated tests, build, or S21 acceptance have yet been executed.
 
 ## How to read and maintain this roadmap
 
@@ -26,7 +25,7 @@ A PR being open, a commit existing, or code compiling is never by itself proof o
 remain draft/open/unmerged until explicitly approved for integration. No PR is to be merged or closed without the owner's
 explicit approval.
 
-**Owner-directed validation deferral (2026-11-17):** continue implementing capability slices and add their tests, but do not run Gradle tests, builds, or S21/device acceptance per slice. Save execution of the accumulated test suite and builds until all planned capabilities are onboarded. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
+**Owner-directed validation sequencing (2026-11-17):** while capability onboarding was active, do not run Gradle tests, builds, or S21/device acceptance per slice. All planned capability onboarding and the source-level ownership audit are now complete. The accumulated validation phase is unlocked, but execution begins only after the consolidated test inventory, command/environment preflight, and acceptance checklist are reviewed. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
 
 **Progress-update rule:** after every implementation slice, update (1) this ledger, (2) the capability row/status in the
 ownership matrix, (3) the provider matrix if ownership/readiness changed, and (4) the relevant PR description. Record the
@@ -95,8 +94,9 @@ The finished system must have:
 - [x] Record the official Termux:API command inventory and decide which commands are reused, replaced by native APIs, or not exposed.
 - [x] Separate shell path-based filesystem operations from Gallery-owned SAF document-tree operations.
 - [x] Audit speech, notification, telephony, biometric, and media ownership to prevent duplicate routes.
-- [ ] Final audit across every catalog ID against implementation, Android permission, provider discovery, approval, and actual device behavior.
-- [ ] Remove or explicitly label any transitional diagnostics/legacy routes that no longer belong to the selected owner.
+- [x] Source-level ownership audit: every AndroidCapability enum value is assigned exactly one provider by CapabilityCatalog; CapabilityRegistry rejects missing owners, duplicate owners, duplicate declarations, and unknown provider mappings.
+- [x] Reconcile known transitional diagnostics/legacy routes; Termux:API battery/volume/flashlight overlap remains diagnostic-only, with native ownership retained.
+- [ ] Verify permission timing, approval behavior, provider discovery, and actual device behavior during consolidated S21 acceptance (Stage 8).
 
 **Historical PR trail:** PRs #12–#15 establish Termux:API, catalog ownership, native system capabilities, and ownership rebalance; PR #29
 reconciles readiness and ownership. Ownership documentation is maintained in this file and the provider matrix.
@@ -111,7 +111,7 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [CODE / VALIDATION PENDING] Native Bluetooth bonded-device listing and bounded BLE scan; native USB host device/interface enumeration (PR #20).
 - [CODE / VALIDATION PENDING — PR #46] Read-only USB device/configuration/interface/endpoint descriptor inspection using a fresh 30-second one-shot handle, per-device Android USB permission prompt, and separate `USB_DEVICE_IO` approval. No arbitrary endpoint transfers or writes are exposed; USB mass storage remains on SAF.
 - [CODE / VALIDATION PENDING] Native Bluetooth GATT service/characteristic inspection and bounded one-shot read/write (PRs #26–#27).
-- [ ] Decide and implement user-mediated Wi-Fi enable/settings flow if still required; do not promise forbidden silent toggles.
+- [CODE / VALIDATION PENDING — PR #47] wifi_open_settings uses Settings.Panel.ACTION_WIFI with Settings.ACTION_WIFI_SETTINGS fallback, requires one-time WIFI_CONTROL approval, and leaves the actual Wi-Fi change to the user. No silent toggle or privileged fallback is attempted.
 - [ ] Verify every selected Termux:API command exists on the installed companion/package version, has correct permission behavior, bounded output, and cleanup.
 - [ ] Device-test Bluetooth permission states, scan cancellation, GATT compatibility, NFC tag UX, infrared hardware availability, sensor/location/Wi-Fi data quality, USB enumeration, per-device USB permission prompt/denial, descriptor reads, device disconnect/reconnect, and handle expiry.
 
@@ -181,11 +181,11 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 - [x] Define the opt-in AccessibilityService contract, manual enable/disable lifecycle, and explicit settings handoff.
 - [x] Implement bounded, explicitly approved window-specific screenshot capture and multimodal Gemma handoff (Wave 5B / PR #40 draft; validation deferred).
 - [x] Implement read-only semantic UI tree inspection with bounded traversal, sanitized labels, opaque short-lived element handles, and sensitive-screen exclusions (PR #39 draft; validation deferred).
-- [IN PROGRESS — PR #41] Add semantic click, long-click, and forward/backward scroll through fresh opaque handles, exact external-window/node revalidation, and one-time approval for each action. Swipe/coordinate gestures remain a separate future slice.
-- [IN PROGRESS — PR #42] Add plain-text-only entry into empty ordinary single-line fields and explicit bounded text selection through one-shot handles, exact app/window/node revalidation, and separate UI_TEXT_INPUT approval.
+- [x] CODE COMPLETE — PR #41 adds approved semantic click, long-click, and forward/backward scroll through fresh opaque handles, exact external-window/node revalidation, and one-time approval for each action. Coordinate gestures remain on the existing unified shell route only when explicitly requested/authorized.
+- [x] CODE COMPLETE — PR #42 adds plain-text-only entry into empty ordinary single-line fields and explicit bounded text selection through one-shot handles, exact app/window/node revalidation, and separate UI_TEXT_INPUT approval.
 - [ ] Keep coordinate gesture fallback on the existing unified shell route only when explicitly requested/authorized; do not duplicate semantic operations.
-- [IN PROGRESS — PR #41] Per-action approval, one-shot handle consumption, stale-node rejection, app/window identity checks, and sensitive/incomplete hierarchy exclusions are implemented for click/long-click/scroll.
-- [IN PROGRESS — PR #42] Text entry is limited to empty ordinary single-line plain-text EditText fields (maximum 256 characters); selection uses explicit end-exclusive character offsets. Current field contents are not returned. Password, numeric, email, URI, multiline, sensitive, and uncertain fields fail closed.
+- [x] CODE COMPLETE — PR #41 per-action approval, one-shot handle consumption, stale-node rejection, app/window identity checks, and sensitive/incomplete hierarchy exclusions are implemented for click/long-click/scroll.
+- [x] CODE COMPLETE — PR #42 text entry is limited to empty ordinary single-line plain-text EditText fields (maximum 256 characters); selection uses explicit end-exclusive character offsets. Current field contents are not returned. Password, numeric, email, URI, multiline, sensitive, and uncertain fields fail closed.
 - [ ] Add integration tests for service unavailable/disabled, permission denial, node churn, app transitions, timeouts, and bounded results. PR #41 adds pure argument/action-policy tests, but no tests are run under the consolidated validation plan.
 - [ ] Device-test accessibility enablement, screen capture restrictions, multiple apps, keyboard behavior, and safe failure.
 
@@ -193,28 +193,61 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 
 **Wave 5B — bounded active-window vision input (PR #40 draft):** Extends `screen_inspect` with `capture`. Gallery requires the user-enabled AccessibilityService, Android API 34+, a one-time `SCREEN_CAPTURE` approval, and exactly one visible non-Gallery application window alongside Gallery (normally split-screen). The service enumerates interactive application windows and rejects missing, unreadable, ambiguous, empty, truncated, or sensitive hierarchies before capture. It uses only `AccessibilityService.takeScreenshotOfWindow(windowId, ...)`; API 30 display-wide capture and MediaProjection are not fallbacks. The image is resized to at most 1,280 px on its longest side and 2 MiB JPEG, with a 10-second timeout. The agent coordinator carries the raw image bytes into `Message.tool(Contents)` as `Content.ImageBytes` alongside the `Content.ToolResponse`, so Gemma receives actual pixels in the tool-result turn. Per-tool/per-turn image budgets reject rather than truncate images; raw coordinator bytes are zeroed and references removed after LiteRT-LM finishes the turn, and on rejection, cancellation, reset, or turn-limit exit. No screenshot file or background capture is created. The model's in-memory conversation may retain visual context until reset. Sensitive-screen checks are conservative heuristics, not a guarantee that every visually sensitive third-party screen can be recognized; approval explicitly reminds the user to avoid private screens. The selected Gemma 4 E2B entry in `model_allowlists/1_0_23.json` declares image support and an 8 GiB minimum device-memory requirement; the tool is hidden for models/runtime configurations without image support. The multimodal tool-turn path is implemented but still needs consolidated runtime verification and S21 performance acceptance.
 
-**Wave 5C — approved semantic UI actions (PR #41 draft):** Adds `screen_inspect inspect_external` to inspect exactly one visible non-Gallery application window alongside Gallery and issue 30-second opaque, one-shot action handles. `screen_inspect act` supports only `CLICK`, `LONG_CLICK`, `SCROLL_FORWARD`, and `SCROLL_BACKWARD`; every individual action requires `UI_GESTURE` approval describing the action and safe target label. Immediately before dispatch, Gallery confirms the service is still connected, the same single external app/window remains visible, the hierarchy is complete and passes the sensitive-screen policy, and exactly one node matches the stored package/window/class/sanitized label/bounds fingerprint and enabled/action-capability state. The target must still advertise the requested AccessibilityNodeInfo action; no coordinates or gesture fallback are used. Handles are consumed before dispatch, so retries require a fresh inspection. Results report Android's dispatch acceptance only, not a verified app-state change. Swipe gestures, coordinate gestures, text entry/selection, and keyboard automation remain unimplemented. Added argument and pure action-eligibility tests are not run; all builds and S21 acceptance remain deferred.
+**Wave 5C — approved semantic UI actions (PR #41 draft):** Adds `screen_inspect inspect_external` to inspect exactly one visible non-Gallery application window alongside Gallery and issue 30-second opaque, one-shot action handles. `screen_inspect act` supports only `CLICK`, `LONG_CLICK`, `SCROLL_FORWARD`, and `SCROLL_BACKWARD`; every individual action requires `UI_GESTURE` approval describing the action and safe target label. Immediately before dispatch, Gallery confirms the service is still connected, the same single external app/window remains visible, the hierarchy is complete and passes the sensitive-screen policy, and exactly one node matches the stored package/window/class/sanitized label/bounds fingerprint and enabled/action-capability state. The target must still advertise the requested AccessibilityNodeInfo action; no coordinates or gesture fallback are used. Handles are consumed before dispatch, so retries require a fresh inspection. Results report Android's dispatch acceptance only, not a verified app-state change. Swipe and coordinate gestures are not exposed by AccessibilityService; coordinate fallback remains on the existing unified shell route only when explicitly requested and authorized. Text entry/selection are implemented separately in Wave 5D / PR #42. Keyboard automation remains unexposed. Added argument and pure action-eligibility tests are not run; builds and S21 acceptance are queued for Stage 8.
 
-**Wave 5D — approved semantic text entry and selection (PR #42 draft):** Adds `inspect_inputs`, a separate explicitly approved inspection path for exactly one visible external application window alongside Gallery. It accepts only ordinary single-line `EditText` fields whose Android input type is normal plain text; password, numeric, email, URI, multiline, sensitive, unsupported, incomplete, and uncertain fields block the inspection. It returns safe labels and character counts only—never current field contents—and issues 30-second one-shot handles. `enter_text` accepts at most 256 ordinary non-sensitive single-line characters and only targets a fresh enabled empty field, so existing text is never overwritten. `select_text` accepts a non-empty end-exclusive character range within the current field length and does not return field contents. Each operation requires a separate `UI_TEXT_INPUT` approval showing the exact text or selection range. Immediately before dispatch, the service revalidates the same app/window, complete safe hierarchy, exact node class/label/bounds, normal input type, enabled state, current text length, and currently advertised Android accessibility action. Handles are consumed before dispatch; stale or changed targets fail closed. No passwords, clipboard access, arbitrary keyboard events, multiline input, coordinate gestures, or hidden typing are exposed. Added pure policy and argument tests are not run; all builds and S21 acceptance remain deferred.
+**Wave 5D — approved semantic text entry and selection (PR #42 draft):** Adds `inspect_inputs`, a separate explicitly approved inspection path for exactly one visible external application window alongside Gallery. It accepts only ordinary single-line `EditText` fields whose Android input type is normal plain text; password, numeric, email, URI, multiline, sensitive, unsupported, incomplete, and uncertain fields block the inspection. It returns safe labels and character counts only—never current field contents—and issues 30-second one-shot handles. `enter_text` accepts at most 256 ordinary non-sensitive single-line characters and only targets a fresh enabled empty field, so existing text is never overwritten. `select_text` accepts a non-empty end-exclusive character range within the current field length and does not return field contents. Each operation requires a separate `UI_TEXT_INPUT` approval showing the exact text or selection range. Immediately before dispatch, the service revalidates the same app/window, complete safe hierarchy, exact node class/label/bounds, normal input type, enabled state, current text length, and currently advertised Android accessibility action. Handles are consumed before dispatch; stale or changed targets fail closed. No passwords, clipboard access, arbitrary keyboard events, multiline input, coordinate gestures, or hidden typing are exposed. Added pure policy and argument tests are not run; builds and S21 acceptance are queued for Stage 8.
 
 **Exit gate:** user-enabled accessibility is transparent, controllable, bounded, and demonstrably safer than generic coordinate automation.
 
 ### Stage 8 — Consolidated provider verification and S21 acceptance (Wave 6)
-**This stage starts only after Stages 4–7 implementation and the final ownership audit are complete.**
-- [ ] Freeze an acceptance build from the complete stacked implementation chain.
-- [ ] Run full unit tests and Shizuku debug build from a clean, reproducible Windows/Android Studio JBR environment.
-- [ ] Verify app install/update/signature behavior and model/runtime startup on the Galaxy S21 (Android 15 / One UI 7).
-- [ ] Verify Termux, Termux:API, Shizuku Next/Rish execution identities and permissions without root.
-- [ ] Verify every capability's discovery state, permission prompt timing, approval text/scope, execution, result, timeout, cancellation, and cleanup.
-- [ ] Verify all read/write and destructive operations, including exact user-mediated handoffs (dialer, SMS composer, camera, share chooser, SAF picker).
-- [ ] Verify Bluetooth/BLE/GATT, USB/OTG, NFC, infrared, sensors, location, Wi-Fi, camera, microphone, notifications, media, TTS, biometrics/Keystore, and AccessibilityService on actual hardware where supported.
-- [ ] Verify negative paths: missing companion app, missing permission, unsupported hardware, disabled special access, denied approval, app backgrounding, process death, timeout, and cancellation.
-- [ ] Measure latency, CPU/GPU behavior, RAM, storage, battery drain, thermal impact, and background process count during representative workloads.
-- [ ] Check no-root/Knox integrity and ensure no unsupported privilege escalation or device-specific assumptions.
-- [ ] Record per-capability results as PASS / LIMITED / UNAVAILABLE / FAIL with device/build details and evidence.
-- [ ] Fix failures, update ownership/status docs, rerun affected tests, and repeat acceptance until exit criteria pass.
+**Status: IN PROGRESS — test planning unlocked; execution not yet started.** All capability onboarding (Stages 4–7) and the final source-level ownership audit are complete in the stacked draft PR chain #39–#47. The next immediate action is a test-inventory and build-environment preflight against the combined head, not a per-PR test run.
 
-**Exit gate:** complete capability matrix with evidence; no unexplained failures; unsupported capabilities honestly marked; resource and security constraints met.
+#### 8A — Consolidated test and build preflight
+- [ ] Confirm the complete dependency chain resolves through PR #47 head `570e73a487e5539f1aad08b17ce5099c2df4e402`; keep all PRs draft/open/unmerged.
+- [ ] Inventory every test source and existing Gradle task; map each new capability to its unit/policy/parser/dispatch tests and identify uncovered integration seams.
+- [ ] Confirm Windows JDK/Gradle/Android SDK paths, compile SDK 37 installation, signing identity, available disk space, and ADB/device connectivity before execution.
+- [ ] Capture baseline repository state and exact commands/results; do not clean or wipe app/device data as a precondition unless specifically needed and approved.
+
+#### Initial test-source inventory (PR changed-file review: #16–#47)
+The first pass over changed-file lists identifies these existing/extended unit-test seams (this is an inventory, not proof that coverage is complete):
+- Termux:API: `TermuxApiCapabilityToolTest`, `TermuxApiReadCommandTest`.
+- Native capability dispatch and contracts: `AndroidControlArgumentsTest`, `AndroidNativeCapabilityToolTest`.
+- Ownership and routing: `CapabilityRegistryTest`.
+- SAF and document-tree operations: `DocumentTreeCapabilityToolTest`.
+- Media, sharing, and notifications: `ActiveMediaSessionCapabilityToolTest`, `ShareContentArgumentsTest`, `NotificationContentPolicyTest`, plus shared native argument/dispatch tests.
+- Accessibility and multimodal agent loop: `AccessibilityScreenInspectionArgumentsTest`, `AccessibilityScreenInspectionPolicyTest`, `AgentCoordinatorTest`, `AgentToolResultBudgetTest`, `LiteRtLmResponseProtocolTest`.
+- USB: `UsbDescriptorParserTest`.
+- Model catalog: `GalleryAllowlistedModelCatalogTest`.
+
+The changed-file review of PRs #16–#47 surfaced no changed `androidTest` source paths; this does not establish that the repository has no instrumentation tests. The combined-head inventory must inspect the complete test tree and Gradle task graph before deciding whether instrumentation coverage exists or needs to be added.
+
+**High-priority coverage review:** verify permission/approval ordering and denial at the provider boundary; stale/replayed handles and cancellation/cleanup; multimodal image-byte delivery and clearing; SAF grant/revocation; notification/call-log/SMS eligibility; USB disconnect/permission timeout; and lifecycle behavior when the app backgrounds or the process dies. These are the highest-risk integration seams and should be explicitly mapped to tests before the first full-suite run.
+
+#### 8B — Consolidated automated validation (run once preflight is complete)
+- [ ] Run the complete `:app:testShizukuDebugUnitTest` suite on the combined head; preserve full logs and distinguish pre-existing failures from regressions.
+- [ ] Run `:app:assembleShizukuDebug` on the same head; record APK path, SHA-256, versionCode, signing certificate fingerprint, and build warnings.
+- [ ] If failures occur, group by root cause, fix on the appropriate stacked branch/PR, add regression coverage, and rerun the affected tests plus the full gate when stable. No PR merge without explicit owner approval.
+
+#### 8C — S21 installation and core runtime smoke tests
+- [ ] Install/update using the same signing identity; verify package/version, launch, model selection/load, Agent Skills UI lifecycle, and no white-screen regression.
+- [ ] Verify Gemma 4 E2B natural-language request → structured tool call → approval → execution → native result → model response; cover malformed/literal JSON, repeated calls, denial, cancellation, timeout, and no duplicate dispatch.
+- [ ] Verify TERMUX, SHIZUKU, and TERMUX_RISH backend identity, permissions, bounded output, timeout/cancellation, and process cleanup without root.
+
+#### 8D — Capability acceptance matrix
+- [ ] For every capability: verify provider discovery, unavailable/permission-required states, approval scope and denial, Android permission timing, success result, bounds, stale-handle rejection, timeout/cancellation, and cleanup.
+- [ ] System/connectivity: Termux:API, sensors, location, Wi-Fi info/settings handoff, Bluetooth/BLE/GATT, NFC, infrared, USB enumeration/descriptors, camera metadata, and supported hardware states.
+- [ ] Storage/media: SAF grants and revocation, removable storage, cross-tree operations, media filename/visual search, indexing bounds, playback, downloads/cancellation, and sharing chooser cancellation/completion.
+- [ ] Privacy-sensitive: contacts, clipboard foreground rules, notification listener/content reads, call log, SMS inbox, telephony composer handoffs, biometric/Keystore, and notification scheduling/reboot recovery.
+- [ ] Accessibility: service enable/disable, semantic tree inspection, sensitive-screen rejection, split-screen/window identity, screenshot multimodal delivery and memory cleanup, click/long-click/scroll, empty-field text entry, selection, stale handles, and denial paths.
+- [ ] Speech: configured ASR/TTS engines, voice/language persistence, explicit playback approval, cancellation, and failure behavior.
+
+#### 8E — Resilience, security, and resource acceptance
+- [ ] Exercise missing companion apps, unsupported hardware, revoked permissions, disabled special access, denied approvals, backgrounding, process death, device disconnect/reconnect, expired/replayed handles, timeout, and cancellation.
+- [ ] Measure representative task latency, CPU/GPU selection, RAM/model memory, storage growth, battery drain, thermal behavior, and background process count.
+- [ ] Confirm no-root/Knox integrity, no silent privilege escalation, no sensitive content persistence, and no unsupported USB endpoint transfers/writes.
+- [ ] Record each capability as PASS / LIMITED / UNAVAILABLE / FAIL with device/build details, reproducible steps, and evidence; fix and retest failures.
+
+**Exit gate:** automated tests and debug build pass on the consolidated head; the S21 acceptance matrix has evidence for every exposed capability; limitations are explicit; no unexplained failures remain; security and resource constraints are acceptable.
 
 ### Stage 9 — Integration, release, and maintenance
 - [ ] Review the complete stacked PR chain for dependency order, duplicate changes, stale branches, and documentation consistency.
@@ -246,8 +279,8 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
-| Wave 5 Accessibility/UI automation | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #39–#42; optional capability follow-ons PR #43–#46 are in progress |
-| Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
+| Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
+| Wave 6 consolidated S21 acceptance | IN PROGRESS — test planning unlocked; execution not started | Onboarding and ownership audit complete; next: combined-head test inventory and build preflight |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
@@ -274,7 +307,8 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #43 — on-demand active notification content read through the same manually enabled listener (**tests added; execution deferred by owner instruction**).
 - PR #44 — approved bounded call-log read using `READ_CALL_LOG`, requested only after one-time approval and subject to Android/installer eligibility (**tests added; execution deferred by owner instruction**).
 - PR #45 — approved bounded SMS inbox read using `READ_SMS`, requested only after one-time approval and subject to Android/installer/default-SMS-role eligibility (**tests added; execution deferred by owner instruction**).
-- PR #46 — read-only USB descriptor inspection using one-shot handles, per-device Android permission, and `USB_DEVICE_IO` approval; no arbitrary endpoint transfers or writes (**tests added; execution deferred by owner instruction**).
+- PR #46 — read-only USB descriptor inspection using one-shot handles, per-device Android permission, and USB_DEVICE_IO approval; no arbitrary endpoint transfers or writes (tests added; execution deferred).
+- PR #47 — approved wifi_open_settings handoff; opens Android Wi-Fi panel or settings fallback, never toggles Wi-Fi silently (tests added; execution deferred).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
@@ -339,19 +373,19 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Display brightness | Native Kotlin (Settings.System with explicit special access) | Implemented; reports stored setting/mode; mutation requires Modify system settings access and explicit approval; switches to manual mode |
 | Vibration | Native Kotlin (VibratorManager) | Implemented; explicit approval; maximum one-second pulse |
 | Bounded wake lock | Native Kotlin (PowerManager) | Implemented; partial CPU lock, explicit approval, maximum five-minute timeout with automatic release |
-| Sensor listing and finite sensor reads | Termux:API (termux-sensor) | Planned; draft handlers in PR #16 enforce listing-gated names, 1–10 samples, 100–5000 ms delay, and 8 KiB output; current-head tests/build and device acceptance pending; not production-available |
+| Sensor listing and finite sensor reads | Termux:API (termux-sensor) | CODE / VALIDATION PENDING — draft handlers in PR #16 enforce listing-gated names, 1–10 samples, 100–5000 ms delay, and 8 KiB output; current-head tests/build and device acceptance pending; not production-available |
 | Continuous sensor streams | Termux:API (termux-sensor) | Planned; not exposed until cancellation and sensor cleanup are verified |
-| Location once/last | Termux:API (termux-location) | Planned; draft handler in PR #16 uses provider allowlist, 45-second timeout, and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
+| Location once/last | Termux:API (termux-location) | CODE / VALIDATION PENDING — draft handler in PR #16 uses provider allowlist, 45-second timeout, and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
 | Continuous location updates | Termux:API (termux-location) | Planned; not exposed until bounded-session cancellation and cleanup are verified |
-| Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | Planned; draft handler in PR #16 uses a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
-| Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | Planned; draft handler in PR #16 reads only the last scan with a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
-| Wi-Fi enable/disable | Native Kotlin user-mediated settings panel | Planned; no silent toggle where Android forbids it |
+| Wi-Fi connection state | Termux:API (termux-wifi-connectioninfo) | CODE / VALIDATION PENDING — draft handler in PR #16 uses a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
+| Wi-Fi last-scan results | Termux:API (termux-wifi-scaninfo) | CODE / VALIDATION PENDING — draft handler in PR #16 reads only the last scan with a fixed no-argument command and scoped user approval; current-head tests/build and device acceptance pending; not production-available |
+| Wi-Fi settings handoff | Native Kotlin (Settings.Panel / Settings.ACTION_WIFI_SETTINGS) | CODE / VALIDATION PENDING — PR #47: one-time WIFI_CONTROL approval; user makes any change; no silent toggle |
 | Bluetooth discovery / bonded devices | Native Kotlin (BluetoothAdapter / BLUETOOTH_CONNECT) | Draft implementation in the preceding onboarding branch; current-head local validation and S21 acceptance pending |
 | Bluetooth LE scan | Native Kotlin (BluetoothLeScanner / BLUETOOTH_SCAN + CONNECT) | Draft implementation in the preceding onboarding branch; separate capability ID, 1–10 second low-power scan, bounded results, cancellation-safe stop; validation pending |
 | Bluetooth GATT operations | Native Kotlin (BluetoothGatt) | Draft in PRs #26–27: short-lived connection, bounded service/characteristic discovery, one-shot characteristic read/write by full UUID, 512-byte value cap, explicit approval and cancellation-safe close; local validation and device acceptance pending |
 
-| NFC read/write | Termux:API (termux-nfc) | Planned; basic NDEF read/write; foreground/tag interaction requires device verification |
-| Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | Planned; bounded carrier frequency and pulse pattern |
+| NFC read/write | Termux:API (termux-nfc) | CODE / VALIDATION PENDING — PR #18 draft; basic NDEF read/write; foreground/tag interaction requires device verification |
+| Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | CODE / VALIDATION PENDING — PR #17 draft; bounded carrier frequency and pulse pattern |
 | USB host device discovery / permission / I/O | Native Kotlin (UsbManager) | Draft in PR #46: bounded device/interface enumeration plus standard descriptor-only inspection through 30-second one-shot handles, per-device Android permission prompt, and `USB_DEVICE_IO` approval. No arbitrary endpoint transfers or writes; removable-storage files remain on SAF in PRs #23–25; validation/device acceptance pending |
 | App discovery | Native Kotlin (PackageManager launcher queries) | Implemented |
 | App launch | Native Kotlin (launch intents) | Implemented |
@@ -364,29 +398,29 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Place a phone call | Native Kotlin (ACTION_DIAL) | Draft in PR #31: scoped approval opens dialer with number; user must place call; no CALL_PHONE permission |
 | Clipboard read/write | Native Kotlin (ClipboardManager) | Draft in PR #28: foreground-only text reads (5 items / 8192 characters), writes capped at 2048 characters, both require scoped approval; local validation and device acceptance pending |
 | Notifications created by this app | Native Kotlin (NotificationManager) | Draft in PR #30: immediate posting with scoped approval and POST_NOTIFICATIONS permission/global-enabled checks; user-confirmed unit tests and debug build passed; device acceptance pending |
-| Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | Planned; explicit user-enabled special access |
+| Notification listener / read other apps' notifications | Native Kotlin NotificationListenerService | CODE / VALIDATION PENDING — PR #43: explicit user-enabled special access plus one-time approval per on-demand active-notification read; no history/background collection/persistence |
 | Notification channel management | Native Kotlin (NotificationManager) | Draft in PR #30: bounded channel listing and approval-gated channel creation; user-confirmed unit tests and debug build passed; channel settings remain user-controlled in Android settings |
-| Camera info | Termux:API (termux-camera-info) | Phase 5D draft; fixed read-only metadata query |
+| Camera info | Termux:API (termux-camera-info) | CODE / VALIDATION PENDING — PR #19 draft; fixed read-only metadata query |
 | Camera photo capture | Native Kotlin (MediaStore + user-mediated camera intent) | Phase 6B draft; app-owned pending URI, explicit approval, publish only after successful capture |
 | Microphone recording to file | Native Kotlin (MediaRecorder + MediaStore) | Phase 6C draft; 1–30 seconds, app-owned audio URI, RECORD_AUDIO requested only after scoped approval, cancellation-safe stop/release |
 | Basic speech recognition | Native Kotlin (Gallery AsrServiceProvider: Android SpeechRecognizer, ML Kit, MediaPipe) | Phase 9A: existing hold-to-dictate UI already uses native ASR engines; model-initiated recording is intentionally not exposed |
-| Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; model-triggered speech action remains a separate integration task |
+| Text-to-speech / engine information | Native Kotlin (Gallery TtsServiceProvider: Android platform, ML Kit GenAI, MediaPipe) | Existing native engine selection, voice management, and chat playback; speak_text integrated through existing playback controller in PR #33 (local tests/build user-confirmed; device acceptance pending) |
 | Biometric authentication | Native Kotlin (BiometricPrompt) | PR #32: foreground strong-biometric prompt via Gallery action channel; returns only success/failure; no biometric data is exposed; user-confirmed local unit tests and debug build passed; device acceptance pending |
 | Secure key operations | Native Kotlin (Android Keystore) | PR #32: non-exportable AES-256-GCM keys; key use requires strong biometric authentication; user-confirmed local unit tests and debug build passed; device acceptance pending |
-| Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
-| Media scan / index | Native Kotlin (MediaScannerConnection / MediaStore) | Planned |
-| Media playback initiated by the app | Native Kotlin (existing media stack or platform MediaPlayer) | Planned |
+| Download management | Native Kotlin (Gallery DownloadRepository / WorkManager) | CODE / VALIDATION PENDING — PR #34: bounded status and exact-worker cancellation through existing Gallery queue |
+| Media scan / index | Native Kotlin (MediaStore + SmartAlbumIndexingWorker / EmbeddingGemma-2) | CODE / VALIDATION DEFERRED — PR #35: reuses Gallery visual index and granted SAF trees; bounded indexing |
+| Media playback initiated by the app | Native Kotlin (Gallery Media3 player) | CODE / VALIDATION DEFERRED — PR #35: fresh search handle and one-time approval; Gallery-owned playback |
 | Active media-session control | Native Kotlin (MediaSessionManager) | CODE / VALIDATION DEFERRED — PR #37; user-opt-in notification-listener special access, one-time approval, bounded session handles and controls |
-| Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
+| Share text/files | Native Kotlin (ACTION_SEND / chooser + SAF grants) | CODE / VALIDATION DEFERRED — PR #36: exact-content approval, user-selected receiver, temporary read grant; no delivery claim |
 | Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
 | App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Draft in PR #30: approved schedule/list/cancel operations reuse Gallery's existing scheduler; user-confirmed unit tests and debug build passed; WorkManager remains for deferrable jobs, not exact-time notification alarms |
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
-| User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
+| User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | CODE / VALIDATION PENDING — PRs #23–#25: persisted user grants, bounded file operations and cross-tree transfer |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Draft in PRs #23–25: user-granted SAF tree access and bounded file operations/transfers; validation/device acceptance pending; UsbManager is not a mass-storage filesystem |
 | Screen capture / visual screen understanding | Android AccessibilityService + LiteRT-LM multimodal tool result | Draft in PR #40: API 34+ window-only capture, one visible external window, explicit SCREEN_CAPTURE approval, conservative sensitive-screen gate, 1,280 px / 2 MiB bounds, in-memory Gemma image input; no display-wide fallback or persistent screenshot file |
 | Live semantic UI tree | Android AccessibilityService | Draft in PRs #39–#41: bounded read-only active-window inspection plus one external-window inspection path with short-lived opaque handles; validation deferred |
-| Semantic click / long-press / scroll | Android AccessibilityService | Draft in PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD with per-action approval, one-shot handles, and exact node/window revalidation; swipe remains planned |
-| Semantic text entry / selection | Android AccessibilityService | Draft in PR #42: safe normal single-line text fields only; empty-field entry up to 256 characters; bounded selection ranges; per-operation UI_TEXT_INPUT approval and exact target revalidation |
+| Semantic click / long-press / scroll | Android AccessibilityService | CODE / VALIDATION DEFERRED — PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD; coordinate gesture fallback remains on existing shell route |
+| Semantic text entry / selection | Android AccessibilityService | CODE / VALIDATION DEFERRED — PR #42: safe normal single-line text fields only; empty-field entry up to 256 characters; bounded selection ranges; per-operation UI_TEXT_INPUT approval and exact target revalidation |
 | Coordinate gesture fallback | Unified shell router only when explicitly requested/authorized | Existing shell capability; not a second semantic UI provider |
 
 ## Termux:API command inventory and disposition

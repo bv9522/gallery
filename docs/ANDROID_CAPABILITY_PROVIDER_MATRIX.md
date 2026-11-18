@@ -6,8 +6,8 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 
 ## Current progress snapshot (2026-11-17)
 
-- Active branch: `wave-6d-usb-descriptor-io`, stacked on `wave-6c-sms-inbox-read`.
-- Active PR: [#46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), draft/open/unmerged, stacked on [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), and [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33).
+- Active branch: `wave-6e-wifi-settings-handoff-and-ownership-audit`, stacked on `wave-6d-usb-descriptor-io`.
+- Active PR: [#47 — Wave 6E user-mediated Wi-Fi settings handoff and ownership audit](https://github.com/bv9522/gallery/pull/47), draft/open/unmerged, stacked on [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), and [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33).
 - PR #42 adds separately approved entry into empty ordinary single-line plain-text fields and bounded text selection. Current field contents are never returned. Tests are added but not run; no build or device acceptance is performed.
 - Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
 - PR #34 reuses `DefaultDownloadRepository` / `DownloadWorker` / WorkManager and adds bounded snapshots, allowlist-backed labels, opaque handles, exact-worker cancellation, scoped approval, and unit tests. The user confirmed its local tests and Shizuku debug build passed; device acceptance remains pending.
@@ -19,9 +19,11 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 - PR #44 adds `android_control.read_call_log`, a one-shot snapshot of at most 20 recent call-log entries with caller name/number, call type, timestamp, and duration. Each read requires explicit user intent, one-time `CALL_LOG_READ` approval, and `READ_CALL_LOG` permission requested only after approval. Android/installer eligibility restrictions fail closed; Gallery does not change the default dialer role. Tests are added but not run.
 - PR #43 adds `android_control.read_notifications`, an explicit one-shot snapshot of up to 20 currently active notifications from other apps. It requires manually enabled notification-listener special access plus separate one-time approval for each read; it returns only app labels and bounded title/body text, does not read history or process callbacks, and stores no notification content. The shared listener does not collect callbacks or retain notification history. Tests are added but not run.
 - PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
-- **Validation policy:** per the owner's instruction, do not run tests, Gradle builds, or device acceptance per slice. Add tests as implementation proceeds and execute the accumulated suite/build only after all capability onboarding is complete.
+- **Validation status:** all capability onboarding and the final source-level ownership audit are complete. Per-slice execution was intentionally deferred; consolidated test planning is now unlocked. No accumulated suite, build, or S21 acceptance has yet been executed. The immediate next step is a combined-head test inventory and build-environment preflight.
 - PR #23–#29 and #16–#27 still require consolidated S21 acceptance recorded in the master roadmap.
-- Consolidated S21 acceptance is intentionally gated until capability onboarding and the ownership audit are complete.
+- PR #47 adds `android_control.wifi_open_settings`, which requires one-time `WIFI_CONTROL` approval and opens `Settings.Panel.ACTION_WIFI` with `Settings.ACTION_WIFI_SETTINGS` fallback. The user makes any Wi-Fi change; Gallery never attempts a silent toggle. Tests are added but not run.
+- Source-level ownership audit: `CapabilityCatalog` derives one provider declaration and one route preference for every `AndroidCapability` enum value. `CapabilityRegistry` enforces complete ownership and rejects duplicate/missing/mismatched routes. Device permissions, approval timing, and actual behavior remain unverified until Stage 8.
+- Consolidated S21 acceptance is now unlocked by completion of capability onboarding and the ownership audit; test/build/device execution remains pending the consolidated preflight.
 
 ## Single-owner policy
 
@@ -33,7 +35,7 @@ Every model-independent capability has exactly one selected owner in the capabil
 | Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
-| Semantic UI inspection, bounded window capture, approved semantic actions, and safe text input | Android AccessibilityService | Explicitly enabled service; bounded tree reads, API 34+ window-only screenshots, per-action approved click/long-click/scroll, and UI_TEXT_INPUT-gated entry into empty plain-text fields plus bounded selection with fresh node revalidation; swipe remains planned |
+| Semantic UI inspection, bounded window capture, approved semantic actions, and safe text input | Android AccessibilityService | Explicitly enabled service; bounded tree reads, API 34+ window-only screenshots, per-action approved click/long-click/scroll, and UI_TEXT_INPUT-gated entry into empty plain-text fields plus bounded selection with fresh node revalidation; coordinate gesture fallback remains on the existing unified shell route only when explicitly requested/authorized |
 
 Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
 Termux:API is a distinct capability owner only for the bounded command families assigned in the
@@ -57,16 +59,16 @@ The list below reflects previously integrated Gallery-native operations; it is n
 
 ## Onboarding readiness
 
-The capability onboarding chain through Wave 3D consists of open draft PRs #23–#32. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E now includes downloads/status/cancellation (PR #34), media search/indexing/Gallery-owned playback (draft PR #35), and user-mediated text/SAF file sharing (draft PR #36). PR #36 uses the Android chooser and does not claim delivery when the chooser opens. The `speak_text` operation reuses the existing TTS playback controller. Per-slice tests/builds are deferred by owner instruction until all capability onboarding is complete. Consolidated S21 device acceptance remains deferred until onboarding is complete.
+The capability onboarding chain includes draft PRs #23–#32, Wave 3E PRs #33–#37, Accessibility PRs #39–#42, optional capability PRs #43–#46, and Wi-Fi/audit PR #47. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E now includes downloads/status/cancellation (PR #34), media search/indexing/Gallery-owned playback (draft PR #35), and user-mediated text/SAF file sharing (draft PR #36). PR #36 uses the Android chooser and does not claim delivery when the chooser opens. The `speak_text` operation reuses the existing TTS playback controller. Per-slice tests/builds were deferred by owner instruction until all capability onboarding was complete. That gate is now satisfied; consolidated validation is planned in Stage 8.
 
-The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
+The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available. PR #47's source-level audit also reconciles each current native operation with its capability ID and scoped approval path; no tests/builds have been run for this audit.
 
 ## Native notifications and scheduling — Phase 9B draft
 
 - Reuses Gallery's existing AlarmManager/DataStore scheduler, scheduled-notification receiver (which re-arms daily reminders at local wall-clock time), boot recovery receiver, and PendingIntent helper; no second scheduling subsystem is introduced.
 - `android_control` exposes approved immediate notification posting, bounded active-notification listing/dismissal, scheduled reminder creation/listing/cancellation, and bounded channel listing/creation. Mutations require scoped approval; Android 13+ notification permission is requested only after approval.
 - Provider discovery reports permission/global-notification state without prompting. Blocked channels and globally disabled notifications are explicit failures. Active notification and channel listings are bounded; at most 50 reminders are persisted. Schedule persistence and alarm updates are serialized, and boot recovery reads authoritative DataStore state.
-- Reading notifications from other apps remains unsupported and separate; it requires NotificationListenerService special access and is not silently enabled by this phase.
+- PR #43 adds on-demand reads of currently active notifications from other apps through the same manually enabled NotificationListenerService. Each read requires separate approval; no history, background callback collection, or persistence is introduced.
 
 ## Accessibility provider — Wave 5A semantic inspection (PR #39 draft)
 
@@ -107,18 +109,11 @@ The capability catalog assigns exactly one owner to every declared capability. T
 - Adds `select_text` for a non-empty end-exclusive character range within the current safe field length. Each selection requires separate `UI_TEXT_INPUT` approval showing the exact target and range; field contents are not returned.
 - Input handles are opaque, expire after 30 seconds, and are consumed before dispatch. Immediately before dispatch, the service revalidates the same external package/window, complete safe hierarchy, exact node class/label/bounds, normal input type, enabled state, current text length, and currently advertised ACTION_SET_TEXT or ACTION_SET_SELECTION.
 - No passwords, clipboard access, arbitrary keyboard events, multiline entry, coordinate gestures, hidden typing, or app switching are exposed. A success result confirms Android accepted the accessibility action only, not that the app state changed.
-- Pure policy and argument tests are added but not run. All tests/builds and S21 acceptance remain deferred until capability onboarding is complete.
+- Pure policy and argument tests are added but not run. All tests/builds and S21 acceptance are queued for the unlocked Stage 8 consolidated validation.
 
-## Remaining capability groups
+## Capability ownership summary
 
-Termux:API is selected for basic sensors, location requests/updates, Wi-Fi information and last-scan
-results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Kotlin owns Bluetooth/BLE,
-USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/security-sensitive
-integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
-provider owns removable-storage files. USB host enumeration is draft code; PR #46 adds read-only standard descriptor inspection with a per-device permission prompt and one-shot approval. Arbitrary endpoint data transfers and writes remain unsupported. Gallery-owned notification posting/scheduling is implemented in draft PR #30 and has user-confirmed
-local unit-test/build validation; device acceptance remains pending. The current Wave 3 telephony slice
-adds non-identifying telephony metadata and user-mediated dialer/SMS composer actions; call-log and SMS
-inbox reads remain planned.
+The four optional capability families are onboarded in draft PRs #43–#46: active notification content, call-log reads, received-SMS inbox reads, and read-only USB descriptor inspection. PR #47 adds the user-mediated Wi-Fi settings handoff. These are CODE / VALIDATION PENDING only; tests/builds and S21 acceptance are queued for Stage 8. USB mass-storage files remain on SAF; arbitrary non-storage endpoint transfers and writes are deliberately unsupported. The broader capability set remains owned by Termux:API (bounded sensors, location, Wi-Fi connection/last-scan, NFC, infrared, camera metadata), native Kotlin (Bluetooth/GATT, speech, contacts, clipboard, notifications, telephony, media, biometrics, microphone/camera capture, wallpaper, USB descriptor inspection and settings handoffs), SAF (user-granted removable-storage files), AccessibilityService (bounded semantic inspection/actions/text input), and the unified shell router (general shell/path operations).
 
 ## Security and implementation rules
 
@@ -142,6 +137,7 @@ inbox reads remain planned.
 - USB host discovery uses UsbManager and reports bounded VID/PID/class/interface metadata. PR #46
   adds read-only standard descriptor retrieval after per-device Android permission and separate
   approval; connections close immediately. USB mass storage remains on SAF, not raw UsbManager I/O.
+- Wi-Fi control is a user-mediated Settings panel/settings handoff in PR #47; the agent cannot silently toggle Wi-Fi.
 - Phase 8A adds generic Bluetooth GATT service inspection through a short-lived native LE
   connection. Phase 8B adds one-shot characteristic reads/writes using full UUIDs, with reads
   returned as Base64 and writes limited to 512 bytes with exact payload approval. Each operation
@@ -224,7 +220,7 @@ inbox reads remain planned.
 - Telephony metadata is deliberately limited to whether the device exposes telephony, phone type, and SIM state. No subscriber IDs, phone numbers, IMEI/MEID, carrier identifiers, cell IDs, or location are read.
 - ACTION_DIAL opens the system dialer after scoped approval. The user reviews the destination and initiates the call; no CALL_PHONE permission is requested.
 - ACTION_SENDTO with an smsto: URI opens a prefilled SMS composer after scoped approval showing the exact recipient and message. The user presses Send; no SEND_SMS permission is requested and the app does not send directly.
-- Call-log and SMS inbox reads remain unimplemented pending separate sensitive-permission, default-role, and policy review.
+- PR #44 adds bounded call-log reads and PR #45 adds bounded received-SMS inbox reads. Each requires explicit user intent, one-time approval, and the corresponding Android runtime permission requested only after approval; Android installer/default-role restrictions fail closed.
 
 
 ## Biometric and Android Keystore onboarding — Wave 3 draft
