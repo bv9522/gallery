@@ -18,7 +18,6 @@ package com.google.ai.edge.gallery.customtasks.agentchat
 
 import android.content.Context
 import com.google.ai.edge.gallery.data.DataStoreRepository
-import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.skills.SkillsProvider
 import com.google.ai.edge.gallery.tools.CallJsSkillResultImage
