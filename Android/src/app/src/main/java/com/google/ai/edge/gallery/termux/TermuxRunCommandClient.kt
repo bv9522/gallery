@@ -201,6 +201,49 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     }
   }
 
+  /**
+   * Streams one bounded base64 chunk to a Termux-owned temporary artifact file through the
+   * documented RUN_COMMAND stdin extra. Each Intent stays comfortably below the platform's
+   * approximate combined-extra ceiling; the caller verifies the complete file before rename.
+   */
+  suspend fun appendBinaryFileChunk(
+    temporaryPath: String,
+    encodedChunk: String,
+    firstChunk: Boolean,
+    timeoutMs: Long = BINARY_CHUNK_TIMEOUT_MS,
+  ) {
+    require(temporaryPath.startsWith("/") && temporaryPath.length <= 1_024 &&
+      temporaryPath.split('/').none { it == "." || it == ".." } && '\u0000' !in temporaryPath) {
+      "Temporary artifact path must be a safe absolute path."
+    }
+    require(encodedChunk.isNotEmpty() && encodedChunk.length <= MAX_BINARY_STDIN_CHARS) {
+      "Binary transfer chunk exceeds the RUN_COMMAND stdin bound."
+    }
+    ensureTermuxReady()
+    val redirect = if (firstChunk) ">" else ">>"
+    val result = invokeTermux(
+      "umask 077; base64 -d $redirect \${shellQuote(temporaryPath)}",
+      DEFAULT_TERMUX_WORKDIR,
+      timeoutMs,
+      MIN_OUTPUT_CHARS,
+      stdin = encodedChunk,
+    )
+    check(result.succeeded) {
+      result.error ?: result.stderr.ifBlank { "Termux could not accept the binary artifact chunk." }
+    }
+  }
+
+  /** Runs one short, bounded verification/finalization command as the explicitly selected Termux identity. */
+  suspend fun runBinaryTransferCommand(command: String, timeoutMs: Long = BINARY_CHUNK_TIMEOUT_MS): String {
+    require(command.isNotBlank() && command.length <= 4_096 && '\u0000' !in command)
+    ensureTermuxReady()
+    val result = invokeTermux(command, DEFAULT_TERMUX_WORKDIR, timeoutMs, MIN_OUTPUT_CHARS)
+    check(result.succeeded) {
+      result.error ?: result.stderr.ifBlank { "Termux binary-transfer command failed." }
+    }
+    return result.stdout.trim()
+  }
+
   private suspend fun awaitCompletion(directory: String): SupervisorState {
     while (true) {
       val command =
@@ -344,6 +387,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     workingDirectory: String,
     timeoutMs: Long,
     maxOutputChars: Int,
+    stdin: String? = null,
   ): TermuxShellResult {
     val (requestId, deferred) = TermuxCommandResultReceiver.register()
     val callbackIntent = Intent(appContext, TermuxCommandResultReceiver::class.java)
@@ -366,6 +410,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
       putExtra(EXTRA_COMMAND_LABEL, "Android MCP process supervisor")
       putExtra(EXTRA_COMMAND_DESCRIPTION, "Supervised command control request.")
       putExtra(EXTRA_PENDING_INTENT, callback)
+      stdin?.let { putExtra(EXTRA_STDIN, it) }
     }
 
     try {
@@ -476,6 +521,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     private const val EXTRA_COMMAND_LABEL = "com.termux.RUN_COMMAND_COMMAND_LABEL"
     private const val EXTRA_COMMAND_DESCRIPTION = "com.termux.RUN_COMMAND_COMMAND_DESCRIPTION"
     private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
+    private const val EXTRA_STDIN = "com.termux.RUN_COMMAND_STDIN"
 
     internal const val EXTRA_PLUGIN_RESULT_BUNDLE = "result"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT = "stdout"
@@ -501,5 +547,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     private const val POLL_TIMEOUT_MS = 5_000L
     private const val CLEANUP_TIMEOUT_MS = 5_000L
     private const val POLL_INTERVAL_MS = 150L
+    private const val MAX_BINARY_STDIN_CHARS = 256 * 1_024
+    private const val BINARY_CHUNK_TIMEOUT_MS = 15_000L
   }
 }
