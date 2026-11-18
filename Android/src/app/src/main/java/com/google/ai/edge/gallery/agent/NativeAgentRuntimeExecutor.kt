@@ -50,6 +50,7 @@ import com.google.ai.edge.gallery.agent.artifact.PdfArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.DocxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.XlsxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.PptxArtifactGenerator
+import com.google.ai.edge.gallery.agent.artifact.ZipArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
@@ -185,6 +186,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "For XLSX use a .xlsx filename and a structured payload with sheets; each sheet has a valid unique name and rows of typed string, number, boolean, or null cells, with optional column_widths, header_row, and auto_filter. " +
       "Treat formula-looking strings as text; formula execution and macro content are not supported. " +
       "For PPTX use a .pptx filename and a structured payload with a slides array; each slide requires a title and may include subtitle, paragraphs, and bullet_items. " +
+      "For ZIP creation use a .zip filename and a structured payload with an entries array of {path, content} UTF-8 text files. Paths must be relative, unique, and free of dot-segment traversal; this current ZIP adapter creates archives only and does not yet extract archives. " +
       "The operation shows the exact filename and destination for one-time approval before creating the file. " +
       "Existing files are never silently replaced; choose a new filename if one already exists. " +
       "The generated PDF is local and its bytes are not returned to the model. " +
@@ -422,7 +424,7 @@ class NativeAgentRuntimeExecutor(
         )
         val artifactContext = checkNotNull(context) { "Agent application context is unavailable." }
         val artifactEngine = DefaultArtifactGenerationEngine(
-          generators = ArtifactGeneratorRegistry(listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator())),
+          generators = ArtifactGeneratorRegistry(listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator())),
           destinations = ArtifactDestinationRegistry(listOf(SafArtifactDestinationAdapter(artifactContext))),
           approvalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel),
         )
@@ -459,7 +461,7 @@ class NativeAgentRuntimeExecutor(
             ),
             ArtifactGenerationTool(
               engine = artifactEngine,
-              supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX, ArtifactFormat.XLSX, ArtifactFormat.PPTX),
+              supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX, ArtifactFormat.XLSX, ArtifactFormat.PPTX, ArtifactFormat.ZIP),
               supportedDestinations = setOf(DestinationType.SAF),
             ),
           )
