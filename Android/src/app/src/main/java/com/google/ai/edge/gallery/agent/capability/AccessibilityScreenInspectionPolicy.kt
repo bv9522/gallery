@@ -8,7 +8,7 @@ package com.google.ai.edge.gallery.agent.capability
 internal object AccessibilityScreenInspectionPolicy {
   const val MAX_LABEL_CHARS = 120
   private val sensitiveWords = Regex(
-    """\b(sign[ -]?in|sign[ -]?up|log[ -]?in|password|passcode|pin|one[ -]?time code|verification code|otp|2fa|mfa|account|profile|personal information|beneficiary|routing number|iban|sort code|crypto|cvv|cvc|credit card|debit card|card number|bank|payment|checkout|transfer|wallet|billing|account number|social security|ssn|recovery phrase|seed phrase|private key|security code|tax return|medical record|patient portal|prescription|diagnosis|email address|phone number|date of birth|passport|driver.?s license|government id)\b""",
+    """\b(sign[ -]?in|sign[ -]?up|log[ -]?in|password|passcode|pin|one[ -]?time code|verification code|otp|2fa|mfa|account|profile|personal information|beneficiary|routing number|iban|sort code|crypto|cvv|cvc|credit card|debit card|card number|bank|payment|checkout|transfer|wallet|billing|account number|social security|ssn|recovery phrase|seed phrase|private key|security code|tax return|medical record|patient portal|prescription|diagnosis|email address|phone number|date of birth|passport|driver.?s license|government id|address)\b""",
     RegexOption.IGNORE_CASE,
   )
   private val emailPattern = Regex("""\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b""", RegexOption.IGNORE_CASE)
@@ -16,7 +16,7 @@ internal object AccessibilityScreenInspectionPolicy {
   private val phonePattern = Regex("""(?<!\w)\+?\d(?:[\d\s().-]{7,}\d)(?!\w)""")
   private val protectedPackageFragments = listOf(
     "bank", "wallet", "payment", "pay.", ".pay", "finance", "broker", "trading",
-    "password", "credential", "authenticator", "identity", "vault", "health",
+    "password", "credential", "authenticator", "identity", "vault", "health", "paypal", "venmo", "cashapp", "crypto", "chase", "capitalone", "wellsfargo", "revolut", "wise",
     "medical", "patient", "insurance", "tax", "government",
   )
   private val systemPackages = setOf(
