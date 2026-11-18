@@ -15,6 +15,13 @@ class ArtifactEmbeddedImageArgumentsTest {
     assertEquals("Front view", parsed.first().altText)
   }
 
+  @Test fun acceptsSupplementaryUnicodeInAltText() {
+    val parsed = ArtifactEmbeddedImageArguments.parse(JsonArray().apply {
+      add(source("photo", "Front view 📷"))
+    })
+    assertEquals("Front view 📷", parsed.single().altText)
+  }
+
   @Test(expected = IllegalArgumentException::class)
   fun rejectsMoreThanFourEmbeddedImagesInOnePayloadGroup() {
     ArtifactEmbeddedImageArguments.parse(JsonArray().apply {
