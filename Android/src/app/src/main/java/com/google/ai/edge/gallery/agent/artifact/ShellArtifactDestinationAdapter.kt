@@ -15,6 +15,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 
 /**
@@ -41,7 +43,7 @@ class ShellArtifactDestinationAdapter(
   override suspend fun write(
     request: ArtifactCreateRequest,
     producer: ArtifactOutputProducer,
-  ): ArtifactDestinationWriteResult {
+  ): ArtifactDestinationWriteResult = stagingMutex.withLock {
     val destination = request.destination as? ArtifactDestinationSpec.ShellPath
       ?: throw IllegalArgumentException("Shell adapter received a non-shell destination.")
     require(ShellArtifactTransferPolicy.supportsBinaryOutput(destination.backend)) {
@@ -50,6 +52,13 @@ class ShellArtifactDestinationAdapter(
     require(stagingDirectory.exists() || stagingDirectory.mkdirs()) {
       "The private artifact staging directory is unavailable."
     }
+    stagingDirectory.listFiles()
+      ?.filter { it.isFile && it.name.startsWith("gallery-artifact-") }
+      ?.forEach { stale ->
+        check(stale.delete() || !stale.exists()) {
+          "A previous private artifact staging file could not be cleaned."
+        }
+      }
     val staged = File.createTempFile("gallery-artifact-", ".stage", stagingDirectory)
     try {
       val metadata = withContext(Dispatchers.IO) {
@@ -93,7 +102,6 @@ class ShellArtifactDestinationAdapter(
         runCatching { staged.delete() }
       }
     }
-  }
 
   private suspend fun transferToTermux(
     staged: File,
@@ -175,6 +183,7 @@ class ShellArtifactDestinationAdapter(
   private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
   private companion object {
+    val stagingMutex = Mutex()
     const val TRANSFER_TIMEOUT_MS = 120_000L
     const val CLEANUP_TIMEOUT_MS = 5_000L
   }
