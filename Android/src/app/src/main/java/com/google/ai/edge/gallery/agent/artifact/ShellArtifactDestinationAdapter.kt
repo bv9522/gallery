@@ -102,6 +102,7 @@ class ShellArtifactDestinationAdapter(
         runCatching { staged.delete() }
       }
     }
+  }
 
   private suspend fun transferToTermux(
     staged: File,
