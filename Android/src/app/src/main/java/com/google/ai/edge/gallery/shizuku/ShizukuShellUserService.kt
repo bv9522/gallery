@@ -178,7 +178,15 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       require(!Files.exists(targetPath, LinkOption.NOFOLLOW_LINKS) || overwrite) {
         "Destination appeared during transfer; refusing to replace it."
       }
-      Os.rename(staging.absolutePath, target.absolutePath)
+      if (overwrite) {
+        Os.rename(staging.absolutePath, target.absolutePath)
+      } else {
+        // link() is an atomic create-if-absent operation. Unlike check-then-rename, it cannot
+        // replace a file that appeared after preflight. Filesystems without hard-link support
+        // fail closed rather than weakening no-overwrite semantics.
+        Os.link(staging.absolutePath, target.absolutePath)
+        runCatching { Os.unlink(staging.absolutePath) }
+      }
       temporary = null
       Bundle().apply {
         putBoolean(KEY_BINARY_SUCCESS, true)
