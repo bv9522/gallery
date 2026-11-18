@@ -186,6 +186,7 @@ data class NativeUsbDevice(
   val subclassCode: Int,
   val protocolCode: Int,
   val interfaces: List<NativeUsbInterface>,
+  val deviceHandle: String? = null,
 )
 
 fun interface NativeRuntimePermissionRequester {
