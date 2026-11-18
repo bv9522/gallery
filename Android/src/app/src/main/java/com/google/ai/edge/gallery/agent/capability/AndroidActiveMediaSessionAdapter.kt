@@ -4,6 +4,7 @@
  */
 package com.google.ai.edge.gallery.agent.capability
 
+import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
@@ -69,6 +70,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
     appContext.getSystemService(NotificationManager::class.java)
       ?.isNotificationListenerAccessGranted(component) == true
 
+  @SuppressLint("MissingPermission")
   fun listActiveSessions(): ActiveMediaSessionList {
     requireAccess()
     handles.clear()
@@ -117,6 +119,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
     return ActiveMediaSessionHandleSummary(entry.snapshot.appLabel, entry.snapshot.title, entry.snapshot.artist)
   }
 
+  @SuppressLint("MissingPermission")
   fun control(handle: String, action: ActiveMediaSessionAction, positionMs: Long? = null): ActiveMediaSessionControlResult {
     requireAccess()
     val entry = handles[handle]
