@@ -20,6 +20,21 @@ enum class ArtifactFormat(val mimeType: String) {
   fun acceptsMimeType(value: String): Boolean =
     if (this == IMAGE) value in setOf("image/png", "image/jpeg", "image/webp") else value == mimeType
 
+  fun acceptsSignature(prefix: ByteArray): Boolean = when (this) {
+    PDF -> prefix.startsWithAscii("%PDF-")
+    DOCX, XLSX, PPTX, ZIP -> prefix.startsWithBytes(byteArrayOf(0x50, 0x4b, 0x03, 0x04))
+    IMAGE -> prefix.startsWithBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) ||
+      prefix.startsWithBytes(byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte())) ||
+      (prefix.size >= 12 && prefix.copyOfRange(0, 4).contentEquals("RIFF".toByteArray()) &&
+        prefix.copyOfRange(8, 12).contentEquals("WEBP".toByteArray()))
+  }
+
+  private fun ByteArray.startsWithAscii(value: String): Boolean =
+    size >= value.length && copyOfRange(0, value.length).contentEquals(value.toByteArray())
+
+  private fun ByteArray.startsWithBytes(value: ByteArray): Boolean =
+    size >= value.size && copyOfRange(0, value.size).contentEquals(value)
+
   fun acceptsFileName(name: String): Boolean {
     val extension = name.substringAfterLast('.', "").lowercase()
     return when (this) {
