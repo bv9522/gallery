@@ -24,6 +24,8 @@ data class SemanticScreenElement(
   val enabled: Boolean,
   val selected: Boolean,
   val checked: Boolean?,
+  val textInputCapable: Boolean = false,
+  val textLength: Int? = null,
 )
 
 data class SemanticScreenSnapshot(
@@ -42,6 +44,9 @@ internal data class AccessibilityElementFingerprint(
   val scrollable: Boolean,
   val enabled: Boolean,
   val actionable: Boolean,
+  val textInputCapable: Boolean = false,
+  val inputType: Int? = null,
+  val textLength: Int? = null,
   val expiresAtMs: Long,
 )
 
@@ -61,6 +66,18 @@ internal data class AccessibilityActionTarget(
       scrollable = scrollable,
     )
 }
+
+internal enum class AccessibilityTextAction {
+  ENTER_TEXT,
+  SELECT_TEXT,
+}
+
+internal data class AccessibilityTextInputTarget(
+  val role: String,
+  val label: String?,
+  val enabled: Boolean,
+  val textLength: Int,
+) 
 
 internal enum class AccessibilitySemanticAction(val frameworkAction: Int) {
   CLICK(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK),
@@ -197,6 +214,112 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
         Result.failure(IllegalStateException(snapshot.reason))
       null -> Result.failure(IllegalStateException("Gallery accessibility service disconnected before inspection."))
     }
+  }
+
+  /** Inspects one external app using a dedicated, stricter plain-text-field policy. */
+  suspend fun inspectExternalInputs(): Result<SemanticScreenSnapshot> = withContext(Dispatchers.Main.immediate) {
+    handles.clear()
+    if (enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return@withContext Result.failure(
+        IllegalStateException("Gallery accessibility service is not enabled and connected.")
+      )
+    }
+    when (val snapshot = AccessibilityServiceInstance.current?.inspectExternalVisibleWindow(allowSafeTextInputs = true)) {
+      is AccessibilityWindowSnapshot.Ready -> {
+        if (snapshot.truncated || snapshot.elements.isEmpty()) {
+          return@withContext Result.failure(
+            IllegalStateException("The external app hierarchy is empty or incomplete; no text-input handles were issued.")
+          )
+        }
+        val fields = snapshot.elements.filter { it.editable && it.inputType != null && it.textLength != null }
+        if (fields.isEmpty()) {
+          return@withContext Result.failure(
+            IllegalStateException("No safe ordinary single-line text fields are available in the visible external app.")
+          )
+        }
+        val now = android.os.SystemClock.elapsedRealtime()
+        val elements = fields.map { item ->
+          val handle = "ui_" + UUID.randomUUID().toString().replace("-", "").take(16)
+          handles[handle] = AccessibilityElementFingerprint(
+            packageName = item.packageName,
+            windowId = item.windowId,
+            className = item.className,
+            label = item.label,
+            bounds = android.graphics.Rect(item.bounds),
+            clickable = item.clickable,
+            longClickable = item.longClickable,
+            scrollable = item.scrollable,
+            enabled = item.enabled,
+            actionable = false,
+            textInputCapable = true,
+            inputType = item.inputType,
+            textLength = item.textLength,
+            expiresAtMs = now + HANDLE_TTL_MS,
+          )
+          SemanticScreenElement(
+            handle = handle,
+            role = "text_field",
+            label = item.label ?: "unlabeled text field",
+            clickable = item.clickable,
+            longClickable = item.longClickable,
+            scrollable = item.scrollable,
+            enabled = item.enabled,
+            selected = item.selected,
+            checked = item.checked,
+            textInputCapable = true,
+            textLength = item.textLength,
+          )
+        }
+        Result.success(SemanticScreenSnapshot(elements, snapshot.truncated))
+      }
+      is AccessibilityWindowSnapshot.Excluded ->
+        Result.failure(IllegalStateException("External text input blocked: " + snapshot.reason))
+      is AccessibilityWindowSnapshot.Unavailable ->
+        Result.failure(IllegalStateException(snapshot.reason))
+      null ->
+        Result.failure(IllegalStateException("Gallery accessibility service disconnected before input inspection."))
+    }
+  }
+
+  fun describeTextInputTarget(handle: String): AccessibilityTextInputTarget? {
+    if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) return null
+    val fingerprint = handles[handle] ?: return null
+    if (!fingerprint.textInputCapable || fingerprint.expiresAtMs <= android.os.SystemClock.elapsedRealtime()) {
+      handles.remove(handle)
+      return null
+    }
+    return AccessibilityTextInputTarget(
+      role = "text_field",
+      label = fingerprint.label,
+      enabled = fingerprint.enabled,
+      textLength = fingerprint.textLength ?: return null,
+    )
+  }
+
+  /** Consumes an input handle before revalidating and dispatching exactly one text operation. */
+  suspend fun performSemanticTextAction(
+    handle: String,
+    action: AccessibilityTextAction,
+    inputText: String? = null,
+    selectionStart: Int? = null,
+    selectionEnd: Int? = null,
+  ): Result<String> = withContext(Dispatchers.Main.immediate) {
+    if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) {
+      return@withContext Result.failure(IllegalArgumentException("element_handle is malformed."))
+    }
+    val fingerprint = handles[handle]
+      ?: return@withContext Result.failure(IllegalStateException("Text field handle is unknown or expired; inspect inputs again."))
+    if (!fingerprint.textInputCapable || fingerprint.expiresAtMs <= android.os.SystemClock.elapsedRealtime()) {
+      handles.remove(handle)
+      return@withContext Result.failure(IllegalStateException("Handle is expired or is not a text-input target; inspect inputs again."))
+    }
+    handles.remove(handle)
+    if (enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return@withContext Result.failure(IllegalStateException("Gallery accessibility service is no longer enabled and connected."))
+    }
+    val service = AccessibilityServiceInstance.current
+      ?: return@withContext Result.failure(IllegalStateException("Gallery accessibility service disconnected."))
+    service.performSemanticTextAction(fingerprint, action, inputText, selectionStart, selectionEnd)
   }
 
   fun describeActionTarget(handle: String): AccessibilityActionTarget? {
