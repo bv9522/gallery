@@ -115,8 +115,7 @@ Termux:API is selected for basic sensors, location requests/updates, Wi-Fi infor
 results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Kotlin owns Bluetooth/BLE,
 USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/security-sensitive
 integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
-provider owns removable-storage files. USB host enumeration is draft code; raw USB device I/O remains
-planned. Gallery-owned notification posting/scheduling is implemented in draft PR #30 and has user-confirmed
+provider owns removable-storage files. USB host enumeration is draft code; PR #46 adds read-only standard descriptor inspection with a per-device permission prompt and one-shot approval. Arbitrary endpoint data transfers and writes remain unsupported. Gallery-owned notification posting/scheduling is implemented in draft PR #30 and has user-confirmed
 local unit-test/build validation; device acceptance remains pending. The current Wave 3 telephony slice
 adds non-identifying telephony metadata and user-mediated dialer/SMS composer actions; call-log and SMS
 inbox reads remain planned.
@@ -140,14 +139,15 @@ inbox reads remain planned.
   for paired-device reads and BLUETOOTH_SCAN plus CONNECT for BLE scans, only after explicit
   one-time approval; discovery probes remain observational. BLE scan windows are bounded to 1–10
   seconds and stop scanning in a cancellation-safe cleanup path.
-- USB host discovery uses UsbManager and reports bounded VID/PID/class/interface metadata. It does
-  not open a device, request USB device permission, or treat USB mass storage as a raw filesystem.
+- USB host discovery uses UsbManager and reports bounded VID/PID/class/interface metadata. PR #46
+  adds read-only standard descriptor retrieval after per-device Android permission and separate
+  approval; connections close immediately. USB mass storage remains on SAF, not raw UsbManager I/O.
 - Phase 8A adds generic Bluetooth GATT service inspection through a short-lived native LE
   connection. Phase 8B adds one-shot characteristic reads/writes using full UUIDs, with reads
   returned as Base64 and writes limited to 512 bytes with exact payload approval. Each operation
   requires scoped approval and BLUETOOTH_CONNECT, uses a 5–20 second overall timeout, and closes
   the GATT client on success/failure/timeout/cancellation. No subscriptions or retained sessions
-  are exposed. USB device I/O remains planned.
+  are exposed. PR #46 adds descriptor-only USB inspection; arbitrary endpoint data transfers/writes remain unsupported.
 
 
 ## Native speech services (existing Gallery ownership)
@@ -216,7 +216,8 @@ inbox reads remain planned.
   500 visited entries, depth 4, and 50 results; it never searches file contents. General metadata
   writes remain unsupported.
 - Attached USB mass storage is accessed through SAF, not through UsbManager bulk transfers. UsbManager
-  is only used for peripheral enumeration and future non-storage USB protocols.
+  is used for peripheral enumeration and read-only descriptor inspection; arbitrary non-storage endpoint
+  transfers and writes remain unsupported until a safe protocol-specific contract exists.
 
 ## Native telephony onboarding — Wave 3 draft
 
