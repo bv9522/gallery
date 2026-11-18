@@ -15,7 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Explicit, bounded screen inspection and separately approved semantic UI actions. */
+/** Explicit, bounded screen inspection, semantic actions, and narrowly scoped text input. */
 class AccessibilityScreenInspectionTool internal constructor(
   private val adapter: AndroidAccessibilityScreenAdapter,
   private val authorizer: NativeCapabilityAuthorizer,
@@ -40,13 +40,13 @@ class AccessibilityScreenInspectionTool internal constructor(
 
   override val description: String
     get() = buildString {
-      append("Use operation=status to check Gallery's manually enabled AccessibilityService. Use inspect for a bounded semantic summary of the active window. Use inspect_external when Gallery and exactly one target app are visible together (normally split-screen); it returns safe semantic elements with short-lived handles. Use act only after inspect_external and only for one CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD action on a fresh handle. Every action requires one-time UI_GESTURE approval and revalidates the exact app window, node identity, label, bounds, enabled state, and advertised action immediately before dispatch. Stale, ambiguous, sensitive, incomplete, or changed screens fail closed. The result confirms Android accepted dispatch only, not that the app state changed. No coordinate taps or gesture fallback is used. ")
+      append("Use operation=status to check Gallery's manually enabled AccessibilityService. Use inspect for a bounded semantic summary of the active window. Use inspect_external when Gallery and exactly one target app are visible together (normally split-screen); it returns safe non-editable semantic elements with short-lived handles. Use act only after inspect_external and only for one CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD action on a fresh handle. Every action requires one-time UI_GESTURE approval and revalidates the exact app window, node identity, label, bounds, enabled state, and advertised action immediately before dispatch. Use inspect_inputs only when the user explicitly asks to enter or select text; it accepts only safe, ordinary, single-line EditText fields and returns labels and text lengths, never current field contents. Use enter_text only on a fresh input handle for an empty field; it replaces nothing, accepts at most 256 safe single-line characters, and requires separate UI_TEXT_INPUT approval showing the exact text. Use select_text only on a fresh input handle and a valid character range; it requires separate UI_TEXT_INPUT approval showing the exact range. Password, numeric, email, URI, multiline, sensitive, ambiguous, incomplete, or changed screens fail closed. No clipboard, coordinate gestures, arbitrary keyboard events, or hidden typing are exposed. A result confirms Android accepted dispatch only, not that the app state changed. ")
       if (windowCaptureSupported) {
         append("Use capture only when the user explicitly asks for visual understanding; it requires API 34+, one-time SCREEN_CAPTURE approval, exactly one safe external app window, and sends a bounded in-memory window screenshot to the local multimodal model. ")
       } else {
         append("Visual capture is unavailable for this model/runtime or Android version; no full-display fallback is used. ")
       }
-      append("Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. Sensitive-screen detection is conservative and not guaranteed to identify every visual risk. The user must manually enable Gallery in Android Accessibility settings. No typing, background monitoring, or persistent screenshot files are implemented. Use open_settings only when the user explicitly asks to enable access.")
+      append("Ordinary editable text fields are excluded from inspect, inspect_external, and visual capture; inspect_inputs is a separate user-requested path with a dedicated plain-text-only policy. Passwords, numeric/email/URI fields, multiline fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. Sensitive-screen detection is conservative and not guaranteed to identify every visual risk. The user must manually enable Gallery in Android Accessibility settings. No background monitoring or persistent screenshot files are implemented. Use open_settings only when the user explicitly asks to enable access.")
     }
 
   override val parametersSchema: JsonObject
@@ -60,6 +60,9 @@ class AccessibilityScreenInspectionTool internal constructor(
             add("inspect")
             add("inspect_external")
             add("act")
+            add("inspect_inputs")
+            add("enter_text")
+            add("select_text")
             if (windowCaptureSupported) add("capture")
             add("open_settings")
           })
@@ -75,6 +78,21 @@ class AccessibilityScreenInspectionTool internal constructor(
             AccessibilitySemanticAction.values().forEach { add(it.name) }
           })
           addProperty("description", "One semantic action: CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD.")
+        })
+        add("input_text", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("maxLength", AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS)
+          addProperty("description", "Exact text to enter into a fresh, empty, safe ordinary single-line text field. No passwords or sensitive content.")
+        })
+        add("selection_start", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("minimum", 0)
+          addProperty("maximum", AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS)
+        })
+        add("selection_end", JsonObject().apply {
+          addProperty("type", "integer")
+          addProperty("minimum", 1)
+          addProperty("maximum", AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS)
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -92,6 +110,9 @@ class AccessibilityScreenInspectionTool internal constructor(
         "inspect" -> inspect()
         "inspect_external" -> inspectExternal()
         "act" -> act(arguments)
+        "inspect_inputs" -> inspectInputs()
+        "enter_text" -> enterText(arguments)
+        "select_text" -> selectText(arguments)
         "capture" -> capture()
         "open_settings" -> openSettings()
         else -> AgentToolResult("Unsupported operation.", false)
@@ -137,7 +158,8 @@ class AccessibilityScreenInspectionTool internal constructor(
       appendLine("availability=$availability")
       appendLine("detail=Requires inspect_external, a fresh element handle, one-time approval for each semantic action, and immediate target revalidation. Supports click, long-click, and semantic scroll only; no coordinate gesture fallback.")
       appendLine("capability=UI_TEXT_INPUT")
-      appendLine("availability=UNSUPPORTED")
+      appendLine("availability=" + if (availability == ProviderAvailability.AVAILABLE) ProviderAvailability.AVAILABLE else availability)
+      appendLine("detail=Requires inspect_inputs and a fresh one-shot handle. Only ordinary single-line plain-text EditText fields are supported. Entry is limited to empty fields (maximum 256 characters); selection uses explicit bounded character offsets. Every operation requires separate UI_TEXT_INPUT approval showing the exact text or range. No passwords, numeric/email/URI fields, multiline input, clipboard, or keyboard automation.")
     }.trimEnd())
   }
 
@@ -234,6 +256,91 @@ class AccessibilityScreenInspectionTool internal constructor(
     val result = adapter.performSemanticAction(handle, action)
     return AgentToolResult(
       result.getOrElse { error -> error.message ?: "The semantic UI action was blocked." },
+      result.isSuccess,
+    )
+  }
+
+  private suspend fun inspectInputs(): AgentToolResult {
+    if (adapter.enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return AgentToolResult("Gallery accessibility service is not enabled and connected. No external text fields were read.", false)
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.UI_TREE_READ,
+        "Inspect exactly one visible external app window alongside Gallery for ordinary single-line plain-text fields only. Sensitive or unsupported editable fields block the entire inspection. Return safe labels and character counts only; never return current field contents. Issue 30-second one-shot handles."
+      )) {
+      return AgentToolResult("External text-field inspection was not approved.", false)
+    }
+    val snapshot = adapter.inspectExternalInputs().getOrElse { error ->
+      return AgentToolResult(error.message ?: "External text-field inspection was blocked.", false)
+    }
+    return AgentToolResult(buildString {
+      appendLine("safe_text_fields=" + snapshot.elements.size)
+      appendLine("limit=32")
+      snapshot.elements.forEachIndexed { index, element ->
+        appendLine("field=" + (index + 1))
+        appendLine("element_handle=" + element.handle)
+        appendLine("role=text_field")
+        element.label?.let { appendLine("label=" + it) }
+        appendLine("text_length=" + element.textLength)
+        appendLine("enabled=" + element.enabled)
+      }
+      appendLine("note=Current field contents are never returned. Handles expire after 30 seconds and are one-shot. Text entry is allowed only into empty fields; selection uses character offsets.")
+    }.trimEnd())
+  }
+
+  private suspend fun enterText(arguments: JsonObject): AgentToolResult {
+    val handle = arguments.get("element_handle").asString
+    val value = arguments.get("input_text").asString
+    val target = adapter.describeTextInputTarget(handle)
+      ?: return AgentToolResult("Text-field handle is unknown, expired, or not an input target. Run inspect_inputs again.", false)
+    if (!target.enabled || target.textLength != 0) {
+      return AgentToolResult("Text entry is limited to a fresh, enabled, empty text field. Existing text is never overwritten.", false)
+    }
+    if (!AccessibilityScreenInspectionPolicy.isSafeInputText(value)) {
+      return AgentToolResult("Text must contain 1–256 ordinary, non-sensitive, single-line characters.", false)
+    }
+    val targetLabel = target.label?.let { "'" + it + "'" } ?: "an unlabeled text field"
+    val summary = "Enter exactly this text into " + targetLabel + ": " + value +
+      ". The field must still be the same safe, enabled, empty, ordinary single-line text field immediately before dispatch. Existing text will not be overwritten."
+    if (!authorizer.authorize(AndroidCapability.UI_TEXT_INPUT, summary)) {
+      return AgentToolResult("Text entry was not approved. No text was entered.", false)
+    }
+    val result = adapter.performSemanticTextAction(
+      handle = handle,
+      action = AccessibilityTextAction.ENTER_TEXT,
+      inputText = value,
+    )
+    return AgentToolResult(
+      result.getOrElse { error -> error.message ?: "Text entry was blocked." },
+      result.isSuccess,
+    )
+  }
+
+  private suspend fun selectText(arguments: JsonObject): AgentToolResult {
+    val handle = arguments.get("element_handle").asString
+    val start = arguments.get("selection_start").asInt
+    val end = arguments.get("selection_end").asInt
+    val target = adapter.describeTextInputTarget(handle)
+      ?: return AgentToolResult("Text-field handle is unknown, expired, or not an input target. Run inspect_inputs again.", false)
+    if (!target.enabled ||
+      !AccessibilityScreenInspectionPolicy.isValidSelection(start, end, target.textLength)) {
+      return AgentToolResult("The selection range is invalid for the current safe text field. Inspect inputs again.", false)
+    }
+    val targetLabel = target.label?.let { "'" + it + "'" } ?: "an unlabeled text field"
+    val summary = "Select characters " + start + " through " + end +
+      " (end-exclusive) in " + targetLabel +
+      ". Gallery will revalidate the same safe field and current text length immediately before dispatch. No field contents are read back or changed."
+    if (!authorizer.authorize(AndroidCapability.UI_TEXT_INPUT, summary)) {
+      return AgentToolResult("Text selection was not approved. No selection was changed.", false)
+    }
+    val result = adapter.performSemanticTextAction(
+      handle = handle,
+      action = AccessibilityTextAction.SELECT_TEXT,
+      selectionStart = start,
+      selectionEnd = end,
+    )
+    return AgentToolResult(
+      result.getOrElse { error -> error.message ?: "Text selection was blocked." },
       result.isSuccess,
     )
   }
