@@ -27,8 +27,9 @@ The parser rejects unknown keys, mixed destination identities, unsupported forma
 - `ArtifactDestinationRegistry` enforces one writer per destination type (SAF or shell); backend selection remains explicit inside the shell destination.
 - Each `ArtifactGenerator` declares its format and a positive maximum output size, validates its own typed payload, and writes to an OutputStream.
 - Each `ArtifactDestinationAdapter` describes the exact destination and owns document creation, streaming, partial-output cleanup, overwrite handling, and finalization.
+- SAF writes binary output directly through a persisted Gallery document-tree grant. Shell writes stage privately and stream to the explicitly selected identity: Termux uses bounded RUN_COMMAND stdin chunks; Shizuku uses a one-shot ParcelFileDescriptor pipe handled by the shell-UID UserService. Both verify destination byte count and SHA-256 before same-directory finalization. TERMUX_RISH is rejected for binary output until remote stdin forwarding is proven.
 - The shared engine computes output byte count and SHA-256 while streaming, checks the returned MIME type against the selected format, requests approval before creating output, and enforces a 120-second operation deadline.
-- Cancellation propagates to the destination adapter, which must clean partial output and report uncertain cleanup rather than claiming success.
+- Cancellation propagates to the destination adapter, which must clean partial output and report uncertain cleanup rather than claiming success. Termux chunk transfer attempts to remove its sibling `.part` file; Shizuku closes the PFD pipe and the UserService removes its staging file on incomplete transfer.
 - Results are typed metadata only: format, filename, destination label, MIME type, byte count, SHA-256, success, and a concise message. Raw artifact bytes are never returned to Gemma.
 
 ## Approval boundary
