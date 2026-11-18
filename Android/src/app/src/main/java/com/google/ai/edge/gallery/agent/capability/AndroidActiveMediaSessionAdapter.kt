@@ -36,14 +36,14 @@ object ActiveMediaSessionActionPolicy {
   fun isSupported(action: ActiveMediaSessionAction, playbackActions: Long): Boolean =
     when (action) {
       ActiveMediaSessionAction.PLAY ->
-        playbackActions and PlaybackState.ACTION_PLAY != 0L ||
-          playbackActions and PlaybackState.ACTION_PLAY_PAUSE != 0L
+        (playbackActions and PlaybackState.ACTION_PLAY) != 0L ||
+          (playbackActions and PlaybackState.ACTION_PLAY_PAUSE) != 0L
       ActiveMediaSessionAction.PAUSE ->
-        playbackActions and PlaybackState.ACTION_PAUSE != 0L ||
+        (playbackActions and PlaybackState.ACTION_PAUSE) != 0L ||
           playbackActions and PlaybackState.ACTION_PLAY_PAUSE != 0L
-      ActiveMediaSessionAction.NEXT -> playbackActions and PlaybackState.ACTION_SKIP_TO_NEXT != 0L
-      ActiveMediaSessionAction.PREVIOUS -> playbackActions and PlaybackState.ACTION_SKIP_TO_PREVIOUS != 0L
-      ActiveMediaSessionAction.SEEK -> playbackActions and PlaybackState.ACTION_SEEK_TO != 0L
+      ActiveMediaSessionAction.NEXT -> (playbackActions and PlaybackState.ACTION_SKIP_TO_NEXT) != 0L
+      ActiveMediaSessionAction.PREVIOUS -> (playbackActions and PlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L
+      ActiveMediaSessionAction.SEEK -> (playbackActions and PlaybackState.ACTION_SEEK_TO) != 0L
     }
 
   fun isValidSeekPosition(positionMs: Long, durationMs: Long?): Boolean =
@@ -128,7 +128,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
     val playback = current.playbackState
       ?: return ActiveMediaSessionControlResult(false, "The selected media session no longer exposes playback state.")
     if (!ActiveMediaSessionActionPolicy.isSupported(action, playback.actions)) {
-      return ActiveMediaSessionControlResult(false, "The selected media session does not currently support \${action.name}. Run media_sessions list again.")
+      return ActiveMediaSessionControlResult(false, "The selected media session does not currently support ${action.name}. Run media_sessions list again.")
     }
     if (action == ActiveMediaSessionAction.SEEK) {
       val duration = current.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION)
@@ -150,7 +150,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
     }
     handles.remove(handle, entry)
     return ActiveMediaSessionControlResult(true,
-      "\${action.name} command dispatched to \${entry.snapshot.appLabel}. This confirms dispatch only, not the resulting playback state.")
+      "${action.name} command dispatched to ${entry.snapshot.appLabel}. This confirms dispatch only, not the resulting playback state.")
   }
 
   private fun requireAccess() {
