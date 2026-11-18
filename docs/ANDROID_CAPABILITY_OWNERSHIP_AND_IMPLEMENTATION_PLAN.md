@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #45 opened; bounded SMS inbox reading onboarded after call-log and notification reads; validation deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (PR #46 opened; read-only USB descriptor inspection onboarded after notification, call-log, and SMS reads; validation deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-6c-sms-inbox-read` (stacked on `wave-6b-call-log-read`)  
-> **Current change:** [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), draft/open/unmerged, stacked on [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
+> **Current implementation branch:** `wave-6d-usb-descriptor-io` (stacked on `wave-6c-sms-inbox-read`)  
+> **Current change:** [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), draft/open/unmerged, stacked on [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -109,10 +109,11 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [CODE / VALIDATION PENDING] Termux:API NFC NDEF read/write (PR #18); foreground tag interaction and cleanup require device verification.
 - [CODE / VALIDATION PENDING] Termux:API read-only camera metadata (PR #19).
 - [CODE / VALIDATION PENDING] Native Bluetooth bonded-device listing and bounded BLE scan; native USB host device/interface enumeration (PR #20).
+- [CODE / VALIDATION PENDING — PR #46] Read-only USB device/configuration/interface/endpoint descriptor inspection using a fresh 30-second one-shot handle, per-device Android USB permission prompt, and separate `USB_DEVICE_IO` approval. No arbitrary endpoint transfers or writes are exposed; USB mass storage remains on SAF.
 - [CODE / VALIDATION PENDING] Native Bluetooth GATT service/characteristic inspection and bounded one-shot read/write (PRs #26–#27).
 - [ ] Decide and implement user-mediated Wi-Fi enable/settings flow if still required; do not promise forbidden silent toggles.
 - [ ] Verify every selected Termux:API command exists on the installed companion/package version, has correct permission behavior, bounded output, and cleanup.
-- [ ] Device-test Bluetooth permission states, scan cancellation, GATT compatibility, NFC tag UX, infrared hardware availability, sensor/location/Wi-Fi data quality, and USB enumeration.
+- [ ] Device-test Bluetooth permission states, scan cancellation, GATT compatibility, NFC tag UX, infrared hardware availability, sensor/location/Wi-Fi data quality, USB enumeration, per-device USB permission prompt/denial, descriptor reads, device disconnect/reconnect, and handle expiry.
 
 **Exit gate:** all exposed operations are locally validated and device-verified, or clearly marked unavailable/deferred with evidence.
 
@@ -245,7 +246,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
-| Wave 5 Accessibility/UI automation | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #39–#42; notification-read extension PR #43 is the current slice |
+| Wave 5 Accessibility/UI automation | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #39–#42; optional capability follow-ons PR #43–#46 are in progress |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
@@ -273,6 +274,7 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #43 — on-demand active notification content read through the same manually enabled listener (**tests added; execution deferred by owner instruction**).
 - PR #44 — approved bounded call-log read using `READ_CALL_LOG`, requested only after one-time approval and subject to Android/installer eligibility (**tests added; execution deferred by owner instruction**).
 - PR #45 — approved bounded SMS inbox read using `READ_SMS`, requested only after one-time approval and subject to Android/installer/default-SMS-role eligibility (**tests added; execution deferred by owner instruction**).
+- PR #46 — read-only USB descriptor inspection using one-shot handles, per-device Android permission, and `USB_DEVICE_IO` approval; no arbitrary endpoint transfers or writes (**tests added; execution deferred by owner instruction**).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
@@ -350,7 +352,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 
 | NFC read/write | Termux:API (termux-nfc) | Planned; basic NDEF read/write; foreground/tag interaction requires device verification |
 | Infrared capability / transmit | Termux:API (termux-infrared-frequencies / termux-infrared-transmit) | Planned; bounded carrier frequency and pulse pattern |
-| USB host device discovery / permission / I/O | Native Kotlin (UsbManager) | USB device/interface enumeration is draft code in the preceding onboarding branch; raw USB device I/O is not exposed. Removable-storage file operations are separately implemented through SAF in PRs #23–25; validation and device acceptance pending |
+| USB host device discovery / permission / I/O | Native Kotlin (UsbManager) | Draft in PR #46: bounded device/interface enumeration plus standard descriptor-only inspection through 30-second one-shot handles, per-device Android permission prompt, and `USB_DEVICE_IO` approval. No arbitrary endpoint transfers or writes; removable-storage files remain on SAF in PRs #23–25; validation/device acceptance pending |
 | App discovery | Native Kotlin (PackageManager launcher queries) | Implemented |
 | App launch | Native Kotlin (launch intents) | Implemented |
 | URL open | Native Kotlin (ACTION_VIEW) | Implemented |
