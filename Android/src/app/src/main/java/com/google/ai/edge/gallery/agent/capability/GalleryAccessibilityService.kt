@@ -123,6 +123,8 @@ class GalleryAccessibilityService : AccessibilityService() {
     return try {
       val bytes = withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
         suspendCancellableCoroutine { continuation ->
+          var pendingBytes: ByteArray? = null
+          continuation.invokeOnCancellation { pendingBytes?.fill(0) }
           try {
             takeScreenshotOfWindow(
               windowId,
@@ -154,7 +156,9 @@ class GalleryAccessibilityService : AccessibilityService() {
                     } finally {
                       softwareBitmap.recycle()
                     }
+                    pendingBytes = encoded
                     if (continuation.isActive) continuation.resume(encoded)
+                    else encoded.fill(0)
                   } catch (error: Throwable) {
                     if (continuation.isActive) continuation.resumeWithException(error)
                   } finally {
