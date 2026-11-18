@@ -16,6 +16,7 @@ import android.view.accessibility.AccessibilityWindowInfo
 import java.io.ByteArrayOutputStream
 import java.util.ArrayDeque
 import java.util.concurrent.Executor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -181,6 +182,8 @@ class GalleryAccessibilityService : AccessibilityService() {
         }
       } ?: return Result.failure(IllegalStateException("Window screenshot timed out; no image was delivered."))
       Result.success(bytes)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
     } catch (error: Exception) {
       Result.failure(error)
     }
