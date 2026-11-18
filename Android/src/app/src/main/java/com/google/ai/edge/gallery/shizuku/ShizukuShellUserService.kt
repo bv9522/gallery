@@ -22,6 +22,10 @@ import android.system.Os
 import android.system.OsConstants
 import java.io.BufferedWriter
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.security.MessageDigest
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -107,6 +111,85 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       session.close()
     }
     return result
+  }
+
+  /**
+   * Receives a bounded binary artifact through a one-shot Binder pipe. The UserService process
+   * runs as Android shell (uid 2000), so path access is evaluated under the explicitly selected
+   * Shizuku identity. A same-directory temporary file is verified before atomic rename.
+   */
+  override fun writeBinaryFile(
+    destinationPath: String,
+    source: ParcelFileDescriptor,
+    maxBytes: Long,
+    timeoutMs: Long,
+    overwrite: Boolean,
+    expectedSha256: String,
+  ): Bundle {
+    var temporary: File? = null
+    return try {
+      require(destinationPath.startsWith("/") && destinationPath.length <= MAX_BINARY_PATH_CHARS &&
+        '\u0000' !in destinationPath &&
+        destinationPath.split('/').none { it == "." || it == ".." }) {
+        "Destination must be a safe absolute path."
+      }
+      require(maxBytes in 1L..MAX_BINARY_TRANSFER_BYTES) { "Binary transfer size is outside the supported bound." }
+      require(timeoutMs in MIN_BINARY_TIMEOUT_MS..MAX_BINARY_TIMEOUT_MS) { "Binary transfer timeout is outside the supported bound." }
+      require(expectedSha256.matches(Regex("[0-9a-f]{64}"))) { "Expected SHA-256 is malformed." }
+      val requested = File(destinationPath)
+      val parent = requested.parentFile?.canonicalFile
+        ?: throw IllegalArgumentException("Destination parent folder is missing.")
+      require(parent.isDirectory) { "Destination parent folder does not exist or is not a directory." }
+      val target = File(parent, requested.name)
+      val targetPath = target.toPath()
+      require(!Files.isSymbolicLink(targetPath)) { "Symbolic-link destinations are not supported." }
+      require(!Files.exists(targetPath, LinkOption.NOFOLLOW_LINKS) || overwrite) {
+        "Destination already exists; choose another filename or explicitly approve overwrite."
+      }
+      require(!target.isDirectory) { "Destination is a folder, not a regular file." }
+
+      val staging = File.createTempFile(".\${requested.name.take(48)}.", ".part", parent)
+      temporary = staging
+      val digest = MessageDigest.getInstance("SHA-256")
+      var count = 0L
+      val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
+      ParcelFileDescriptor.AutoCloseInputStream(source).use { input ->
+        FileOutputStream(staging).use { output ->
+          val buffer = ByteArray(BINARY_COPY_BUFFER_BYTES)
+          while (true) {
+            check(System.nanoTime() < deadline) { "Shizuku binary transfer timed out." }
+            val read = input.read(buffer)
+            if (read < 0) break
+            count += read
+            require(count <= maxBytes) { "Binary artifact exceeded its declared byte limit." }
+            digest.update(buffer, 0, read)
+            output.write(buffer, 0, read)
+          }
+          output.flush()
+          output.fd.sync()
+        }
+      }
+      val actualHash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+      require(count > 0L && actualHash == expectedSha256) {
+        "Binary transfer length or SHA-256 verification failed."
+      }
+      require(!Files.isSymbolicLink(targetPath)) { "Destination changed to a symbolic link during transfer." }
+      require(!Files.exists(targetPath, LinkOption.NOFOLLOW_LINKS) || overwrite) {
+        "Destination appeared during transfer; refusing to replace it."
+      }
+      Os.rename(staging.absolutePath, target.absolutePath)
+      temporary = null
+      Bundle().apply {
+        putBoolean(KEY_BINARY_SUCCESS, true)
+        putLong(KEY_BINARY_BYTES, count)
+        putString(KEY_BINARY_SHA256, actualHash)
+      }
+    } catch (error: Exception) {
+      errorBundle(error.message ?: "Shizuku could not finalize the binary artifact.")
+    } finally {
+      temporary?.delete()
+      runCatching { source.close() }
+    }
   }
 
   override fun closeSession(sessionId: String) {
@@ -391,8 +474,16 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     const val KEY_OUTPUT_TRUNCATED = "output_truncated"
     const val KEY_ERROR = "error"
     const val KEY_PROCESS_MAY_STILL_BE_RUNNING = "process_may_still_be_running"
+    const val KEY_BINARY_SUCCESS = "binary_success"
+    const val KEY_BINARY_BYTES = "binary_bytes"
+    const val KEY_BINARY_SHA256 = "binary_sha256"
 
     private const val PROCESS_GROUP_HANDSHAKE_TIMEOUT_MS = 2_000L
+    private const val MAX_BINARY_PATH_CHARS = 1_024
+    private const val MAX_BINARY_TRANSFER_BYTES = 50L * 1_024L * 1_024L
+    private const val BINARY_COPY_BUFFER_BYTES = 32 * 1_024
+    private const val MIN_BINARY_TIMEOUT_MS = 1_000L
+    private const val MAX_BINARY_TIMEOUT_MS = 120_000L
     private const val MAX_SESSIONS = 3
     private const val MIN_TIMEOUT_MS = 100L
     private const val MAX_TIMEOUT_MS = 120_000L
