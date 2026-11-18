@@ -27,7 +27,10 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
       ?: throw IllegalArgumentException("SAF adapter received a non-SAF destination.")
     val tree = requireTreeGrant(destination.treeUri)
     val parentId = destination.parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree)
-    val parent = withContext(Dispatchers.IO) { queryDocument(tree, parentId) }
+    val parent = withContext(Dispatchers.IO) {
+      requireParentWithinTree(tree, parentId)
+      queryDocument(tree, parentId)
+    }
     require(parent.mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
       "The selected SAF destination is not a folder."
     }
@@ -111,6 +114,16 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
       throw SecurityException("The selected document tree requires persisted read and write permissions.")
     }
     return tree
+  }
+
+  private fun requireParentWithinTree(tree: Uri, parentId: String) {
+    val rootId = DocumentsContract.getTreeDocumentId(tree)
+    if (parentId == rootId) return
+    val root = DocumentsContract.buildDocumentUriUsingTree(tree, rootId)
+    val parent = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
+    require(DocumentsContract.isChildDocument(resolver, root, parent)) {
+      "The requested destination folder is not inside the selected persisted SAF tree."
+    }
   }
 
   private fun queryDocument(tree: Uri, documentId: String): DocumentMetadata {
