@@ -1098,6 +1098,7 @@ class AndroidNativeCapabilityAdapter(
     }
   }
 
+  @SuppressLint("MissingPermission")
   override suspend fun readUsbDescriptors(handle: String): NativeUsbDescriptorSnapshot {
     require(handle.matches(Regex("^usb_[0-9a-f]{32}$"))) {
       "usb_handle must be copied exactly from the latest usb_devices result."
