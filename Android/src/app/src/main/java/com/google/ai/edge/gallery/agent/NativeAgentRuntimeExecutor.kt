@@ -37,7 +37,6 @@ import com.google.ai.edge.gallery.agent.capability.GalleryMediaLibraryOperations
 import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
-import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.DownloadRepository
 import com.google.ai.edge.gallery.runtime.runtimeHelper
@@ -173,7 +172,6 @@ class NativeAgentRuntimeExecutor(
   private val agentTools: AgentTools,
   private val fallbackExecutor: AgentRuntimeExecutor,
   private val downloadRepository: DownloadRepository? = null,
-  private val customTasks: Set<CustomTask> = emptySet(),
 ) : AgentRuntimeExecutor {
 
   private val stateLock = Any()
@@ -382,9 +380,11 @@ class NativeAgentRuntimeExecutor(
         val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
         val actionChannel = config.actionChannel ?: agentTools.sendActionChannel
         val approval = ChannelShellExecutionApprovalPolicy(actionChannel)
+        val availableModels = runCatching { agentTools.modelManagerViewModel.getAllModels() }
+          .getOrDefault(emptyList())
         val mediaOperations = GalleryMediaLibraryOperations(
           context = checkNotNull(this@NativeAgentRuntimeExecutor.context),
-          customTasks = customTasks,
+          models = availableModels,
           authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
         )
         val runtimeTools = AgentToolRegistry(
