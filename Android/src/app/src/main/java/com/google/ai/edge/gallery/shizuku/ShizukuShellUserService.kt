@@ -128,7 +128,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
   ): Bundle {
     var temporary: File? = null
     var target: File? = null
-    var targetLinked = false
+    var targetReserved = false
     val startedAt = System.nanoTime()
     try {
       require(maxBytes in 1L..MAX_BINARY_WRITE_BYTES) {
@@ -170,15 +170,13 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       require(hasExpectedSignature(temporaryFile, mimeType)) {
         "Binary artifact signature does not match the declared MIME type."
       }
-      require(!targetFile.exists() && !Files.isSymbolicLink(targetFile.toPath())) {
-        "The target appeared during transfer; refusing to overwrite it."
-      }
-      // link(2) is atomic and fails with EEXIST instead of replacing a concurrently-created target.
-      // Some document filesystems do not support hard links; those paths fail closed.
-      Os.link(temporaryFile.absolutePath, targetFile.absolutePath)
-      targetLinked = true
-      Os.unlink(temporaryFile.absolutePath)
+      // Reserve the final leaf atomically without replacing an existing file. The complete
+      // temporary file is then published with a same-directory atomic rename over our reservation.
+      require(targetFile.createNewFile()) { "The target appeared during transfer; refusing to overwrite it." }
+      targetReserved = true
+      Os.rename(temporaryFile.absolutePath, targetFile.absolutePath)
       temporary = null
+      targetReserved = false
       return Bundle().apply {
         putBoolean(KEY_BINARY_SUCCESS, true)
         putLong(KEY_BINARY_BYTES, bytesWritten)
@@ -187,7 +185,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         putString(KEY_BINARY_PATH, targetFile.absolutePath)
       }
     } catch (error: Exception) {
-      if (targetLinked) target?.let { runCatching { Os.unlink(it.absolutePath) } }
+      if (targetReserved) target?.let { runCatching { it.delete() } }
       temporary?.let { runCatching { it.delete() } }
       return errorBundle(error.message ?: error.javaClass.simpleName)
     } finally {
