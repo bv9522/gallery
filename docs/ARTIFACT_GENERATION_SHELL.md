@@ -2,7 +2,7 @@
 
 **Status:** Termux RUN_COMMAND stdin-chunk and Shizuku ParcelFileDescriptor pipe implementations are present in PR #58. TERMUX_RISH remains intentionally unavailable for binary artifact output until end-to-end stdin forwarding and cancellation are independently proven.
 
-**Validation:** Pure policy tests and fake-transport adapter tests (multi-chunk Termux, Shizuku identity/metadata, failure cleanup, cancellation cleanup, explicit overwrite behavior, and Rish rejection) were added but not executed. No Gradle tests, builds, instrumentation tests, or device checks were run. Final protocol verification belongs to Stage 10J.
+**Validation:** Pure policy tests, fake-transport adapter tests (multi-chunk Termux, Shizuku identity/metadata, failure/cancellation cleanup, explicit overwrite behavior, and Rish rejection), and Android instrumentation tests for real Termux APP_SHELL stdin and Shizuku PFD transfer were added but not executed. No Gradle tests, builds, instrumentation tests, or device checks were run. Execute the device-gated tests during Stage 10J on the Galaxy S21.
 
 ## Shared behavior
 
@@ -41,8 +41,8 @@ The existing Rish route wraps a command with rish -c and launches it through Ter
 
 The following remain required before Stage 10I can be marked complete:
 
-- Verify the installed Termux version's RUN_COMMAND_STDIN behavior, including foreground callback completion, chunk boundaries, large multi-chunk transfer, cancellation, and Android Intent-size headroom.
-- Verify Shizuku AIDL PFD marshalling, shell-UID file permissions, blocked/closed pipe behavior, timeout, and cleanup on the Galaxy S21.
+- Run the Termux instrumentation test with the installed Termux app and RUN_COMMAND permission; verify APP_SHELL callback completion, chunk boundaries, large multi-chunk transfer, cancellation, and Android Intent-size headroom.
+- Run the Shizuku instrumentation test with the Shizuku service running and permission granted; verify AIDL PFD marshalling, shell-UID file permissions, blocked/closed pipe behavior, timeout, and cleanup on the Galaxy S21.
 - Test exact overwrite approval, no-overwrite races, symlink/special-file rejection, inaccessible parent folders, destination disconnect, low storage, partial transfer, wrong hash, and successful atomic finalization.
 - Decide whether Rish stdin forwarding is viable; otherwise retain its explicit unavailable status.
 - Run the complete Stage 10 test/build/device acceptance sequence only after all Stage 10A–10J onboarding is implemented and documented, as directed by the owner.
