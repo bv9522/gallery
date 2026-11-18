@@ -409,6 +409,7 @@ class NativeAgentRuntimeExecutor(
             AccessibilityScreenInspectionTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
+              imageInputSupported = config.supportImage && config.model.supportImage,
             ),
             ShareContentCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
