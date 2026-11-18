@@ -455,9 +455,11 @@ internal object AccessibilityScreenInspectionArguments {
       val endValue = arguments.get("selection_end")
         ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
         ?: return "select_text requires integer selection_end."
-      if (!AccessibilityScreenInspectionPolicy.isValidSelection(
-          startValue, endValue, AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS
-        ) && (startValue < 0 || endValue <= startValue || endValue > AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS)) {
+      if (
+        startValue < 0 ||
+        endValue <= startValue ||
+        endValue > AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS
+      ) {
         return "Selection offsets must be a valid non-empty range within 0–256."
       }
     }
