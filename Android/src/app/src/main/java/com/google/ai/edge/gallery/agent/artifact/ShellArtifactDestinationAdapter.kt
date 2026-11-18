@@ -43,6 +43,7 @@ class ShellArtifactDestinationAdapter(
   override suspend fun describe(request: ArtifactCreateRequest): String {
     val destination = request.destination as? ArtifactDestinationSpec.ShellPath
       ?: throw IllegalArgumentException("Shell adapter received a non-shell destination.")
+    validateDestination(request, destination)
     require(!request.overwrite) {
       "Shell artifact overwrite is not supported yet; existing files are never replaced."
     }
@@ -78,10 +79,29 @@ class ShellArtifactDestinationAdapter(
   ): ArtifactDestinationWriteResult {
     val destination = request.destination as? ArtifactDestinationSpec.ShellPath
       ?: throw IllegalArgumentException("Shell adapter received a non-shell destination.")
+    validateDestination(request, destination)
     require(!request.overwrite) { "Shell artifact overwrite is not supported; refusing to replace an existing file." }
     val transport = transports[destination.backend]
       ?: throw IllegalStateException("Binary output for ${destination.backend} is not configured.")
     return transport.write(request, producer)
+  }
+
+  private fun validateDestination(
+    request: ArtifactCreateRequest,
+    destination: ArtifactDestinationSpec.ShellPath,
+  ) {
+    val path = destination.absolutePath
+    require(path.startsWith("/") && path.length <= ArtifactCreateArguments.MAX_DESTINATION_CHARS &&
+      '\\u0000' !in path && '\\\\' !in path) {
+      "Shell artifact destination must be a bounded absolute path without NUL or backslash."
+    }
+    val segments = path.split('/').drop(1)
+    require(segments.isNotEmpty() && segments.all { segment ->
+      segment.isNotBlank() && segment != "." && segment != ".." &&
+        segment.none { it.code < 0x20 || it.code == 0x7f }
+    } && segments.last() == request.fileName) {
+      "Shell artifact path must be safe and end with the exact approved filename."
+    }
   }
 
   private companion object {
