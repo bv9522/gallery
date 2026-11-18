@@ -28,9 +28,12 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
   override val format = ArtifactFormat.IMAGE
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
-  override fun estimateBytes(request: ArtifactCreateRequest): Long? =
-    (request.payload.toString().length * ESTIMATED_BYTES_PER_CHARACTER)
-      .toLong().coerceAtLeast(MIN_ESTIMATED_BYTES).coerceAtMost(maxOutputBytes)
+  override fun estimateBytes(request: ArtifactCreateRequest): Long? = runCatching {
+    val transform = ImageTransformArguments.parse(request.payload)
+    val width = transform.resizeWidth ?: transform.cropWidth ?: return@runCatching null
+    val height = transform.resizeHeight ?: transform.cropHeight ?: return@runCatching null
+    (width.toLong() * height.toLong() * 4L).coerceAtLeast(MIN_ESTIMATED_BYTES).coerceAtMost(maxOutputBytes)
+  }.getOrNull()
 
   override fun write(request: ArtifactCreateRequest, output: OutputStream): String {
     require(request.format == ArtifactFormat.IMAGE) { "Image generator received a non-image request." }
@@ -210,7 +213,6 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
 
   private companion object {
     const val MAX_OUTPUT_BYTES = 20L * 1024L * 1024L
-    const val ESTIMATED_BYTES_PER_CHARACTER = 4
     const val MIN_ESTIMATED_BYTES = 2_048L
     const val MAX_SOURCE_BYTES = 20L * 1024L * 1024L
     const val MAX_SOURCE_DIMENSION = 8_192
