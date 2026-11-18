@@ -93,11 +93,15 @@ class GalleryAccessibilityService : AccessibilityService() {
 
       val elements = ArrayList<AccessibilityElementSnapshot>()
       var meaningfulCount = 0
+      var textTruncated = false
       for ((node, _) in visited) {
         if (!node.isVisibleToUser) continue
         val rawText = node.text?.toString().orEmpty()
         val rawDescription = node.contentDescription?.toString().orEmpty()
         val rawHint = if (android.os.Build.VERSION.SDK_INT >= 26) node.hintText?.toString().orEmpty() else ""
+        textTruncated = textTruncated || rawText.length > AccessibilityScreenInspectionPolicy.MAX_LABEL_CHARS ||
+          rawDescription.length > AccessibilityScreenInspectionPolicy.MAX_LABEL_CHARS ||
+          rawHint.length > AccessibilityScreenInspectionPolicy.MAX_LABEL_CHARS
         if (rawText.length > MAX_SOURCE_TEXT_CHARS ||
           rawDescription.length > MAX_SOURCE_TEXT_CHARS || rawHint.length > MAX_SOURCE_TEXT_CHARS) {
           return AccessibilityWindowSnapshot.Excluded("A visible element exceeds the safe text-inspection limit; no screen content was returned.")
@@ -138,7 +142,7 @@ class GalleryAccessibilityService : AccessibilityService() {
           )
         }
       }
-      return AccessibilityWindowSnapshot.Ready(packageName, elements, meaningfulCount > MAX_ELEMENTS)
+      return AccessibilityWindowSnapshot.Ready(packageName, elements, meaningfulCount > MAX_ELEMENTS || textTruncated)
     } finally {
       visited.forEach { (node, _) -> runCatching { node.recycle() } }
       while (queue.isNotEmpty()) runCatching { queue.removeFirst().first.recycle() }
