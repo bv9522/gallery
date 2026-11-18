@@ -178,8 +178,10 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
     require(sourceFile.isFile && sourceFile.length() in 1L..maxBytes) {
       "Staged artifact is missing or exceeds its declared byte limit."
     }
-    require(destinationPath.startsWith("/") && destinationPath.length <= 1_024 &&
-      '\u0000' !in destinationPath && destinationPath.split('/').none { it == "." || it == ".." }) {
+    require(destinationPath.startsWith("/") && !destinationPath.endsWith("/") &&
+      destinationPath.length <= 1_024 &&
+      destinationPath.none { it.code < 0x20 || it.code == 0x7f } &&
+      destinationPath.split('/').none { it == "." || it == ".." }) {
       "Destination must be a safe absolute path."
     }
     require(maxBytes in 1L..(50L * 1_024L * 1_024L))
