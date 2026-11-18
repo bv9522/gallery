@@ -183,10 +183,23 @@ class TermuxShellBinaryArtifactTransport(
         maxOutputChars = 1_024,
       )
       val fields = finalized.stdout.trim().split(Regex("\\s+"))
-      require(finalized.succeeded && fields.size == 2 &&
-        fields[0].toLongOrNull() == metadata.bytesWritten && fields[1] == metadata.sha256) {
-        finalized.error ?: finalized.stderr.ifBlank {
-          "Termux could not confirm atomic publication of the binary artifact."
+      val finalizedMatches = finalized.succeeded && fields.size == 2 &&
+        fields[0].toLongOrNull() == metadata.bytesWritten && fields[1] == metadata.sha256
+      if (!finalizedMatches) {
+        val verify = executor.execute(
+          command = "test -f ${shellQuote(target)} && " +
+            "size=\$(wc -c < ${shellQuote(target)} | tr -d '[:space:]'); " +
+            "digest=\$(sha256sum ${shellQuote(target)} | cut -d ' ' -f1); " +
+            "printf '%s %s\\n' \"\$size\" \"\$digest\"",
+          workingDirectory = parent,
+          timeoutMs = CONTROL_TIMEOUT_MS,
+          maxOutputChars = 1_024,
+        )
+        val verified = verify.stdout.trim().split(Regex("\\s+"))
+        require(verify.succeeded && verified.size == 2 &&
+          verified[0].toLongOrNull() == metadata.bytesWritten && verified[1] == metadata.sha256) {
+          "Termux could not confirm publication; inspect the exact target path before retrying. " +
+            (finalized.error ?: finalized.stderr).ifBlank { verify.stderr }
         }
       }
       temporaryCreated = false
@@ -195,26 +208,33 @@ class TermuxShellBinaryArtifactTransport(
         metadata,
       )
     } catch (cancelled: CancellationException) {
-      if (temporaryCreated) cleanupTemporary(executor, temporary)
+      if (temporaryCreated && !cleanupTemporary(executor, temporary)) {
+        cancelled.addSuppressed(IllegalStateException("Termux could not confirm removal of the partial artifact file."))
+      }
       throw cancelled
     } catch (error: Exception) {
-      if (temporaryCreated) cleanupTemporary(executor, temporary)
+      if (temporaryCreated && !cleanupTemporary(executor, temporary)) {
+        throw IllegalStateException(
+          (error.message ?: error.javaClass.simpleName) + " Partial temporary-file cleanup could not be confirmed.",
+          error,
+        )
+      }
       throw error
     }
   }
 
-  private suspend fun cleanupTemporary(executor: TermuxRunCommandClient, path: String) {
+  private suspend fun cleanupTemporary(executor: TermuxRunCommandClient, path: String): Boolean =
     withContext(NonCancellable + Dispatchers.IO) {
       runCatching {
-        executor.execute(
-          command = "rm -f -- ${shellQuote(path)}",
+        val result = executor.execute(
+          command = "rm -f -- ${shellQuote(path)} && test ! -e ${shellQuote(path)} && printf CLEAN",
           workingDirectory = "~/",
           timeoutMs = CONTROL_TIMEOUT_MS,
           maxOutputChars = 1_024,
         )
-      }
+        result.succeeded && result.stdout.trim() == "CLEAN"
+      }.getOrDefault(false)
     }
-  }
 
   private companion object {
     const val BINARY_CHUNK_BYTES = 128 * 1_024
