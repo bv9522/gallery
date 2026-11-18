@@ -5,11 +5,11 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #47 adds the user-mediated Wi-Fi settings handoff; source-level ownership audit reconciled; validation remains deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (capability onboarding and source-level ownership audit complete; consolidated test planning opened; test/build/device execution not yet started)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `wave-6e-wifi-settings-handoff-and-ownership-audit` (stacked on `wave-6d-usb-descriptor-io`)  
 > **Current change:** [PR #47 — Wave 6E user-mediated Wi-Fi settings handoff and ownership audit](https://github.com/bv9522/gallery/pull/47), draft/open/unmerged, stacked on [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
-> **Overall state:** The four optional capability families are onboarded in draft PRs #43–#46. The Wi-Fi settings handoff and source-level ownership reconciliation are in PR #47. Do not begin consolidated S21 acceptance until PR #47 and the final documentation audit are complete.
+> **Overall state:** Capability onboarding and the final source-level ownership/documentation audit are complete in the stacked draft PR chain #39–#47. Stage 8 is now unlocked. Consolidated test planning is in progress; no accumulated tests, build, or S21 acceptance have yet been executed.
 
 ## How to read and maintain this roadmap
 
@@ -25,7 +25,7 @@ A PR being open, a commit existing, or code compiling is never by itself proof o
 remain draft/open/unmerged until explicitly approved for integration. No PR is to be merged or closed without the owner's
 explicit approval.
 
-**Owner-directed validation deferral (2026-11-17):** continue implementing capability slices and add their tests, but do not run Gradle tests, builds, or S21/device acceptance per slice. Save execution of the accumulated test suite and builds until all planned capabilities are onboarded. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
+**Owner-directed validation sequencing (2026-11-17):** while capability onboarding was active, do not run Gradle tests, builds, or S21/device acceptance per slice. All planned capability onboarding and the source-level ownership audit are now complete. The accumulated validation phase is unlocked, but execution begins only after the consolidated test inventory, command/environment preflight, and acceptance checklist are reviewed. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
 
 **Progress-update rule:** after every implementation slice, update (1) this ledger, (2) the capability row/status in the
 ownership matrix, (3) the provider matrix if ownership/readiness changed, and (4) the relevant PR description. Record the
@@ -200,21 +200,39 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 **Exit gate:** user-enabled accessibility is transparent, controllable, bounded, and demonstrably safer than generic coordinate automation.
 
 ### Stage 8 — Consolidated provider verification and S21 acceptance (Wave 6)
-**This stage starts only after Stages 4–7 implementation and the final ownership audit are complete.**
-- [ ] Freeze an acceptance build from the complete stacked implementation chain.
-- [ ] Run full unit tests and Shizuku debug build from a clean, reproducible Windows/Android Studio JBR environment.
-- [ ] Verify app install/update/signature behavior and model/runtime startup on the Galaxy S21 (Android 15 / One UI 7).
-- [ ] Verify Termux, Termux:API, Shizuku Next/Rish execution identities and permissions without root.
-- [ ] Verify every capability's discovery state, permission prompt timing, approval text/scope, execution, result, timeout, cancellation, and cleanup.
-- [ ] Verify all read/write and destructive operations, including exact user-mediated handoffs (dialer, SMS composer, camera, share chooser, SAF picker).
-- [ ] Verify Bluetooth/BLE/GATT, USB/OTG, NFC, infrared, sensors, location, Wi-Fi, camera, microphone, notifications, media, TTS, biometrics/Keystore, and AccessibilityService on actual hardware where supported.
-- [ ] Verify negative paths: missing companion app, missing permission, unsupported hardware, disabled special access, denied approval, app backgrounding, process death, timeout, and cancellation.
-- [ ] Measure latency, CPU/GPU behavior, RAM, storage, battery drain, thermal impact, and background process count during representative workloads.
-- [ ] Check no-root/Knox integrity and ensure no unsupported privilege escalation or device-specific assumptions.
-- [ ] Record per-capability results as PASS / LIMITED / UNAVAILABLE / FAIL with device/build details and evidence.
-- [ ] Fix failures, update ownership/status docs, rerun affected tests, and repeat acceptance until exit criteria pass.
+**Status: IN PROGRESS — test planning unlocked; execution not yet started.** All capability onboarding (Stages 4–7) and the final source-level ownership audit are complete in the stacked draft PR chain #39–#47. The next immediate action is a test-inventory and build-environment preflight against the combined head, not a per-PR test run.
 
-**Exit gate:** complete capability matrix with evidence; no unexplained failures; unsupported capabilities honestly marked; resource and security constraints met.
+#### 8A — Consolidated test and build preflight
+- [ ] Confirm the complete dependency chain resolves through PR #47 head `570e73a487e5539f1aad08b17ce5099c2df4e402`; keep all PRs draft/open/unmerged.
+- [ ] Inventory every test source and existing Gradle task; map each new capability to its unit/policy/parser/dispatch tests and identify uncovered integration seams.
+- [ ] Confirm Windows JDK/Gradle/Android SDK paths, compile SDK 37 installation, signing identity, available disk space, and ADB/device connectivity before execution.
+- [ ] Capture baseline repository state and exact commands/results; do not clean or wipe app/device data as a precondition unless specifically needed and approved.
+
+#### 8B — Consolidated automated validation (run once preflight is complete)
+- [ ] Run the complete `:app:testShizukuDebugUnitTest` suite on the combined head; preserve full logs and distinguish pre-existing failures from regressions.
+- [ ] Run `:app:assembleShizukuDebug` on the same head; record APK path, SHA-256, versionCode, signing certificate fingerprint, and build warnings.
+- [ ] If failures occur, group by root cause, fix on the appropriate stacked branch/PR, add regression coverage, and rerun the affected tests plus the full gate when stable. No PR merge without explicit owner approval.
+
+#### 8C — S21 installation and core runtime smoke tests
+- [ ] Install/update using the same signing identity; verify package/version, launch, model selection/load, Agent Skills UI lifecycle, and no white-screen regression.
+- [ ] Verify Gemma 4 E2B natural-language request → structured tool call → approval → execution → native result → model response; cover malformed/literal JSON, repeated calls, denial, cancellation, timeout, and no duplicate dispatch.
+- [ ] Verify TERMUX, SHIZUKU, and TERMUX_RISH backend identity, permissions, bounded output, timeout/cancellation, and process cleanup without root.
+
+#### 8D — Capability acceptance matrix
+- [ ] For every capability: verify provider discovery, unavailable/permission-required states, approval scope and denial, Android permission timing, success result, bounds, stale-handle rejection, timeout/cancellation, and cleanup.
+- [ ] System/connectivity: Termux:API, sensors, location, Wi-Fi info/settings handoff, Bluetooth/BLE/GATT, NFC, infrared, USB enumeration/descriptors, camera metadata, and supported hardware states.
+- [ ] Storage/media: SAF grants and revocation, removable storage, cross-tree operations, media filename/visual search, indexing bounds, playback, downloads/cancellation, and sharing chooser cancellation/completion.
+- [ ] Privacy-sensitive: contacts, clipboard foreground rules, notification listener/content reads, call log, SMS inbox, telephony composer handoffs, biometric/Keystore, and notification scheduling/reboot recovery.
+- [ ] Accessibility: service enable/disable, semantic tree inspection, sensitive-screen rejection, split-screen/window identity, screenshot multimodal delivery and memory cleanup, click/long-click/scroll, empty-field text entry, selection, stale handles, and denial paths.
+- [ ] Speech: configured ASR/TTS engines, voice/language persistence, explicit playback approval, cancellation, and failure behavior.
+
+#### 8E — Resilience, security, and resource acceptance
+- [ ] Exercise missing companion apps, unsupported hardware, revoked permissions, disabled special access, denied approvals, backgrounding, process death, device disconnect/reconnect, expired/replayed handles, timeout, and cancellation.
+- [ ] Measure representative task latency, CPU/GPU selection, RAM/model memory, storage growth, battery drain, thermal behavior, and background process count.
+- [ ] Confirm no-root/Knox integrity, no silent privilege escalation, no sensitive content persistence, and no unsupported USB endpoint transfers/writes.
+- [ ] Record each capability as PASS / LIMITED / UNAVAILABLE / FAIL with device/build details, reproducible steps, and evidence; fix and retest failures.
+
+**Exit gate:** automated tests and debug build pass on the consolidated head; the S21 acceptance matrix has evidence for every exposed capability; limitations are explicit; no unexplained failures remain; security and resource constraints are acceptable.
 
 ### Stage 9 — Integration, release, and maintenance
 - [ ] Review the complete stacked PR chain for dependency order, duplicate changes, stale branches, and documentation consistency.
@@ -247,7 +265,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
-| Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
+| Wave 6 consolidated S21 acceptance | IN PROGRESS — test planning unlocked; execution not started | Onboarding and ownership audit complete; next: combined-head test inventory and build preflight |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
