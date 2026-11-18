@@ -87,7 +87,7 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
       val partial = created
       if (partial != null) {
         val removed = runCatching {
-          withContext(Dispatchers.IO) { DocumentsContract.deleteDocument(resolver, partial) }
+          withContext(NonCancellable + Dispatchers.IO) { DocumentsContract.deleteDocument(resolver, partial) }
         }.getOrDefault(false)
         if (!removed) {
           error.addSuppressed(
