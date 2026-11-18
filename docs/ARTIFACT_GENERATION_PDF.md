@@ -1,11 +1,11 @@
-# Stage 10C — Native PDF generation and binary SAF output
+# Stage 10C — Native PDF generation and binary output
 
-**Status:** PDF core implemented in PR #51. Optional embedded images and shell binary output remain later work.  
+**Status:** PDF core and SAF binary output implemented in PR #51; shell binary output is added in Stage 10I / PR #58. Optional embedded images remain follow-up work.  
 **Validation:** PDF payload and engine tests added but not executed. No Gradle tests, build, or device acceptance run.
 
 ## Runtime exposure
 
-The generic `artifact_create` tool is registered in the native Agent Chat runtime, but its advertised enums are derived from the currently implemented adapters: **PDF** and **SAF** only. DOCX, XLSX, PPTX, ZIP, image processing, shell destinations, and remote image generation are not advertised yet.
+The generic `artifact_create` tool now advertises PDF, DOCX, XLSX, PPTX, ZIP, and local image transforms, with SAF and explicit TERMUX/SHIZUKU shell destinations. TERMUX_RISH binary output remains unavailable pending stdin-forwarding proof. Remote image generation is not registered.
 
 The model must obtain a persisted Gallery document-tree grant through the existing `document_tree` grants/request_access flow. It may use only a returned tree URI and document ID. No arbitrary path or invented URI is accepted.
 
@@ -27,7 +27,7 @@ The renderer uses Android `PdfDocument`, `StaticLayout`, and platform drawing AP
 
 ## Output and storage safeguards
 
-- One-time approval identifies the exact filename, format, SAF folder, estimated size, and overwrite behavior.
+- One-time approval identifies the exact filename, format, SAF folder or selected shell backend/path, estimated size, and overwrite behavior.
 - Existing files are never silently replaced. The current adapter refuses an existing target and does not yet implement atomic replacement.
 - The binary SAF adapter independently checks Gallery's persisted read/write tree grant, validates the target folder, creates the requested MIME type, streams directly to the provider output stream, verifies the provider-reported filename/MIME, and deletes partial output on failure/cancellation when cleanup is available.
 - Binary SAF output does not reuse the 256 KiB text-file adapter.
@@ -38,4 +38,4 @@ The renderer uses Android `PdfDocument`, `StaticLayout`, and platform drawing AP
 
 - Add bounded optional embedded images using explicit user-granted document sources, decode bounds, and image-dimension limits.
 - Add output readability/package checks in the final validation stage.
-- Shell binary destinations remain Stage 10I; the command-only shell router is not treated as a binary streaming transport.
+- Shell output uses the Stage 10I Termux stdin-chunk or Shizuku PFD pipe adapter; neither uses the command-only shell transport for artifact bytes. TERMUX_RISH is rejected rather than silently substituted.
