@@ -106,7 +106,7 @@ class TermuxShellBinaryArtifactTransport(
     require(!request.overwrite) { "Termux binary transport never overwrites existing files." }
     val target = destination.absolutePath
     val parent = target.substringBeforeLast('/', "").ifBlank { "/" }
-    val temporary = "$parent/.${request.fileName}.android-mcp-${UUID.randomUUID().toString().replace("-", "")}.part"
+    val temporary = "$parent/.android-mcp-${UUID.randomUUID().toString().replace("-", "")}.part"
     var temporaryCreated = false
     try {
       val setup = executor.execute(
