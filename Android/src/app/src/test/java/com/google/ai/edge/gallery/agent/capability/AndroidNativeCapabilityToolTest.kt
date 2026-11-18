@@ -32,6 +32,19 @@ import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
   @Test
+  fun readSmsInboxDelegatesToTheNativeAdapterForTheExplicitOperation() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val result = tool.execute(arguments("read_sms_inbox"))
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("Message preview"))
+    assertTrue(result.content.contains("5550100"))
+    assertTrue(adapter.discoveryCalls.contains("read_sms_inbox"))
+  }
+
+  @Test
   fun readCallLogDelegatesToTheNativeAdapterOnlyForTheExplicitOperation() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter = adapter)
@@ -832,6 +845,14 @@ class AndroidNativeCapabilityToolTest {
       discoveryCalls += "read_call_log"
       return NativeCallLogSnapshot(
         entries = listOf(NativeCallLogEntry("Alex Example", "555-0100", "MISSED", 1_800_000_000_000L, 0L)),
+        truncated = false,
+      )
+    }
+
+    override suspend fun readSmsInbox(): NativeSmsInboxSnapshot {
+      discoveryCalls += "read_sms_inbox"
+      return NativeSmsInboxSnapshot(
+        entries = listOf(NativeSmsInboxEntry("5550100", "Message preview", 1_800_000_000_000L, false)),
         truncated = false,
       )
     }
