@@ -7,7 +7,7 @@
 >
 > **Last reconciled:** 2026-11-18 (Stage 10A–10I implementation slices onboarded, including bounded embedded images and configured Firebase Gemini remote generation; TERMUX_RISH binary output remains unavailable; Stage 10J consolidated validation is now unlocked but not yet executed)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `stage-10i-binary-artifact-output` (stacked on `stage-10h-image-processing`, PR #57)  
+> **Current implementation branch:** `stage-10h-image-followups` (final image integration, stacked on PR #58)  
 > **Current change:** final Stage 10 image integration PR (PDF/DOCX/PPTX embedded images, EXIF normalization, provider wiring and roadmap reconciliation), stacked on [PR #58 — Stage 10I binary artifact output for Termux and Shizuku](https://github.com/bv9522/gallery/pull/58), then [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), and [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
 > **Overall state:** Stage 10A–10I implementation is onboarded. Stage 10J consolidated validation is unlocked and must run before Stage 8 provider validation/S21 acceptance and Stage 9 integration/release. Tests were authored throughout and are still unexecuted at this point.
 
