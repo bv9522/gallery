@@ -99,7 +99,7 @@ class AccessibilityScreenInspectionTool internal constructor(
       appendLine(
         "availability=" + when {
           !imageInputSupported -> ProviderAvailability.UNSUPPORTED
-          android.os.Build.VERSION.SDK_INT < 34 -> ProviderAvailability.UNSUPPORTED
+          !AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT) -> ProviderAvailability.UNSUPPORTED
           availability == ProviderAvailability.AVAILABLE -> ProviderAvailability.AVAILABLE
           else -> availability
         }
