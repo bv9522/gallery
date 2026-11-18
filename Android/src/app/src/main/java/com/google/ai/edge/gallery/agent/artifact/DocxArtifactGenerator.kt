@@ -18,9 +18,13 @@ class DocxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
   override val format = ArtifactFormat.DOCX
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
-  override fun estimateBytes(request: ArtifactCreateRequest): Long? =
-    (request.payload.toString().length * ESTIMATED_BYTES_PER_CHARACTER)
-      .toLong().coerceAtLeast(MIN_ESTIMATED_BYTES).coerceAtMost(maxOutputBytes)
+  override fun estimateBytes(request: ArtifactCreateRequest): Long? {
+    val imageCount = request.payload.get("images")?.takeIf { it.isJsonArray }?.asJsonArray?.size() ?: 0
+    return (request.payload.toString().length.toLong() * ESTIMATED_BYTES_PER_CHARACTER +
+      imageCount.toLong() * MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES)
+      .coerceAtLeast(MIN_ESTIMATED_BYTES)
+      .coerceAtMost(maxOutputBytes)
+  }
 
   fun validatePayload(payload: JsonObject) { DocxPayload.parse(payload) }
 
@@ -309,6 +313,7 @@ class DocxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
     const val MAX_BLOCKS_PER_SECTION = 100
     const val MAX_TOTAL_CHARACTERS = 100_000
     const val MAX_TOTAL_EMBEDDED_IMAGE_BYTES = 8 * 1024 * 1024
+    const val MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES = 4L * 1024L * 1024L
     const val MAX_TABLE_ROWS = 100
     const val MAX_TABLE_COLUMNS = 8
     const val MAX_CELL_CHARS = 1_000
