@@ -10,7 +10,6 @@ import android.graphics.pdf.PdfDocument
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
-import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import java.io.OutputStream
 
@@ -79,6 +78,9 @@ class PdfArtifactGenerator : ArtifactGenerator {
       val paragraphs = stringArray(page, "paragraphs", MAX_BLOCKS_PER_SECTION)
       val bullets = stringArray(page, "bullet_items", MAX_BLOCKS_PER_SECTION)
       val tables = parseTables(page.get("table"))
+      require(paragraphs.size + bullets.size <= MAX_BLOCKS_PER_SECTION) {
+        "PDF section ${index + 1} exceeds $MAX_BLOCKS_PER_SECTION paragraph and bullet blocks."
+      }
       totalCharacters += (heading?.length ?: 0) + paragraphs.sumOf { it.length } + bullets.sumOf { it.length }
       totalCharacters += tables.flatten().sumOf { row -> row.sumOf { it.length } }
       require(totalCharacters <= MAX_TOTAL_CHARACTERS) {
