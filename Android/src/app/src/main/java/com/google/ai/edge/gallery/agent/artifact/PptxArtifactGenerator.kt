@@ -17,9 +17,16 @@ class PptxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
   override val format = ArtifactFormat.PPTX
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
-  override fun estimateBytes(request: ArtifactCreateRequest): Long? =
-    (request.payload.toString().length * ESTIMATED_BYTES_PER_CHARACTER)
-      .toLong().coerceAtLeast(MIN_ESTIMATED_BYTES).coerceAtMost(maxOutputBytes)
+  override fun estimateBytes(request: ArtifactCreateRequest): Long? {
+    val imageCount = request.payload.get("slides")?.takeIf { it.isJsonArray }?.asJsonArray?.sumOf { slide ->
+      slide.takeIf { it.isJsonObject }?.asJsonObject?.get("images")
+        ?.takeIf { it.isJsonArray }?.asJsonArray?.size() ?: 0
+    } ?: 0
+    return (request.payload.toString().length.toLong() * ESTIMATED_BYTES_PER_CHARACTER +
+      imageCount.toLong() * MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES)
+      .coerceAtLeast(MIN_ESTIMATED_BYTES)
+      .coerceAtMost(maxOutputBytes)
+  }
 
   fun validatePayload(payload: JsonObject) { PptxPayload.parse(payload) }
 
@@ -364,6 +371,7 @@ class PptxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
     const val MAX_TOTAL_CHARACTERS = 100_000
     const val MAX_TOTAL_EMBEDDED_IMAGES = 4
     const val MAX_TOTAL_EMBEDDED_IMAGE_BYTES = 8 * 1024 * 1024
+    const val MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES = 4L * 1024L * 1024L
     const val SLIDE_WIDTH = 12_192_000L
     const val SLIDE_HEIGHT = 6_858_000L
     const val EMU = 914_400L
