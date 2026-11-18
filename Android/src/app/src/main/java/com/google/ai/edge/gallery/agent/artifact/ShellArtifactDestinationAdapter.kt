@@ -108,9 +108,9 @@ class ShellArtifactDestinationAdapter(
       val quotedTemp = shellQuote(temporaryPath)
       val quotedTarget = shellQuote(destinationPath)
       val targetPolicy = if (overwrite) {
-        "[ ! -e $quotedTarget ] || [ -f $quotedTarget ]; [ ! -d $quotedTarget ]; "
+        "[ ! -e $quotedTarget ] || [ -f $quotedTarget ]"
       } else {
-        "[ ! -e $quotedTarget ]; [ ! -d $quotedTarget ]; "
+        "[ ! -e $quotedTarget ]"
       }
       val preflight =
         "command -v base64 >/dev/null 2>&1 && command -v sha256sum >/dev/null 2>&1 && " +
