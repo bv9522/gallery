@@ -14,6 +14,7 @@ data class ImageGenerationRequest(
   val prompt: String,
   val outputMimeType: String,
   val sourceImages: List<Uri> = emptyList(),
+  val sourceImageLabels: List<String> = emptyList(),
 )
 
 data class RemoteImageGenerationConsentDetails(
@@ -21,6 +22,7 @@ data class RemoteImageGenerationConsentDetails(
   val prompt: String,
   val outputMimeType: String,
   val sourceImageCount: Int,
+  val sourceImageLabels: List<String>,
 )
 
 fun interface RemoteImageGenerationConsentRequester {
@@ -58,6 +60,14 @@ class GuardedImageGenerationDispatcher(
     request: ImageGenerationRequest,
     output: OutputStream,
   ): String {
+    require(request.prompt.isNotBlank() && request.prompt.length <= MAX_PROMPT_CHARS) {
+      "Image generation prompt must contain 1–$MAX_PROMPT_CHARS characters."
+    }
+    require(request.outputMimeType in SUPPORTED_OUTPUT_MIME_TYPES) { "Unsupported generated image MIME type." }
+    require(request.sourceImages.size <= MAX_SOURCE_IMAGES) { "Too many source images were supplied." }
+    require(request.sourceImageLabels.isEmpty() || request.sourceImageLabels.size == request.sourceImages.size) {
+      "Source image labels must match the source image list."
+    }
     val provider = providers.find(providerId)
       ?: throw IllegalArgumentException("Image generation provider '$providerId' is not configured.")
     if (provider.dataBoundary == ImageGenerationDataBoundary.REMOTE) {
@@ -67,10 +77,17 @@ class GuardedImageGenerationDispatcher(
           prompt = request.prompt,
           outputMimeType = request.outputMimeType,
           sourceImageCount = request.sourceImages.size,
+          sourceImageLabels = request.sourceImageLabels,
         ),
       )
       if (!approved) throw SecurityException("Remote image generation was not approved; no data was sent.")
     }
     return provider.generate(request, output)
+  }
+
+  private companion object {
+    const val MAX_PROMPT_CHARS = 10_000
+    const val MAX_SOURCE_IMAGES = 8
+    val SUPPORTED_OUTPUT_MIME_TYPES = setOf("image/png", "image/jpeg", "image/webp")
   }
 }
