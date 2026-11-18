@@ -50,8 +50,8 @@ class AccessibilityControlCapabilityToolTest {
     val result = AccessibilityControlCapabilityTool(access, FakeAuthorizer(true))
       .execute(args("open_settings"))
 
-    assertFalse(!result.isSuccessful)
-    assertTrue(result.text.contains("no access was granted automatically"))
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("no access was granted automatically"))
     assertEquals(1, access.openCount)
   }
 
