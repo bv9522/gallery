@@ -110,6 +110,7 @@ class AgentCoordinator(
 
         val limitMessage =
           "Agent stopped after reaching the configured limit of " + maxModelTurns + " model turns."
+        clearTransientToolImages()
         AgentRunResult(
           AgentRunStatus.TURN_LIMIT_REACHED,
           limitMessage,
@@ -128,7 +129,10 @@ class AgentCoordinator(
 
   /** Clears model-side coordinator history when the owning conversation is reset or discarded. */
   suspend fun reset() {
-    runMutex.withLock { conversationMessages.clear() }
+    runMutex.withLock {
+      conversationMessages.forEach { it.toolImageBytes?.fill(0) }
+      conversationMessages.clear()
+    }
   }
 
   private suspend fun executeToolCalls(
