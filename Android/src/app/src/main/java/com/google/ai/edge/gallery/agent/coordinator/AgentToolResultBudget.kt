@@ -17,12 +17,11 @@
 package com.google.ai.edge.gallery.agent.coordinator
 
 /**
- * Bounds model-facing tool output before it enters retained conversation history.
+ * Bounds model-facing text and image tool output before it enters the model conversation.
  *
- * Large outputs retain both their beginning and end with an explicit truncation marker. A single
- * oversized listing or shell command therefore cannot consume an unbounded portion of the model's
- * context. Budgets reset for each user turn; the coordinator's existing turn limit still bounds
- * repeated tool-call loops.
+ * Large text outputs retain both their beginning and end with an explicit truncation marker.
+ * Images are indivisible: oversized images are rejected rather than truncated. Budgets reset for
+ * each user turn; the coordinator's turn limit also bounds repeated tool-call loops.
  */
 class AgentToolResultBudget(
   private val maxCharsPerTool: Int = DEFAULT_MAX_CHARS_PER_TOOL,
