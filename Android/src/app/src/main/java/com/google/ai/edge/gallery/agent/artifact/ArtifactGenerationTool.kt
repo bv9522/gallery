@@ -27,6 +27,7 @@ class ArtifactGenerationTool(
       supportedFormats.joinToString { it.name.lowercase() } + ". " +
       "Supported destinations: " + supportedDestinations.joinToString { it.name.lowercase() } + ". " +
       "SAF requires a persisted Gallery document-tree grant and a tree URI/document ID returned by document_tree grants/list operations. " +
+      "SAF currently refuses replacement of an existing file; choose a new filename. Shell overwrite requires overwrite=true and explicit user approval. " +
       "Shell destinations require an explicit TERMUX or SHIZUKU backend and an absolute path accessible to that identity. TERMUX_RISH binary output is unavailable until remote stdin forwarding is verified. " +
       "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
       "Generated content remains local. The image format currently means bounded on-device resize/crop/rotate/convert only; no generative-image provider is registered."
