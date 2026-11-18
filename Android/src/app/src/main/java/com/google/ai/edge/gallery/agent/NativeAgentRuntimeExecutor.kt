@@ -33,6 +33,7 @@ import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.ActiveMediaSessionCapabilityTool
+import com.google.ai.edge.gallery.agent.capability.AccessibilityControlCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.ChannelNativeCapabilityAuthorizer
 import com.google.ai.edge.gallery.agent.capability.GalleryMediaLibraryOperations
 import com.google.ai.edge.gallery.agent.capability.ShareContentCapabilityTool
@@ -80,6 +81,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "if it is stale, run download_status again. Never request model-wide cancellation or expose WorkManager IDs, tags, URLs, " +
       "access tokens, or filesystem paths. " +
       "Use android_control media_search for natural-language photo/video discovery. AUTO combines filename matches with the existing EmbeddingGemma-2 visual index; VISUAL requests semantic visual search; NAME searches filenames only. Search covers MediaStore-visible internal/removable media and files inside persisted user-granted SAF trees. If the user requests USB/OTG storage and no matching grant exists, use document_tree grants/request_access so the user can select the drive or folder; never bypass the picker. Results contain short-lived opaque handles only; never invent handles or expose content URIs or paths. Use media_play only with a fresh media_handle from the latest media_search result; playback requires one-time approval and opens Gallery's built-in player. Never pass arbitrary URIs or filesystem paths to media_play. If visual indexing is unavailable or incomplete, explain that and use media_index only when the user asks to build/update the index; media_index requires one-time approval and reuses the Smart Album background worker and database. Visual indexing is on-device and does not upload media. " +
+      "Use accessibility_control status to check whether the user has enabled Gallery's AccessibilityService. Use open_settings only when the user explicitly asks to enable or disable it; the user must manually toggle Gallery. Accessibility special access is broad and can observe/interact with screen content. This lifecycle-only version does not inspect screen content, read notifications, capture screenshots, or perform UI actions. Never claim opening settings grants access. " +
       "Use media_sessions list to inspect currently active media sessions only after Gallery's notification-listener special access is enabled by the user. Each listing and each control requires one-time approval. Use control only with a fresh session_handle from the latest list; supported actions are PLAY, PAUSE, NEXT, PREVIOUS, and SEEK within the current track duration. Use open_settings only when the user explicitly asks to enable this access; the user must toggle Gallery manually in Android settings. This listener is used only to authorize MediaSessionManager access; do not read, store, or summarize notifications. Never expose package names or session tokens, and do not claim a dispatched command guarantees playback changed. " +
       "Use share_content share_text to prepare exact text for the Android share chooser, or share_file with a tree_uri and document_id returned by document_tree. Both require one-time approval. File sharing is restricted to files inside a persisted Gallery SAF read grant and files up to 25 MiB. Android's chooser lets the user select the receiving app; never claim delivery or sending is complete just because the chooser opened. Never target a receiver directly or bypass the chooser. " +
       "Use android_control for native device information, battery, " +
@@ -401,6 +403,10 @@ class NativeAgentRuntimeExecutor(
               mediaOperations = mediaOperations,
             ),
             ActiveMediaSessionCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+            ),
+            AccessibilityControlCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
             ),
