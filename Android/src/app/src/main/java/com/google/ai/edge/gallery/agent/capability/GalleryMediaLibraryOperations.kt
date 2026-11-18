@@ -84,7 +84,7 @@ private data class StoredMediaReference(
  */
 class GalleryMediaLibraryOperations(
   context: Context,
-  private val models: List<Model>,
+  private val modelsProvider: () -> List<Model>,
   private val authorizer: NativeCapabilityAuthorizer,
   private val photoLibrary: PhotoLibraryService = DefaultPhotoLibraryService(context.applicationContext),
 ) {
@@ -359,7 +359,7 @@ class GalleryMediaLibraryOperations(
   }
 
   private fun findDownloadedEmbeddingModel(): Model? =
-    models.firstOrNull { model ->
+    modelsProvider().firstOrNull { model ->
       model.modelId.contains("embeddinggemma-2", ignoreCase = true) &&
         File(model.getPath(appContext)).isFile
     }
