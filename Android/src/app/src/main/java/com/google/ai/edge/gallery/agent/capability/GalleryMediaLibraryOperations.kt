@@ -161,14 +161,22 @@ class GalleryMediaLibraryOperations(
     val visualUsed = visualIndex?.indexAvailable == true
     val visualAvailable = visualIndex?.indexAvailable == true
     val note = when {
-      mediaStoreSearch.permissionRequired -> "Android photo/video permission is not granted. Search is limited to any existing visual-index matches and persisted user-granted storage folders; open Smart Album to grant media-library access."
+      mode == "NAME" && mediaStoreSearch.permissionRequired ->
+        "Android photo/video permission is not granted; filename search is limited to persisted user-granted storage folders. Open Smart Album to grant media-library access."
       mode == "NAME" -> "Filename search only."
+      mediaStoreSearch.permissionRequired && mode == "VISUAL" ->
+        "Android photo/video permission is not granted; visual search can return only indexed items that Gallery can still read."
+      mediaStoreSearch.permissionRequired ->
+        "Android photo/video permission is not granted. Search is limited to existing visual-index matches and persisted user-granted storage folders; open Smart Album to grant media-library access."
       visualIndex == null && findDownloadedEmbeddingModel() == null ->
         "EmbeddingGemma-2 is not downloaded. Download it from Gallery's model manager, then run media_index to build the local visual index."
       visualIndex == null || !visualIndex.indexAvailable ->
         "No searchable visual index is available. Run media_index to build or update it; EmbeddingGemma-2 must be downloaded."
+      visualIndex.results.isEmpty() && mode == "VISUAL" ->
+        "Visual index is available, but no semantic visual matches were returned."
       visualIndex.results.isEmpty() ->
         "Visual index is available, but no indexed visual matches were returned. Filename matches are included where found."
+      mode == "VISUAL" -> "Results are ranked by semantic visual similarity."
       else -> "Visual matches are ranked first; filename matches follow."
     }
     return AgentMediaSearchPage(
