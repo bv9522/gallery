@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - phase-6-unified-execution-runtime
+      - stage-10h-image-followups
     paths:
       - 'Android/**'
       - '.github/workflows/build_android.yaml'
