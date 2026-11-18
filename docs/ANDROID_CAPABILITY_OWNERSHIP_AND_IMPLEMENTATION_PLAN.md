@@ -475,9 +475,8 @@ version compatibility must be verified on-device before an operation is marked i
 - [x] Phase 6A draft: native Bluetooth bonded-device listing and bounded BLE discovery, plus
   native USB host device/interface enumeration. Bluetooth permissions are requested only after
   scoped approval; bonded-device listing and BLE scanning have separate capability IDs and
-  permission states. BLE scans stop in a cancellation-safe finally block. GATT sessions and USB
-  I/O remain deferred to dedicated lifecycle/permission phases.
-- [x] Add bounded native Bluetooth GATT inspection and one-shot characteristic I/O in draft PRs #26–27; local validation and S21 acceptance remain pending. [ ] Implement native USB host permission/open/read/write sessions;
+  permission states. BLE scans stop in a cancellation-safe finally block. GATT sessions are handled in PRs #26–27; PR #46 adds read-only USB descriptor inspection with per-device permission and short-lived handles.
+- [x] Add bounded native Bluetooth GATT inspection and one-shot characteristic I/O in draft PRs #26–27; local validation and S21 acceptance remain pending. [x] Add read-only USB descriptor inspection in PR #46 with per-device permission, one-shot approval, and bounded handles; arbitrary endpoint data transfers and writes remain unsupported.
   keep Wi-Fi changes user-mediated through Android Settings.
 - [ ] Add per-command companion/package/permission probes without prompting.
 - Bound stream duration, output, and process lifetime; sensor and microphone operations need
