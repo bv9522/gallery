@@ -5,11 +5,11 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (capability onboarding and source-level ownership audit complete; consolidated test planning opened; test/build/device execution not yet started)  
+> **Last reconciled:** 2026-11-18 (Stage 10 artifact-generation onboarding moved ahead of consolidated validation; Stage 10A dependency/API preflight complete; no Stage 10 tests/builds/device checks executed)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-6e-wifi-settings-handoff-and-ownership-audit` (stacked on `wave-6d-usb-descriptor-io`)  
-> **Current change:** [PR #47 — Wave 6E user-mediated Wi-Fi settings handoff and ownership audit](https://github.com/bv9522/gallery/pull/47), draft/open/unmerged, stacked on [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
-> **Overall state:** Capability onboarding and the final source-level ownership/documentation audit are complete in the stacked draft PR chain #39–#47. Stage 8 is now unlocked. Consolidated test planning is in progress; no accumulated tests, build, or S21 acceptance have yet been executed.
+> **Current implementation branch:** `stage-10a-dependency-preflight` (stacked on `roadmap-artifact-generation-engine`, which is stacked on the Wave 6E capability branch)  
+> **Current change:** [PR #49 — Stage 10A artifact-generation dependency/API preflight](https://github.com/bv9522/gallery/pull/49), draft/open/unmerged, stacked on [PR #48 — Artifact generation engine roadmap](https://github.com/bv9522/gallery/pull/48), then [PR #47 — Wave 6E user-mediated Wi-Fi settings handoff and ownership audit](https://github.com/bv9522/gallery/pull/47), draft/open/unmerged, stacked on [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
+> **Overall state:** Device-capability onboarding through Wave 6E is complete. Stage 10 artifact-generation onboarding is now the active workstream and intentionally precedes Stage 8 consolidated tests/build/S21 acceptance and Stage 9 integration/release. Tests are added with each implementation slice but remain unexecuted until all Stage 10 capabilities are onboarded.
 
 ## How to read and maintain this roadmap
 
@@ -25,7 +25,7 @@ A PR being open, a commit existing, or code compiling is never by itself proof o
 remain draft/open/unmerged until explicitly approved for integration. No PR is to be merged or closed without the owner's
 explicit approval.
 
-**Owner-directed validation sequencing (2026-11-17):** while capability onboarding was active, do not run Gradle tests, builds, or S21/device acceptance per slice. All planned capability onboarding and the source-level ownership audit are now complete. The accumulated validation phase is unlocked, but execution begins only after the consolidated test inventory, command/environment preflight, and acceptance checklist are reviewed. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
+**Owner-directed validation sequencing (2026-11-18):** the owner approved moving all Stage 10 artifact-generation onboarding ahead of consolidated validation. Add focused unit/policy/format/security tests alongside each Stage 10 slice, but do not execute Gradle tests, builds, instrumentation tests, or S21/device acceptance until Stage 10A–10J implementation and documentation are onboarded. Execution order is deliberately Stage 10 → Stage 8 → Stage 9 despite the stage numbers. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
 
 **Progress-update rule:** after every implementation slice, update (1) this ledger, (2) the capability row/status in the
 ownership matrix, (3) the provider matrix if ownership/readiness changed, and (4) the relevant PR description. Record the
@@ -199,11 +199,52 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 
 **Exit gate:** user-enabled accessibility is transparent, controllable, bounded, and demonstrably safer than generic coordinate automation.
 
+### Stage 10 — Artifact generation engine (owner-approved capability onboarding before consolidated validation)
+
+**Status: IN PROGRESS — Stage 10A dependency/API preflight complete; implementation 10B–10J pending.** On 2026-11-18 the owner explicitly moved Stage 10 ahead of Stage 8 and Stage 9. This is now the active onboarding workstream; accumulated tests/builds/device acceptance remain deferred until every Stage 10 capability is onboarded.
+
+**Approved architecture**
+- One shared Artifact Generation Engine and one model-facing artifact-generation contract, not six unrelated tools or duplicated file-management routes.
+- Native Kotlin owns orchestration, format dispatch, structured request validation, approvals, lifecycle, temporary-output management, cancellation, verification, and typed results.
+- Replaceable format adapters cover PDF, DOCX, XLSX, PPTX, ZIP, and image processing. Select dependencies only after API/minSdk compatibility, licensing, maintenance, APK-size, memory, and feature review.
+- Both destination paths are supported:
+  - **SAF:** a persisted Gallery-granted document tree selected by the user, including internal storage, SD cards, and USB mass storage exposed through Android document providers.
+  - **Unified shell router:** a path accessible to the explicitly selected TERMUX, SHIZUKU, or TERMUX_RISH execution identity, retaining existing approval and identity semantics.
+- SAF and shell are destination adapters, not competing generation owners. No silent fallback or identity substitution. Gallery SAF grants are not transferable to Termux; shell visibility is not inferred from SAF access.
+- Image support has two independent paths: local image processing and optional generative-image providers. Gemma 4 E2B image-input support is not image-generation support. Remote generation requires disclosure and explicit opt-in/approval before prompts or source images leave the device. On-device generation is optional and resource-gated; no mandatory cloud dependency.
+- Artifact content is structured and typed. Do not execute generated scripts/templates/macros or evaluate spreadsheet formulas; formulas, if supported, are inert workbook content.
+
+**Implementation sequence**
+- [x] 10A — Dependency/API/license preflight complete. Baseline is minSdk 31, targetSdk 37, Java/Kotlin bytecode target 11. Use platform `android.graphics.pdf.PdfDocument` for PDF, `java.util.zip` streaming for ZIP and OOXML packages, native Android bitmap/image APIs plus the already-present ExifInterface for local image processing, and a narrowly scoped in-house OOXML writer for DOCX/XLSX/PPTX. No third-party document/image-generation dependency is selected or added; avoid Apache POI/docx4j/heavy office runtimes. AndroidX PDF dependencies already present are viewer/document-service components, not a PDF authoring engine. See `docs/ARTIFACT_GENERATION_DEPENDENCY_REVIEW.md` for API, licensing, APK, SAF, and shell-streaming findings.
+- [ ] 10B — Define shared request/result contracts, format registry, content schemas, approval integration, per-format limits, timeout/cancellation, and destination abstraction. Expose one generic artifact.create-style operation with a strict format discriminator and validated format-specific payloads.
+- [ ] 10C — PDF: bounded text, headings, paragraphs, tables, pagination, optional embedded images, and readable-output/page/resource validation.
+- [ ] 10D — DOCX: genuine editable OOXML package with paragraphs, headings, tables, page layout, headers/footers, optional images, and package/relationship validation.
+- [ ] 10E — XLSX: genuine OOXML workbook with bounded worksheets/rows/columns/cells, typed values, styles, widths, filters, and safe formula handling. CSV remains text and must never be mislabeled .xlsx.
+- [ ] 10F — PPTX: editable OOXML presentation with bounded slides/shapes/text/images, layouts, theme defaults, and package/relationship validation.
+- [ ] 10G — ZIP create/extract with streaming, entry-count/expanded-size/compression-ratio/path limits, duplicate-name handling, cancellation, and cleanup. Reject absolute paths, traversal, symlink escapes, and archive bombs.
+- [ ] 10H — Local image processing plus optional generative-image provider interface. Bound raster formats/dimensions and declare output MIME types. Remote providers are opt-in and disclose data transfer; on-device generation is optional and separately resource-gated.
+- [ ] 10I — Integrate both destinations. SAF binary output streams through document-provider output streams and is not subject to the existing 256 KiB UTF-8 text-operation cap. Add a bounded binary-transfer channel for each explicitly selected shell identity: Termux RUN_COMMAND stdin uses bounded chunks under Android's intent-size ceiling; Shizuku requires a dedicated ParcelFileDescriptor/pipe path rather than the existing command-only AIDL call; TERMUX_RISH must prove stdin forwarding to the remote shell before being marked supported. Preserve one exact-path approval, backend identity, partial-write cleanup, and atomic finalization; never fall back to another identity. The 100 MiB SAF cross-tree transfer cap is not a universal generation limit.
+- [ ] 10J — Tests and S21 acceptance: valid-format/openability, malformed content, size boundaries, low storage, provider errors, revoked SAF grants, inaccessible shell paths, backend identity, overwrite confirmation, cancellation, partial-write cleanup, process death, ZIP traversal/bomb cases, image decode limits, and optional-provider unavailable/offline behavior. Measure APK/dependency growth, RAM, CPU, storage, latency, battery, and thermals.
+
+**Shared safety and lifecycle requirements**
+- Use app-private temporary staging only when required; enforce a staging quota, stream large content, clean partial outputs on failure/cancellation, and avoid holding entire artifacts in memory.
+- Never silently overwrite. Approval identifies the exact destination/name and replacement behavior. Reject ambiguous/provider-inconsistent overwrite states.
+- Validate MIME type, extension, and actual signature/package structure where applicable; extensions alone do not prove a valid artifact.
+- Enforce per-format limits for bytes, pages/slides/sheets/rows/cells/image dimensions, archive entries/expanded bytes/ratio, generation time, and output count. Set numeric defaults after dependency/resource preflight; do not inherit 256 KiB or 100 MiB indiscriminately.
+- Keep generated artifacts local by default. Sharing/uploading remains a separate user-mediated operation; generation never silently transmits files.
+- Reuse SAF grants, shell router, approval boundary, and cancellation infrastructure. No root, persistent background service, Python runtime, office-suite daemon, or duplicate file CRUD tools.
+
+**Stage 10 onboarding exit gate:** all format families and the optional image-provider interface are implemented with bounded contracts; SAF output and each shell identity have explicit, independently verified streaming adapters or are honestly marked unavailable; tests are present but not executed; security, cleanup, and documentation are complete. Only then begin Stage 8 consolidated validation and S21 acceptance, followed by Stage 9 integration/release.
+
+**Project completion definition:** Stages 0–10 onboarding, Stage 8 validation/acceptance, and Stage 9 integration/release exit gates have passed, the final app is integrated and reproducibly built,
+the target S21 acceptance report is complete, and all remaining unsupported/deferred capabilities are explicitly documented.
+
+
 ### Stage 8 — Consolidated provider verification and S21 acceptance (Wave 6)
-**Status: IN PROGRESS — test planning unlocked; execution not yet started.** All capability onboarding (Stages 4–7) and the final source-level ownership audit are complete in the stacked draft PR chain #39–#47. The next immediate action is a test-inventory and build-environment preflight against the combined head, not a per-PR test run.
+**Status: DEFERRED UNTIL STAGE 10 ONBOARDING IS COMPLETE — test planning prepared; execution not started.** Device-capability onboarding and the final source-level ownership audit are complete in PRs #39–#47. The owner has directed that Stage 10 artifact generation be fully onboarded before any consolidated test/build/S21 execution. Stage 8 begins only after Stage 10A–10J are implemented and documented.
 
 #### 8A — Consolidated test and build preflight
-- [ ] Confirm the complete dependency chain resolves through PR #47 head `1dd2129be234039b6766dc2cf50d2b8208f55ce7`; keep all PRs draft/open/unmerged.
+- [ ] Confirm the complete dependency chain resolves through the final Stage 10 implementation head stacked on PR #48; keep all PRs draft/open/unmerged.
 - [ ] Inventory every test source and existing Gradle task; map each new capability to its unit/policy/parser/dispatch tests and identify uncovered integration seams.
 - [ ] Confirm Windows JDK/Gradle/Android SDK paths, compile SDK 37 installation, signing identity, available disk space, and ADB/device connectivity before execution.
 - [ ] Capture baseline repository state and exact commands/results; do not clean or wipe app/device data as a precondition unless specifically needed and approved.
@@ -250,6 +291,7 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 **Exit gate:** automated tests and debug build pass on the consolidated head; the S21 acceptance matrix has evidence for every exposed capability; limitations are explicit; no unexplained failures remain; security and resource constraints are acceptable.
 
 ### Stage 9 — Integration, release, and maintenance
+**Status: NOT STARTED — follows Stage 10 onboarding and Stage 8 consolidated validation/S21 acceptance.**
 - [ ] Review the complete stacked PR chain for dependency order, duplicate changes, stale branches, and documentation consistency.
 - [ ] Obtain explicit owner approval before merging any PR; merge in dependency order only after validation/acceptance criteria are met.
 - [ ] Reconcile the final integration branch with the canonical ownership plan and provider matrix.
@@ -258,46 +300,6 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 - [ ] Publish user-facing setup, permissions, capability availability, limitations, recovery, and troubleshooting documentation.
 - [ ] Establish regression checks for Android/API changes, Termux:API compatibility, Shizuku/Rish behavior, Gallery upstream changes, and model/runtime updates.
 - [ ] Maintain the roadmap after each future capability or compatibility change.
-
-### Stage 10 — Artifact generation engine (post-baseline extension; does not block Stage 8 validation or Stage 9 release)
-
-**Status: PLANNED — architecture decisions approved 2026-11-17.** This separate extension follows the baseline consolidated test/build/S21 acceptance (Stage 8) and integration/release gates (Stage 9). It must not delay or destabilize them.
-
-**Approved architecture**
-- One shared Artifact Generation Engine and one model-facing artifact-generation contract, not six unrelated tools or duplicated file-management routes.
-- Native Kotlin owns orchestration, format dispatch, structured request validation, approvals, lifecycle, temporary-output management, cancellation, verification, and typed results.
-- Replaceable format adapters cover PDF, DOCX, XLSX, PPTX, ZIP, and image processing. Select dependencies only after API/minSdk compatibility, licensing, maintenance, APK-size, memory, and feature review.
-- Both destination paths are supported:
-  - **SAF:** a persisted Gallery-granted document tree selected by the user, including internal storage, SD cards, and USB mass storage exposed through Android document providers.
-  - **Unified shell router:** a path accessible to the explicitly selected TERMUX, SHIZUKU, or TERMUX_RISH execution identity, retaining existing approval and identity semantics.
-- SAF and shell are destination adapters, not competing generation owners. No silent fallback or identity substitution. Gallery SAF grants are not transferable to Termux; shell visibility is not inferred from SAF access.
-- Image support has two independent paths: local image processing and optional generative-image providers. Gemma 4 E2B image-input support is not image-generation support. Remote generation requires disclosure and explicit opt-in/approval before prompts or source images leave the device. On-device generation is optional and resource-gated; no mandatory cloud dependency.
-- Artifact content is structured and typed. Do not execute generated scripts/templates/macros or evaluate spreadsheet formulas; formulas, if supported, are inert workbook content.
-
-**Implementation sequence**
-- [ ] 10A — Inspect Gallery dependencies, Android/JVM APIs, licensing, minSdk/targetSdk compatibility, APK-size impact, and candidate libraries. Prefer Android PdfDocument for baseline PDF and JDK ZIP streams where adequate; evaluate lightweight OOXML generation for DOCX/XLSX/PPTX rather than bundling an office suite.
-- [ ] 10B — Define shared request/result contracts, format registry, content schemas, approval integration, per-format limits, timeout/cancellation, and destination abstraction. Expose one generic artifact.create-style operation with a strict format discriminator and validated format-specific payloads.
-- [ ] 10C — PDF: bounded text, headings, paragraphs, tables, pagination, optional embedded images, and readable-output/page/resource validation.
-- [ ] 10D — DOCX: genuine editable OOXML package with paragraphs, headings, tables, page layout, headers/footers, optional images, and package/relationship validation.
-- [ ] 10E — XLSX: genuine OOXML workbook with bounded worksheets/rows/columns/cells, typed values, styles, widths, filters, and safe formula handling. CSV remains text and must never be mislabeled .xlsx.
-- [ ] 10F — PPTX: editable OOXML presentation with bounded slides/shapes/text/images, layouts, theme defaults, and package/relationship validation.
-- [ ] 10G — ZIP create/extract with streaming, entry-count/expanded-size/compression-ratio/path limits, duplicate-name handling, cancellation, and cleanup. Reject absolute paths, traversal, symlink escapes, and archive bombs.
-- [ ] 10H — Local image processing plus optional generative-image provider interface. Bound raster formats/dimensions and declare output MIME types. Remote providers are opt-in and disclose data transfer; on-device generation is optional and separately resource-gated.
-- [ ] 10I — Integrate both destinations. SAF binary output streams through document-provider output streams and is not subject to the existing 256 KiB UTF-8 text-operation cap. Shell output uses the explicitly selected backend identity and existing path-mutation approval. The 100 MiB SAF cross-tree transfer cap is not a universal generation limit.
-- [ ] 10J — Tests and S21 acceptance: valid-format/openability, malformed content, size boundaries, low storage, provider errors, revoked SAF grants, inaccessible shell paths, backend identity, overwrite confirmation, cancellation, partial-write cleanup, process death, ZIP traversal/bomb cases, image decode limits, and optional-provider unavailable/offline behavior. Measure APK/dependency growth, RAM, CPU, storage, latency, battery, and thermals.
-
-**Shared safety and lifecycle requirements**
-- Use app-private temporary staging only when required; enforce a staging quota, stream large content, clean partial outputs on failure/cancellation, and avoid holding entire artifacts in memory.
-- Never silently overwrite. Approval identifies the exact destination/name and replacement behavior. Reject ambiguous/provider-inconsistent overwrite states.
-- Validate MIME type, extension, and actual signature/package structure where applicable; extensions alone do not prove a valid artifact.
-- Enforce per-format limits for bytes, pages/slides/sheets/rows/cells/image dimensions, archive entries/expanded bytes/ratio, generation time, and output count. Set numeric defaults after dependency/resource preflight; do not inherit 256 KiB or 100 MiB indiscriminately.
-- Keep generated artifacts local by default. Sharing/uploading remains a separate user-mediated operation; generation never silently transmits files.
-- Reuse SAF grants, shell router, approval boundary, and cancellation infrastructure. No root, persistent background service, Python runtime, office-suite daemon, or duplicate file CRUD tools.
-
-**Exit gate:** all six format families produce valid, bounded artifacts; both destinations work without identity confusion; optional image providers are transparent and opt-in; security, cleanup, and S21 resource acceptance pass. This extension does not alter baseline Stage 8/9 exit gates.
-
-**Project completion definition:** Stages 0–9 have passed their exit gates, the final app is integrated and reproducibly built,
-the target S21 acceptance report is complete, and all remaining unsupported/deferred capabilities are explicitly documented.
 
 ## Current progress snapshot (2026-11-17)
 
@@ -317,13 +319,13 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
-| Wave 6 consolidated S21 acceptance | IN PROGRESS — test planning unlocked; execution not started | Onboarding and ownership audit complete; next: combined-head test inventory and build preflight |
-| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | PLANNED — post-baseline extension | Stage 10; shared engine; both SAF and shell-router destinations; local processing plus optional generative image providers |
+| Wave 6 consolidated S21 acceptance | DEFERRED UNTIL STAGE 10 COMPLETE | Test inventory/preflight prepared; do not execute tests, builds, or S21 acceptance before all Stage 10 slices are onboarded |
+| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IN PROGRESS — Stage 10A complete | Dependency/API/license review recorded; next: shared contracts and format adapters; both SAF and explicit shell-router destinations; local processing plus optional generative image-provider interface |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
 
-All entries below were observed open and unmerged on 2026-11-17. Draft status is intentional; it is not a release status.
+All entries below are tracked as draft/open/unmerged unless explicitly stated otherwise. Draft status is intentional; it is not a release status. Stage 10 PRs are stacked after PR #48 and before Stage 8 validation.
 
 - PR #1 — optional historical local-MCP loopback build; discontinued from the critical path.
 - PR #2 — unified native agent runtime / shell execution foundation.
@@ -347,6 +349,8 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #45 — approved bounded SMS inbox read using `READ_SMS`, requested only after one-time approval and subject to Android/installer/default-SMS-role eligibility (**tests added; execution deferred by owner instruction**).
 - PR #46 — read-only USB descriptor inspection using one-shot handles, per-device Android permission, and USB_DEVICE_IO approval; no arbitrary endpoint transfers or writes (tests added; execution deferred).
 - PR #47 — approved wifi_open_settings handoff; opens Android Wi-Fi panel or settings fallback, never toggles Wi-Fi silently (tests added; execution deferred).
+- PR #48 — Stage 10 artifact-generation architecture and roadmap (documentation-only; draft/open/unmerged).
+- PR #49 — Stage 10A dependency/API/license preflight; documents platform-native format APIs, no-new-dependency policy, and binary streaming requirements for SAF/Termux/Shizuku/Rish (tests/builds/device checks not run).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
