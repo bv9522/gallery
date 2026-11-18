@@ -34,6 +34,7 @@ class AccessibilityScreenInspectionPolicyTest {
   fun personalIdentifiersBlockEntireScreen() {
     assertTrue(AccessibilityScreenInspectionPolicy.containsSensitiveText("Contact user@example.com"))
     assertTrue(AccessibilityScreenInspectionPolicy.containsSensitiveText("Reference 12345678"))
+    assertTrue(AccessibilityScreenInspectionPolicy.containsSensitiveText("Call +1 (212) 555-0199"))
     assertFalse(AccessibilityScreenInspectionPolicy.containsSensitiveText("Welcome back"))
   }
 
