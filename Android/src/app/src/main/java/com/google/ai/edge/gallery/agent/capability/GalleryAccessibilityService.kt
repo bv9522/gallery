@@ -40,6 +40,7 @@ class GalleryAccessibilityService : AccessibilityService() {
     val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
     queue.add(root to 0)
     var overflow = false
+    var traversalFailed = false
     try {
       while (queue.isNotEmpty()) {
         if (visited.size >= MAX_NODES) {
@@ -48,12 +49,27 @@ class GalleryAccessibilityService : AccessibilityService() {
         }
         val (node, depth) = queue.removeFirst()
         visited += node to depth
-        if (depth < MAX_DEPTH && node.isVisibleToUser) {
-          for (index in 0 until node.childCount) {
-            val child = runCatching { node.getChild(index) }.getOrNull() ?: continue
-            queue.add(child to depth + 1)
+        if (node.isVisibleToUser) {
+          if (depth >= MAX_DEPTH && node.childCount > 0) {
+            overflow = true
+            break
           }
+          if (depth < MAX_DEPTH) {
+            for (index in 0 until node.childCount) {
+              val childResult = runCatching { node.getChild(index) }
+              val child = childResult.getOrNull()
+              if (child == null) {
+                traversalFailed = true
+                break
+              }
+              queue.add(child to depth + 1)
+            }
+          }
+          if (traversalFailed) break
         }
+      }
+      if (traversalFailed) {
+        return AccessibilityWindowSnapshot.Excluded("The visible screen hierarchy changed during inspection; no screen content was returned.")
       }
       if (overflow || queue.isNotEmpty()) {
         return AccessibilityWindowSnapshot.Excluded(
