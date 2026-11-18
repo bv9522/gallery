@@ -147,6 +147,11 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
     }
     when (val snapshot = AccessibilityServiceInstance.current?.inspectExternalVisibleWindow()) {
       is AccessibilityWindowSnapshot.Ready -> {
+        if (snapshot.truncated || snapshot.elements.isEmpty()) {
+          return@withContext Result.failure(
+            IllegalStateException("The external app hierarchy is empty or incomplete; no action handles were issued.")
+          )
+        }
         val now = android.os.SystemClock.elapsedRealtime()
         val elements = snapshot.elements.map { item ->
           val handle = "ui_" + UUID.randomUUID().toString().replace("-", "").take(16)
