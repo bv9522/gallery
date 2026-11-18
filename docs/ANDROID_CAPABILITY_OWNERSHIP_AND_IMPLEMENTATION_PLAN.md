@@ -382,7 +382,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Draft in PR #30: approved schedule/list/cancel operations reuse Gallery's existing scheduler; user-confirmed unit tests and debug build passed; WorkManager remains for deferrable jobs, not exact-time notification alarms |
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | Planned; separate URI-grant capability scope |
-| Removable USB storage files | Native Kotlin SAF document-tree URI | Planned; do not treat UsbManager as a mass-storage filesystem |
+| Removable USB storage files | Native Kotlin SAF document-tree URI | Draft in PRs #23–25: user-granted SAF tree access and bounded file operations/transfers; validation/device acceptance pending; UsbManager is not a mass-storage filesystem |
 | Screen capture / visual screen understanding | Android AccessibilityService + LiteRT-LM multimodal tool result | Draft in PR #40: API 34+ window-only capture, one visible external window, explicit SCREEN_CAPTURE approval, conservative sensitive-screen gate, 1,280 px / 2 MiB bounds, in-memory Gemma image input; no display-wide fallback or persistent screenshot file |
 | Live semantic UI tree | Android AccessibilityService | Draft in PRs #39–#41: bounded read-only active-window inspection plus one external-window inspection path with short-lived opaque handles; validation deferred |
 | Semantic click / long-press / scroll | Android AccessibilityService | Draft in PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD with per-action approval, one-shot handles, and exact node/window revalidation; swipe remains planned |
@@ -658,10 +658,11 @@ version compatibility must be verified on-device before an operation is marked i
 - Bonded-device output and BLE scan output are bounded to 32 devices. BLE scan duration is 1–10
   seconds, uses low-power scan mode, and always calls stopScan in a cancellation-safe finally block.
 - USB discovery is native through UsbManager and reports bounded device/interface descriptors
-  without serial numbers or opening devices. USB permission requests and actual I/O sessions are
-  deliberately deferred; enumeration is not treated as USB mass-storage filesystem access.
-- GATT sessions and USB I/O require separate lifecycle, user permission, cancellation, and typed
-  transfer contracts before being exposed.
+  without serial numbers. PR #46 adds read-only standard device/configuration/interface/endpoint
+  descriptor retrieval through a fresh 30-second one-shot handle, separate approval, and Android's
+  per-device permission prompt. Connections close immediately and raw descriptor bytes are cleared.
+- Generic USB endpoint transfers and writes remain unsupported because there is no safe, device-agnostic
+  protocol contract. USB mass-storage files remain exclusively on the user-granted SAF path.
 
 
 ### Wave 3B — Native photo capture and wallpaper (draft code; acceptance pending)
