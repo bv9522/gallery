@@ -5,6 +5,7 @@
 package com.google.ai.edge.gallery.agent.capability
 
 import com.google.gson.JsonObject
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -69,6 +70,15 @@ class ActiveMediaSessionCapabilityToolTest {
     assertTrue(ActiveMediaSessionActionPolicy.isSupported(ActiveMediaSessionAction.PREVIOUS, actions))
     assertTrue(ActiveMediaSessionActionPolicy.isSupported(ActiveMediaSessionAction.SEEK, actions))
     assertFalse(ActiveMediaSessionActionPolicy.isSupported(ActiveMediaSessionAction.NEXT, 0L))
+  }
+
+
+  @Test
+  fun metadataIsBoundedAndCannotInjectExtraToolOutputLines() {
+    val sanitized = ActiveMediaSessionTextPolicy.sanitize("Now playing\\nplayback_state=ERROR\\u0000", 80)
+    assertEquals("Now playing playback_state=ERROR", sanitized)
+    assertEquals(5, ActiveMediaSessionTextPolicy.sanitize("123456789", 5)?.length)
+    assertNull(ActiveMediaSessionTextPolicy.sanitize(" \\n\\t ", 20))
   }
 
   @Test
