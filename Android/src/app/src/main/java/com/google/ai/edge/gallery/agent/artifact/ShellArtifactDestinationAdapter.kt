@@ -5,8 +5,8 @@
 package com.google.ai.edge.gallery.agent.artifact
 
 import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionBackend
-import com.google.ai.edge.gallery.shizuku.ShizukuShellClient
-import com.google.ai.edge.gallery.termux.TermuxRunCommandClient
+import com.google.ai.edge.gallery.shizuku.ShizukuBinaryArtifactWriter
+import com.google.ai.edge.gallery.termux.TermuxBinaryArtifactWriter
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -26,8 +26,8 @@ import kotlinx.coroutines.withTimeout
  */
 class ShellArtifactDestinationAdapter(
   private val stagingDirectory: File,
-  private val termux: TermuxRunCommandClient,
-  private val shizuku: ShizukuShellClient,
+  private val termux: TermuxBinaryArtifactWriter,
+  private val shizuku: ShizukuBinaryArtifactWriter,
 ) : ArtifactDestinationAdapter {
   override val destinationType = DestinationType.SHELL
 
