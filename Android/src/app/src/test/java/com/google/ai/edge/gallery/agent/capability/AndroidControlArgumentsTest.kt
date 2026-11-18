@@ -298,6 +298,18 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun readCallLogTakesNoArguments() {
+    val valid = JsonObject().apply { addProperty("operation", "read_call_log") }
+    val unexpected = JsonObject().apply {
+      addProperty("operation", "read_call_log")
+      addProperty("limit", 10)
+    }
+
+    assertNull(AndroidControlArguments.validate(valid))
+    assertTrue(AndroidControlArguments.validate(unexpected).orEmpty().contains("Accepted arguments: operation"))
+  }
+
+  @Test
   fun readNotificationsTakesNoArguments() {
     val valid = JsonObject().apply { addProperty("operation", "read_notifications") }
     val unexpected = JsonObject().apply {
