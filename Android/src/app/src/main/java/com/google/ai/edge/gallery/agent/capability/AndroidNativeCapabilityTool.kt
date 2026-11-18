@@ -757,6 +757,7 @@ class AndroidNativeCapabilityTool internal constructor(
       ?: return failure("media_play requires media_handle from the latest media_search result.")
     val media = operations.resolvePlaybackHandle(handle)
       ?: return failure("That media handle is unknown or expired. Run media_search again.")
+    if (!media.isVideo) return failure("Gallery playback currently supports video results only.")
     val authorizer = mediaPlaybackAuthorizer
       ?: return failure("Media playback approval is unavailable.")
     if (!authorizer.authorize(AndroidCapability.MEDIA_PLAYBACK, "Play '${media.displayName}' using Gallery's built-in media player.")) {
