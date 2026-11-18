@@ -27,11 +27,11 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
       ?: throw IllegalArgumentException("SAF adapter received a non-SAF destination.")
     val tree = requireTreeGrant(destination.treeUri)
     val parentId = destination.parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree)
-    val parent = queryDocument(tree, parentId)
+    val parent = withContext(Dispatchers.IO) { queryDocument(tree, parentId) }
     require(parent.mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
       "The selected SAF destination is not a folder."
     }
-    val existing = findChild(tree, parentId, request.fileName)
+    val existing = withContext(Dispatchers.IO) { findChild(tree, parentId, request.fileName) }
     if (existing != null) {
       if (request.overwrite) {
         throw IllegalArgumentException(
@@ -53,11 +53,11 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
       ?: throw IllegalArgumentException("SAF adapter received a non-SAF destination.")
     val tree = requireTreeGrant(destination.treeUri)
     val parentId = destination.parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree)
-    val parent = queryDocument(tree, parentId)
+    val parent = withContext(Dispatchers.IO) { queryDocument(tree, parentId) }
     require(parent.mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
       "The selected SAF destination is not a folder."
     }
-    require(findChild(tree, parentId, request.fileName) == null) {
+    require(withContext(Dispatchers.IO) { findChild(tree, parentId, request.fileName) } == null) {
       "The destination file appeared after approval; refusing to overwrite it."
     }
     var created: Uri? = null
@@ -72,7 +72,7 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
           ?: throw IllegalStateException("Could not open the new SAF document for binary output.")
         output.use { stream -> producer.write(stream) }
       }
-      val actual = queryUriMetadata(documentUri)
+      val actual = withContext(Dispatchers.IO) { queryUriMetadata(documentUri) }
       require(actual.mimeType == request.format.mimeType) {
         "The SAF provider reported MIME type '${actual.mimeType}' instead of '${request.format.mimeType}'."
       }
