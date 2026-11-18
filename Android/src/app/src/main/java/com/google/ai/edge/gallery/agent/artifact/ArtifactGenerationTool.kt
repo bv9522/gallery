@@ -29,7 +29,7 @@ class ArtifactGenerationTool(
       "SAF requires a persisted Gallery document-tree grant and a tree URI/document ID returned by document_tree grants/list operations. " +
       "Shell destinations, when enabled, require an explicit TERMUX, SHIZUKU, or TERMUX_RISH backend and an absolute path accessible to that identity. " +
       "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
-      "Generated content remains local; remote image generation is a separate opt-in provider flow."
+      "Generated content remains local. The image format currently means bounded on-device resize/crop/rotate/convert only; no generative-image provider is registered."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {

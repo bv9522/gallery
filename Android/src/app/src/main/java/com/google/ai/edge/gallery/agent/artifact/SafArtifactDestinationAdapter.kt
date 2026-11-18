@@ -69,8 +69,9 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
     var created: Uri? = null
     try {
       val parentUri = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
+      val outputMimeType = mimeTypeForRequest(request)
       val documentUri = withContext(Dispatchers.IO) {
-        DocumentsContract.createDocument(resolver, parentUri, request.format.mimeType, request.fileName)
+        DocumentsContract.createDocument(resolver, parentUri, outputMimeType, request.fileName)
       } ?: throw IllegalStateException("The SAF provider refused to create '${request.fileName}'.")
       created = documentUri
       val metadata = withContext(Dispatchers.IO) {
@@ -79,8 +80,8 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
         output.use { stream -> producer.write(stream) }
       }
       val actual = withContext(Dispatchers.IO) { queryUriMetadata(documentUri) }
-      require(actual.mimeType == request.format.mimeType) {
-        "The SAF provider reported MIME type '${actual.mimeType}' instead of '${request.format.mimeType}'."
+      require(request.format.acceptsMimeType(actual.mimeType) && actual.mimeType == outputMimeType) {
+        "The SAF provider reported MIME type '${actual.mimeType}' instead of '$outputMimeType'."
       }
       require(actual.displayName == request.fileName) {
         "The SAF provider changed the requested filename to '${actual.displayName}'."
@@ -171,6 +172,15 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
     } ?: throw IllegalStateException("The SAF provider returned no folder listing.")
     return null
   }
+
+  private fun mimeTypeForRequest(request: ArtifactCreateRequest): String =
+    if (request.format != ArtifactFormat.IMAGE) request.format.mimeType
+    else when (request.fileName.substringAfterLast('.', "").lowercase()) {
+      "png" -> "image/png"
+      "jpg", "jpeg" -> "image/jpeg"
+      "webp" -> "image/webp"
+      else -> throw IllegalArgumentException("Unsupported image output extension.")
+    }
 
   private data class DocumentMetadata(val id: String, val displayName: String, val mimeType: String)
 

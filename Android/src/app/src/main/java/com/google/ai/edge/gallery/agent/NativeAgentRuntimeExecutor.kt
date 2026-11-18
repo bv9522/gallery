@@ -52,6 +52,7 @@ import com.google.ai.edge.gallery.agent.artifact.XlsxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.PptxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.ZipArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafZipExtractionHandler
+import com.google.ai.edge.gallery.agent.artifact.ImageArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
@@ -189,6 +190,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "For PPTX use a .pptx filename and a structured payload with a slides array; each slide requires a title and may include subtitle, paragraphs, and bullet_items. " +
       "For ZIP creation use operation='create', a .zip filename, and a payload entries array of {path, content} UTF-8 text files. Paths must be relative and unique. " +
       "For ZIP extraction use operation='extract', payload.source_tree_uri and payload.source_document_id from a current document_tree grants/list result, and choose a SAF destination folder using its current tree grant/document ID. Extraction preflights the archive and requires separate one-time approval; it rejects unsafe paths, duplicates, existing targets, more than 500 entries, more than 50 MiB expanded content, individual files over 10 MiB, and known compression ratios above 100:1. It never creates or follows symlinks and cleans partial output when possible. " +
+      "For local image processing use format=image, an output filename ending in .png, .jpg, .jpeg, or .webp, and payload.source_tree_uri/source_document_id from a current document_tree result. Optional transforms are resize_width+resize_height, crop_x+crop_y+crop_width+crop_height, rotation_degrees (0/90/180/270), and quality (1–100). Format conversion is selected by the output extension. Gallery reads only the selected persisted SAF image source, bounds input/dimensions/decode/output, and processes locally; no image data is uploaded. No generative-image provider is currently registered, so do not claim image generation is available. " +
       "The operation shows the exact filename and destination for one-time approval before creating the file. " +
       "Existing files are never silently replaced; choose a new filename if one already exists. " +
       "The generated PDF is local and its bytes are not returned to the model. " +
@@ -428,7 +430,7 @@ class NativeAgentRuntimeExecutor(
         val artifactApprovalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel)
         val artifactEngine = DefaultArtifactGenerationEngine(
           generators = ArtifactGeneratorRegistry(
-            listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator()),
+            listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator(), ImageArtifactGenerator(artifactContext)),
           ),
           destinations = ArtifactDestinationRegistry(listOf(SafArtifactDestinationAdapter(artifactContext))),
           approvalRequester = artifactApprovalRequester,
@@ -467,7 +469,7 @@ class NativeAgentRuntimeExecutor(
             ),
             ArtifactGenerationTool(
               engine = artifactEngine,
-              supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX, ArtifactFormat.XLSX, ArtifactFormat.PPTX, ArtifactFormat.ZIP),
+              supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX, ArtifactFormat.XLSX, ArtifactFormat.PPTX, ArtifactFormat.ZIP, ArtifactFormat.IMAGE),
               supportedDestinations = setOf(DestinationType.SAF),
               zipExtractionHandler = zipExtractionHandler,
             ),

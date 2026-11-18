@@ -37,6 +37,16 @@ class ArtifactCreateArgumentsTest {
     assertTrue(parsed.request.overwrite)
   }
 
+  @Test fun acceptsConcreteImageMimeTypesAndSignatures() {
+    assertTrue(ArtifactFormat.IMAGE.acceptsFileName("photo.png"))
+    assertTrue(ArtifactFormat.IMAGE.acceptsFileName("photo.jpeg"))
+    assertTrue(ArtifactFormat.IMAGE.acceptsMimeType("image/webp"))
+    assertTrue(ArtifactFormat.IMAGE.acceptsSignature(
+      byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+    ))
+    assertFalse(ArtifactFormat.IMAGE.acceptsMimeType("application/octet-stream"))
+  }
+
   @Test fun validatesPdfMimeAndBinarySignature() {
     assertTrue(ArtifactFormat.PDF.acceptsMimeType("application/pdf"))
     assertTrue(ArtifactFormat.PDF.acceptsSignature("%PDF-1.7".toByteArray()))
