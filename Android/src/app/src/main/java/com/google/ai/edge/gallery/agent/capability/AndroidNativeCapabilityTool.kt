@@ -177,7 +177,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "values: speak_text, status, device_info, telephony_info, dial_phone, compose_sms, biometric_auth, keystore_create, keystore_list, keystore_delete, keystore_encrypt, keystore_decrypt, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
-      "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
+      "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, usb_read_descriptors, " +
       "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
       "cancel_scheduled_notification, list_notification_channels, create_notification_channel, read_notifications, read_call_log, read_sms_inbox, download_status, cancel_download, media_search, media_index, media_play. " +
       "download_status returns at most 20 active Gallery model downloads with short-lived opaque handles. " +
