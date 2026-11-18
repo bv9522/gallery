@@ -215,11 +215,10 @@ class TermuxShellBinaryArtifactTransport(
         cancelled.addSuppressed(IllegalStateException("Termux could not confirm removal of the partial artifact file."))
       }
       throw cancelled
-    } catch (error: Exception) {
+    } catch (error: Throwable) {
       if (temporaryCreated && !cleanupTemporary(executor, temporary)) {
-        throw IllegalStateException(
-          (error.message ?: error.javaClass.simpleName) + " Partial temporary-file cleanup could not be confirmed.",
-          error,
+        error.addSuppressed(
+          IllegalStateException("Partial temporary-file cleanup could not be confirmed."),
         )
       }
       throw error
