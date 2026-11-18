@@ -29,6 +29,7 @@ enum class ToolActionName() {
   ASK_MCP_TOOL_CALL_PERMISSION,
   ASK_SHELL_COMMAND_PERMISSION,
   ASK_NATIVE_CAPABILITY_PERMISSION,
+  ASK_ARTIFACT_GENERATION_PERMISSION,
   AUTHENTICATE_BIOMETRIC,
   CAPTURE_PHOTO,
   OPEN_DOCUMENT_TREE,
@@ -158,6 +159,16 @@ class AskNativeCapabilityPermissionAction(
   val summary: String,
   val result: CompletableDeferred<Boolean> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.ASK_NATIVE_CAPABILITY_PERMISSION)
+
+/** Requests one-time approval for an exact generated artifact and destination. */
+class AskArtifactGenerationPermissionAction(
+  val format: String,
+  val fileName: String,
+  val destination: String,
+  val estimatedBytes: Long?,
+  val overwrite: Boolean,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.ASK_ARTIFACT_GENERATION_PERMISSION)
 
 /** Requests a foreground system biometric prompt, optionally bound to a Keystore cipher. */
 class AuthenticateBiometricToolAction(
