@@ -762,6 +762,9 @@ class AndroidNativeCapabilityTool internal constructor(
     if (!authorizer.authorize(AndroidCapability.MEDIA_PLAYBACK, "Play '${media.displayName}' using Gallery's built-in media player.")) {
       return failure("Media playback was not approved.")
     }
+    if (!operations.consumePlaybackHandle(handle)) {
+      return failure("That media handle expired while awaiting approval. Run media_search again.")
+    }
     return if (requester.play(media.uri.toString(), media.displayName)) {
       AgentToolResult("Gallery playback opened for '${media.displayName}'.")
     } else {
