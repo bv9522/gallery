@@ -103,11 +103,16 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
       }
       val outputMime = outputMimeType(request.fileName)
       val bitmapForOutput = if (outputMime == "image/jpeg" && current.hasAlpha()) {
-        Bitmap.createBitmap(current.width, current.height, Bitmap.Config.RGB_565).also { flattened ->
+        val flattened = Bitmap.createBitmap(current.width, current.height, Bitmap.Config.RGB_565)
+        try {
           Canvas(flattened).apply {
             drawColor(Color.WHITE)
             drawBitmap(current, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
           }
+          flattened
+        } catch (error: Throwable) {
+          flattened.recycle()
+          throw error
         }
       } else current
       try {
