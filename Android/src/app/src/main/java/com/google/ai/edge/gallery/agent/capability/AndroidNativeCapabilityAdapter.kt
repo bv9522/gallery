@@ -1203,61 +1203,7 @@ class AndroidNativeCapabilityAdapter(
     raw: ByteArray,
     vendorId: Int,
     productId: Int,
-  ): NativeUsbDescriptorSnapshot {
-    require(raw.size in 2..MAX_USB_DESCRIPTOR_BYTES) {
-      "USB raw descriptor size is outside the supported bound."
-    }
-    val descriptors = mutableListOf<NativeUsbDescriptor>()
-    var offset = 0
-    var truncated = false
-    while (offset + 2 <= raw.size) {
-      if (descriptors.size >= MAX_USB_DESCRIPTORS) {
-        truncated = true
-        break
-      }
-      val length = raw[offset].toInt() and 0xff
-      val type = raw[offset + 1].toInt() and 0xff
-      if (length < 2 || offset + length > raw.size) {
-        throw IllegalStateException("USB device returned a malformed descriptor sequence.")
-      }
-      val descriptor = when (type) {
-        USB_DESCRIPTOR_INTERFACE -> {
-          if (length < 9) throw IllegalStateException("USB interface descriptor is incomplete.")
-          NativeUsbDescriptor(
-            length = length,
-            descriptorType = type,
-            interfaceNumber = raw[offset + 2].toInt() and 0xff,
-            alternateSetting = raw[offset + 3].toInt() and 0xff,
-          )
-        }
-        USB_DESCRIPTOR_ENDPOINT -> {
-          if (length < 7) throw IllegalStateException("USB endpoint descriptor is incomplete.")
-          NativeUsbDescriptor(
-            length = length,
-            descriptorType = type,
-            endpointAddress = raw[offset + 2].toInt() and 0xff,
-            endpointAttributes = raw[offset + 3].toInt() and 0xff,
-            maxPacketSize = (raw[offset + 4].toInt() and 0xff) or
-              ((raw[offset + 5].toInt() and 0xff) shl 8),
-            interval = raw[offset + 6].toInt() and 0xff,
-          )
-        }
-        else -> NativeUsbDescriptor(length = length, descriptorType = type)
-      }
-      descriptors += descriptor
-      offset += length
-    }
-    if (offset != raw.size && !truncated) {
-      throw IllegalStateException("USB descriptor sequence ended unexpectedly.")
-    }
-    return NativeUsbDescriptorSnapshot(
-      vendorId = vendorId,
-      productId = productId,
-      descriptorBytes = raw.size,
-      descriptors = descriptors,
-      truncated = truncated,
-    )
-  }
+  ): NativeUsbDescriptorSnapshot = UsbDescriptorParser.parse(raw, vendorId, productId)
 
   override suspend fun searchContacts(query: String, limit: Int): List<NativeContactSummary> {
     val normalizedQuery = query.trim()
@@ -2712,10 +2658,6 @@ class AndroidNativeCapabilityAdapter(
   private companion object {
     const val USB_HANDLE_TTL_MS = 30_000L
     const val USB_PERMISSION_TIMEOUT_MS = 45_000L
-    const val MAX_USB_DESCRIPTOR_BYTES = 4_096
-    const val MAX_USB_DESCRIPTORS = 64
-    const val USB_DESCRIPTOR_INTERFACE = 4
-    const val USB_DESCRIPTOR_ENDPOINT = 5
     const val MAX_VIBRATION_DURATION_MS = 1_000L
     const val MIN_AUDIO_RECORD_MS = 1_000L
     const val MAX_AUDIO_RECORD_MS = 30_000L
