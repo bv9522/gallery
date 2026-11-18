@@ -203,7 +203,7 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 **Status: IN PROGRESS — test planning unlocked; execution not yet started.** All capability onboarding (Stages 4–7) and the final source-level ownership audit are complete in the stacked draft PR chain #39–#47. The next immediate action is a test-inventory and build-environment preflight against the combined head, not a per-PR test run.
 
 #### 8A — Consolidated test and build preflight
-- [ ] Confirm the complete dependency chain resolves through PR #47 head `570e73a487e5539f1aad08b17ce5099c2df4e402`; keep all PRs draft/open/unmerged.
+- [ ] Confirm the complete dependency chain resolves through PR #47 head `1dd2129be234039b6766dc2cf50d2b8208f55ce7`; keep all PRs draft/open/unmerged.
 - [ ] Inventory every test source and existing Gradle task; map each new capability to its unit/policy/parser/dispatch tests and identify uncovered integration seams.
 - [ ] Confirm Windows JDK/Gradle/Android SDK paths, compile SDK 37 installation, signing identity, available disk space, and ADB/device connectivity before execution.
 - [ ] Capture baseline repository state and exact commands/results; do not clean or wipe app/device data as a precondition unless specifically needed and approved.
@@ -259,6 +259,43 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 - [ ] Establish regression checks for Android/API changes, Termux:API compatibility, Shizuku/Rish behavior, Gallery upstream changes, and model/runtime updates.
 - [ ] Maintain the roadmap after each future capability or compatibility change.
 
+### Stage 10 — Artifact generation engine (post-baseline extension; does not block Stage 8 validation or Stage 9 release)
+
+**Status: PLANNED — architecture decisions approved 2026-11-17.** This separate extension follows the baseline consolidated test/build/S21 acceptance (Stage 8) and integration/release gates (Stage 9). It must not delay or destabilize them.
+
+**Approved architecture**
+- One shared Artifact Generation Engine and one model-facing artifact-generation contract, not six unrelated tools or duplicated file-management routes.
+- Native Kotlin owns orchestration, format dispatch, structured request validation, approvals, lifecycle, temporary-output management, cancellation, verification, and typed results.
+- Replaceable format adapters cover PDF, DOCX, XLSX, PPTX, ZIP, and image processing. Select dependencies only after API/minSdk compatibility, licensing, maintenance, APK-size, memory, and feature review.
+- Both destination paths are supported:
+  - **SAF:** a persisted Gallery-granted document tree selected by the user, including internal storage, SD cards, and USB mass storage exposed through Android document providers.
+  - **Unified shell router:** a path accessible to the explicitly selected TERMUX, SHIZUKU, or TERMUX_RISH execution identity, retaining existing approval and identity semantics.
+- SAF and shell are destination adapters, not competing generation owners. No silent fallback or identity substitution. Gallery SAF grants are not transferable to Termux; shell visibility is not inferred from SAF access.
+- Image support has two independent paths: local image processing and optional generative-image providers. Gemma 4 E2B image-input support is not image-generation support. Remote generation requires disclosure and explicit opt-in/approval before prompts or source images leave the device. On-device generation is optional and resource-gated; no mandatory cloud dependency.
+- Artifact content is structured and typed. Do not execute generated scripts/templates/macros or evaluate spreadsheet formulas; formulas, if supported, are inert workbook content.
+
+**Implementation sequence**
+- [ ] 10A — Inspect Gallery dependencies, Android/JVM APIs, licensing, minSdk/targetSdk compatibility, APK-size impact, and candidate libraries. Prefer Android PdfDocument for baseline PDF and JDK ZIP streams where adequate; evaluate lightweight OOXML generation for DOCX/XLSX/PPTX rather than bundling an office suite.
+- [ ] 10B — Define shared request/result contracts, format registry, content schemas, approval integration, per-format limits, timeout/cancellation, and destination abstraction. Expose one generic artifact.create-style operation with a strict format discriminator and validated format-specific payloads.
+- [ ] 10C — PDF: bounded text, headings, paragraphs, tables, pagination, optional embedded images, and readable-output/page/resource validation.
+- [ ] 10D — DOCX: genuine editable OOXML package with paragraphs, headings, tables, page layout, headers/footers, optional images, and package/relationship validation.
+- [ ] 10E — XLSX: genuine OOXML workbook with bounded worksheets/rows/columns/cells, typed values, styles, widths, filters, and safe formula handling. CSV remains text and must never be mislabeled .xlsx.
+- [ ] 10F — PPTX: editable OOXML presentation with bounded slides/shapes/text/images, layouts, theme defaults, and package/relationship validation.
+- [ ] 10G — ZIP create/extract with streaming, entry-count/expanded-size/compression-ratio/path limits, duplicate-name handling, cancellation, and cleanup. Reject absolute paths, traversal, symlink escapes, and archive bombs.
+- [ ] 10H — Local image processing plus optional generative-image provider interface. Bound raster formats/dimensions and declare output MIME types. Remote providers are opt-in and disclose data transfer; on-device generation is optional and separately resource-gated.
+- [ ] 10I — Integrate both destinations. SAF binary output streams through document-provider output streams and is not subject to the existing 256 KiB UTF-8 text-operation cap. Shell output uses the explicitly selected backend identity and existing path-mutation approval. The 100 MiB SAF cross-tree transfer cap is not a universal generation limit.
+- [ ] 10J — Tests and S21 acceptance: valid-format/openability, malformed content, size boundaries, low storage, provider errors, revoked SAF grants, inaccessible shell paths, backend identity, overwrite confirmation, cancellation, partial-write cleanup, process death, ZIP traversal/bomb cases, image decode limits, and optional-provider unavailable/offline behavior. Measure APK/dependency growth, RAM, CPU, storage, latency, battery, and thermals.
+
+**Shared safety and lifecycle requirements**
+- Use app-private temporary staging only when required; enforce a staging quota, stream large content, clean partial outputs on failure/cancellation, and avoid holding entire artifacts in memory.
+- Never silently overwrite. Approval identifies the exact destination/name and replacement behavior. Reject ambiguous/provider-inconsistent overwrite states.
+- Validate MIME type, extension, and actual signature/package structure where applicable; extensions alone do not prove a valid artifact.
+- Enforce per-format limits for bytes, pages/slides/sheets/rows/cells/image dimensions, archive entries/expanded bytes/ratio, generation time, and output count. Set numeric defaults after dependency/resource preflight; do not inherit 256 KiB or 100 MiB indiscriminately.
+- Keep generated artifacts local by default. Sharing/uploading remains a separate user-mediated operation; generation never silently transmits files.
+- Reuse SAF grants, shell router, approval boundary, and cancellation infrastructure. No root, persistent background service, Python runtime, office-suite daemon, or duplicate file CRUD tools.
+
+**Exit gate:** all six format families produce valid, bounded artifacts; both destinations work without identity confusion; optional image providers are transparent and opt-in; security, cleanup, and S21 resource acceptance pass. This extension does not alter baseline Stage 8/9 exit gates.
+
 **Project completion definition:** Stages 0–9 have passed their exit gates, the final app is integrated and reproducibly built,
 the target S21 acceptance report is complete, and all remaining unsupported/deferred capabilities are explicitly documented.
 
@@ -281,6 +318,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
 | Wave 6 consolidated S21 acceptance | IN PROGRESS — test planning unlocked; execution not started | Onboarding and ownership audit complete; next: combined-head test inventory and build preflight |
+| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | PLANNED — post-baseline extension | Stage 10; shared engine; both SAF and shell-router destinations; local processing plus optional generative image providers |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
@@ -417,6 +455,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | CODE / VALIDATION PENDING — PRs #23–#25: persisted user grants, bounded file operations and cross-tree transfer |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Draft in PRs #23–25: user-granted SAF tree access and bounded file operations/transfers; validation/device acceptance pending; UsbManager is not a mass-storage filesystem |
+| Artifact generation orchestration and format dispatch | Native Kotlin Artifact Generation Engine | PLANNED — Stage 10; one generic artifact contract and format adapters for PDF/DOCX/XLSX/PPTX/ZIP/image processing; destinations remain SAF or explicitly selected unified shell-router backend |
 | Screen capture / visual screen understanding | Android AccessibilityService + LiteRT-LM multimodal tool result | Draft in PR #40: API 34+ window-only capture, one visible external window, explicit SCREEN_CAPTURE approval, conservative sensitive-screen gate, 1,280 px / 2 MiB bounds, in-memory Gemma image input; no display-wide fallback or persistent screenshot file |
 | Live semantic UI tree | Android AccessibilityService | Draft in PRs #39–#41: bounded read-only active-window inspection plus one external-window inspection path with short-lived opaque handles; validation deferred |
 | Semantic click / long-press / scroll | Android AccessibilityService | CODE / VALIDATION DEFERRED — PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD; coordinate gesture fallback remains on existing shell route |
@@ -723,6 +762,17 @@ version compatibility must be verified on-device before an operation is marked i
 - The result is a local content URI; the audio is not automatically uploaded or transcribed. Basic
   speech recognition is handled by Gallery's native user-initiated ASR flow.
 
+
+## Artifact generation architecture — Stage 10 planned extension
+
+- One Native Kotlin Artifact Generation Engine owns request validation, format dispatch, structured content models, approvals, cancellation, temporary staging, output verification, and typed results. Format-specific generators are adapters, not independent model-facing tools.
+- Planned formats: PDF, DOCX, XLSX, PPTX, ZIP creation/extraction, and image processing. CSV/JSON/Markdown/plain text continue using existing text-file facilities where appropriate; office files must be genuine OOXML packages, not text files renamed with office extensions.
+- PDF candidate: Android PdfDocument. DOCX/XLSX/PPTX require an Android-compatible OOXML writer/library review covering license, maintenance, memory, APK size, and feature coverage. ZIP candidate: streaming JDK ZIP APIs. No heavyweight office suite or persistent service.
+- Image processing is local and bounded. Generative image creation is an optional provider interface; Gemma 4 E2B image-input support is not image-generation support. Remote generation is opt-in with explicit disclosure/approval before prompt or source-image transfer; on-device generation is optional and resource-gated.
+- Destinations are Gallery-granted SAF document trees and paths accessible to the explicitly selected unified shell-router backend. SAF and shell are distinct security identities; no implicit fallback, grant sharing, or privilege inference. SAF binary output streams are not subject to the 256 KiB UTF-8 text-operation cap. The 100 MiB cross-tree transfer cap is not a universal generation cap.
+- Staging is app-private, quota-bounded, and temporary. Stream where possible; clean partial files on failure/cancellation; never silently overwrite. Require scoped approval for exact destination/name and replacement. Validate actual MIME/signature/package structure, not extension alone.
+- ZIP extraction must defend against path traversal, absolute paths, symlink escapes, duplicate names, excessive entry counts, expanded-size/compression-ratio bombs, low storage, and cancellation. Spreadsheet formulas are emitted only as inert workbook data; Gallery never evaluates formulas/macros/code.
+- Numeric per-format limits await dependency/resource preflight; do not assume current text or cross-tree transfer limits apply to generated artifacts.
 
 ### Wave 4A — SAF document-tree core (draft code in PRs #23–25; local validation and S21 acceptance pending)
 

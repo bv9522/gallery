@@ -25,6 +25,18 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 - Source-level ownership audit: `CapabilityCatalog` derives one provider declaration and one route preference for every `AndroidCapability` enum value. `CapabilityRegistry` enforces complete ownership and rejects duplicate/missing/mismatched routes. Device permissions, approval timing, and actual behavior remain unverified until Stage 8.
 - Consolidated S21 acceptance is now unlocked by completion of capability onboarding and the ownership audit; test/build/device execution remains pending the consolidated preflight.
 
+## Planned artifact generation ownership and storage integration
+
+**Status: PLANNED — Stage 10, after baseline Stage 8 validation and Stage 9 integration/release.** This workstream must not block the consolidated test campaign.
+
+- **Generation owner:** one Native Kotlin Artifact Generation Engine. It validates structured requests, dispatches format adapters, applies approvals/limits, manages temporary outputs/cancellation, verifies results, and returns typed artifact metadata.
+- **Formats:** PDF, DOCX, XLSX, PPTX, ZIP create/extract, and local image processing. Generative image creation is an optional provider interface, not an assumed Gemma 4 E2B feature.
+- **Destination adapters:** both Gallery-granted SAF document trees and explicitly selected paths through the unified shell router. SAF grants remain Gallery-identity scoped; shell access is determined by selected TERMUX / SHIZUKU / TERMUX_RISH identity. No silent fallback or identity substitution.
+- **Library strategy:** evaluate Android PdfDocument, streaming JDK ZIP APIs, and lightweight Android-compatible OOXML generation for DOCX/XLSX/PPTX. Review license, maintenance, APK growth, minSdk compatibility, memory, and feature coverage before selecting dependencies.
+- **Image strategy:** local bounded processing plus optional generative providers. Remote providers disclose data transfer and require explicit opt-in/approval; on-device generation is optional and resource-gated.
+- **Safety:** app-private quota-bounded staging, streaming, cancellation/partial-output cleanup, explicit overwrite approval, MIME/signature/package validation, per-format limits, and ZIP traversal/decompression-bomb defenses. Do not execute generated code or evaluate workbook formulas/macros.
+- The SAF 256 KiB text I/O cap applies only to existing text operations. The 100 MiB limit applies only to existing SAF cross-tree file transfers. Neither is a universal artifact-generation limit; binary SAF writes use bounded streaming and separately defined format limits.
+
 ## Single-owner policy
 
 Every model-independent capability has exactly one selected owner in the capability catalog:
@@ -35,6 +47,7 @@ Every model-independent capability has exactly one selected owner in the capabil
 | Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
+| Artifact generation and format dispatch | Native Kotlin Artifact Generation Engine | One shared structured artifact contract with PDF/DOCX/XLSX/PPTX/ZIP/image-processing adapters; SAF and shell router are destination adapters, not duplicate generators |
 | Semantic UI inspection, bounded window capture, approved semantic actions, and safe text input | Android AccessibilityService | Explicitly enabled service; bounded tree reads, API 34+ window-only screenshots, per-action approved click/long-click/scroll, and UI_TEXT_INPUT-gated entry into empty plain-text fields plus bounded selection with fresh node revalidation; coordinate gesture fallback remains on the existing unified shell route only when explicitly requested/authorized |
 
 Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
