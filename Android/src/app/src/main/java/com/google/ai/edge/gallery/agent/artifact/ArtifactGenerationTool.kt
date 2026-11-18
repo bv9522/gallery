@@ -15,6 +15,7 @@ class ArtifactGenerationTool(
   private val engine: DefaultArtifactGenerationEngine,
   private val supportedFormats: Set<ArtifactFormat>,
   private val supportedDestinations: Set<DestinationType>,
+  private val zipExtractionHandler: SafZipExtractionHandler? = null,
 ) : AgentTool {
   init {
     require(supportedFormats.isNotEmpty()) { "At least one artifact format must be exposed." }
@@ -61,14 +62,23 @@ class ArtifactGenerationTool(
       addProperty("additionalProperties", false)
     }
 
-  override suspend fun execute(arguments: JsonObject): AgentToolResult =
-    when (val parsed = ArtifactCreateArguments.parse(arguments)) {
+  override suspend fun execute(arguments: JsonObject): AgentToolResult {
+    return when (val parsed = ArtifactCreateArguments.parse(arguments)) {
       is ArtifactArgumentsParseResult.Invalid -> AgentToolResult(parsed.message, false)
       is ArtifactArgumentsParseResult.Valid -> {
-        val result = engine.create(parsed.request)
+        val request = parsed.request
+        val operation = request.payload.get("operation")
+          ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: "create"
+        val result = if (request.format == ArtifactFormat.ZIP && operation == "extract") {
+          zipExtractionHandler?.execute(request)
+            ?: return AgentToolResult("ZIP extraction is not available in this runtime.", false)
+        } else {
+          engine.create(request)
+        }
         AgentToolResult(Gson().toJson(result), result.isSuccessful)
       }
     }
+  }
 
   private companion object {
     val ShellBackendNames = listOf("TERMUX", "SHIZUKU", "TERMUX_RISH")

@@ -51,6 +51,7 @@ import com.google.ai.edge.gallery.agent.artifact.DocxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.XlsxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.PptxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.ZipArtifactGenerator
+import com.google.ai.edge.gallery.agent.artifact.SafZipExtractionHandler
 import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
@@ -186,7 +187,8 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "For XLSX use a .xlsx filename and a structured payload with sheets; each sheet has a valid unique name and rows of typed string, number, boolean, or null cells, with optional column_widths, header_row, and auto_filter. " +
       "Treat formula-looking strings as text; formula execution and macro content are not supported. " +
       "For PPTX use a .pptx filename and a structured payload with a slides array; each slide requires a title and may include subtitle, paragraphs, and bullet_items. " +
-      "For ZIP creation use a .zip filename and a structured payload with an entries array of {path, content} UTF-8 text files. Paths must be relative, unique, and free of dot-segment traversal; this current ZIP adapter creates archives only and does not yet extract archives. " +
+      "For ZIP creation use operation='create', a .zip filename, and a payload entries array of {path, content} UTF-8 text files. Paths must be relative and unique. " +
+      "For ZIP extraction use operation='extract', payload.source_tree_uri and payload.source_document_id from a current document_tree grants/list result, and choose a SAF destination folder using its current tree grant/document ID. Extraction preflights the archive and requires separate one-time approval; it rejects unsafe paths, duplicates, existing targets, more than 500 entries, more than 50 MiB expanded content, individual files over 10 MiB, and known compression ratios above 100:1. It never creates or follows symlinks and cleans partial output when possible. " +
       "The operation shows the exact filename and destination for one-time approval before creating the file. " +
       "Existing files are never silently replaced; choose a new filename if one already exists. " +
       "The generated PDF is local and its bytes are not returned to the model. " +
@@ -423,11 +425,15 @@ class NativeAgentRuntimeExecutor(
           authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
         )
         val artifactContext = checkNotNull(context) { "Agent application context is unavailable." }
+        val artifactApprovalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel)
         val artifactEngine = DefaultArtifactGenerationEngine(
-          generators = ArtifactGeneratorRegistry(listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator())),
+          generators = ArtifactGeneratorRegistry(
+            listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator()),
+          ),
           destinations = ArtifactDestinationRegistry(listOf(SafArtifactDestinationAdapter(artifactContext))),
-          approvalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel),
+          approvalRequester = artifactApprovalRequester,
         )
+        val zipExtractionHandler = SafZipExtractionHandler(artifactContext, artifactApprovalRequester)
         val runtimeTools = AgentToolRegistry(
           listOf(
             UnifiedShellTool(router, approval),
@@ -463,6 +469,7 @@ class NativeAgentRuntimeExecutor(
               engine = artifactEngine,
               supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX, ArtifactFormat.XLSX, ArtifactFormat.PPTX, ArtifactFormat.ZIP),
               supportedDestinations = setOf(DestinationType.SAF),
+              zipExtractionHandler = zipExtractionHandler,
             ),
           )
         )
