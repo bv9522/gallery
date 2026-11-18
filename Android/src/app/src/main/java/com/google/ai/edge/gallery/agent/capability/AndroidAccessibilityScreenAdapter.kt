@@ -19,6 +19,7 @@ data class SemanticScreenElement(
   val role: String,
   val label: String?,
   val clickable: Boolean,
+  val longClickable: Boolean,
   val scrollable: Boolean,
   val enabled: Boolean,
   val selected: Boolean,
@@ -36,8 +37,28 @@ internal data class AccessibilityElementFingerprint(
   val className: String,
   val label: String?,
   val bounds: android.graphics.Rect,
+  val clickable: Boolean,
+  val longClickable: Boolean,
+  val scrollable: Boolean,
+  val enabled: Boolean,
+  val actionable: Boolean,
   val expiresAtMs: Long,
 )
+
+internal data class AccessibilityActionTarget(
+  val role: String,
+  val label: String?,
+  val clickable: Boolean,
+  val longClickable: Boolean,
+  val scrollable: Boolean,
+)
+
+internal enum class AccessibilitySemanticAction(val frameworkAction: Int) {
+  CLICK(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK),
+  LONG_CLICK(android.view.accessibility.AccessibilityNodeInfo.ACTION_LONG_CLICK),
+  SCROLL_FORWARD(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD),
+  SCROLL_BACKWARD(android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD),
+}
 
 class AndroidAccessibilityScreenAdapter(context: Context) {
   private val appContext = context.applicationContext
@@ -86,6 +107,11 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
             className = item.className,
             label = item.label,
             bounds = android.graphics.Rect(item.bounds),
+            clickable = item.clickable,
+            longClickable = item.longClickable,
+            scrollable = item.scrollable,
+            enabled = item.enabled,
+            actionable = false,
             expiresAtMs = now + HANDLE_TTL_MS,
           )
           SemanticScreenElement(
@@ -93,6 +119,7 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
             role = AccessibilityScreenInspectionPolicy.role(item.className),
             label = item.label,
             clickable = item.clickable,
+            longClickable = item.longClickable,
             scrollable = item.scrollable,
             enabled = item.enabled,
             selected = item.selected,
@@ -108,6 +135,94 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
       null ->
         Result.failure(IllegalStateException("Gallery accessibility service disconnected before inspection."))
     }
+  }
+
+  /** Inspects exactly one visible external application window and issues action-capable handles. */
+  suspend fun inspectExternal(): Result<SemanticScreenSnapshot> = withContext(Dispatchers.Main.immediate) {
+    handles.clear()
+    if (enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return@withContext Result.failure(
+        IllegalStateException("Gallery accessibility service is not enabled and connected.")
+      )
+    }
+    when (val snapshot = AccessibilityServiceInstance.current?.inspectExternalVisibleWindow()) {
+      is AccessibilityWindowSnapshot.Ready -> {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val elements = snapshot.elements.map { item ->
+          val handle = "ui_" + UUID.randomUUID().toString().replace("-", "").take(16)
+          handles[handle] = AccessibilityElementFingerprint(
+            packageName = item.packageName,
+            windowId = item.windowId,
+            className = item.className,
+            label = item.label,
+            bounds = android.graphics.Rect(item.bounds),
+            clickable = item.clickable,
+            longClickable = item.longClickable,
+            scrollable = item.scrollable,
+            enabled = item.enabled,
+            actionable = true,
+            expiresAtMs = now + HANDLE_TTL_MS,
+          )
+          SemanticScreenElement(
+            handle = handle,
+            role = AccessibilityScreenInspectionPolicy.role(item.className),
+            label = item.label,
+            clickable = item.clickable,
+            longClickable = item.longClickable,
+            scrollable = item.scrollable,
+            enabled = item.enabled,
+            selected = item.selected,
+            checked = item.checked,
+          )
+        }
+        Result.success(SemanticScreenSnapshot(elements, snapshot.truncated))
+      }
+      is AccessibilityWindowSnapshot.Excluded ->
+        Result.failure(IllegalStateException("External screen inspection blocked: " + snapshot.reason))
+      is AccessibilityWindowSnapshot.Unavailable ->
+        Result.failure(IllegalStateException(snapshot.reason))
+      null -> Result.failure(IllegalStateException("Gallery accessibility service disconnected before inspection."))
+    }
+  }
+
+  fun describeActionTarget(handle: String): AccessibilityActionTarget? {
+    if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) return null
+    val fingerprint = handles[handle] ?: return null
+    if (!fingerprint.actionable || fingerprint.expiresAtMs <= android.os.SystemClock.elapsedRealtime()) {
+      handles.remove(handle)
+      return null
+    }
+    return AccessibilityActionTarget(
+      role = AccessibilityScreenInspectionPolicy.role(fingerprint.className),
+      label = fingerprint.label,
+      clickable = fingerprint.clickable && fingerprint.enabled,
+      longClickable = fingerprint.longClickable && fingerprint.enabled,
+      scrollable = fingerprint.scrollable && fingerprint.enabled,
+    )
+  }
+
+  /** Consumes a one-shot handle and revalidates the exact external node immediately before action. */
+  suspend fun performSemanticAction(
+    handle: String,
+    action: AccessibilitySemanticAction,
+  ): Result<String> = withContext(Dispatchers.Main.immediate) {
+    if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) {
+      return@withContext Result.failure(IllegalArgumentException("element_handle is malformed."))
+    }
+    val fingerprint = handles[handle]
+      ?: return@withContext Result.failure(IllegalStateException("Element handle is unknown or expired; inspect the target app again."))
+    if (!fingerprint.actionable || fingerprint.expiresAtMs <= android.os.SystemClock.elapsedRealtime()) {
+      handles.remove(handle)
+      return@withContext Result.failure(IllegalStateException("Element handle is expired or is not an external action target; inspect the target app again."))
+    }
+    // Consume before dispatch so retries can never replay the same approved action.
+    handles.remove(handle)
+    if (enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return@withContext Result.failure(IllegalStateException("Gallery accessibility service is no longer enabled and connected."))
+    }
+    val service = AccessibilityServiceInstance.current
+      ?: return@withContext Result.failure(IllegalStateException("Gallery accessibility service disconnected."))
+    service.performSemanticAction(fingerprint, action)
   }
 
   /**
