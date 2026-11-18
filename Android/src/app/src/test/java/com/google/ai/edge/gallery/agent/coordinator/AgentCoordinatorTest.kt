@@ -287,6 +287,33 @@ class AgentCoordinatorTest {
   }
 
   @Test
+  fun screenshotBytesAreErasedWhenToolResultGenerationIsCancelled() = runBlocking {
+    val imageBytes = byteArrayOf(4, 3, 2, 1)
+    val imageTool = object : AgentTool {
+      override val name = "capture"
+      override val description = "Capture an image."
+      override suspend fun execute(arguments: JsonObject) =
+        AgentToolResult("Screenshot attached.", imageBytes = imageBytes)
+    }
+    var turn = 0
+    val model = AgentModel {
+      turn++
+      if (turn == 1) {
+        AgentModelResponse.ToolCall("capture", JsonObject(), "capture-cancel")
+      } else {
+        throw CancellationException("cancel after image handoff")
+      }
+    }
+
+    try {
+      AgentCoordinator(model, AgentToolRegistry(listOf(imageTool))).run("Inspect the screen.")
+      throw AssertionError("Expected cancellation.")
+    } catch (_: CancellationException) {
+      assertTrue(imageBytes.all { it == 0.toByte() })
+    }
+  }
+
+  @Test
   fun overBudgetImageIsRejectedAndErasedBeforeModelReceivesToolResult() = runBlocking {
     val imageBytes = byteArrayOf(1, 2, 3, 4)
     val imageTool = object : AgentTool {
