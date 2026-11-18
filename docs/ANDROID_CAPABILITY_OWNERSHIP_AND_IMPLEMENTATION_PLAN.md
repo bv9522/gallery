@@ -8,7 +8,7 @@
 > **Last reconciled:** 2026-11-18 (Stage 10C–10H format/image cores and Stage 10I SAF + Termux/Shizuku shell binary output implemented; Rish remains gated; tests added but not executed; no builds/device checks)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `stage-10i-shell-binary-output` (stacked on `stage-10h-image-processing`, PR #57)  
-> **Current change:** [PR #58 — Stage 10I binary artifact output through Termux and Shizuku](https://github.com/bv9522/gallery/pull/58), draft/open/unmerged, stacked on [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), then [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
+> **Current change:** [PR #59 — Stage 10I binary artifact output through Termux and Shizuku](https://github.com/bv9522/gallery/pull/59), draft/open/unmerged, stacked on [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), then [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
 > **Overall state:** Device-capability onboarding through Wave 6E is complete. Stage 10 artifact-generation onboarding is now the active workstream and intentionally precedes Stage 8 consolidated tests/build/S21 acceptance and Stage 9 integration/release. Tests are added with each implementation slice but remain unexecuted until all Stage 10 capabilities are onboarded.
 
 ## How to read and maintain this roadmap
@@ -359,7 +359,7 @@ All entries below are tracked as draft/open/unmerged unless explicitly stated ot
 - PR #55 — Stage 10G bounded ZIP creation for structured UTF-8 text entries, safe relative paths, duplicate/collision checks, archive/output limits, and unexecuted safety tests.
 - PR #56 — Stage 10G guarded two-pass SAF ZIP extraction with archive hashing, compressed/expanded/ratio bounds, safe relative paths, duplicate/target checks, exact approval, cancellation, partial-tree cleanup, and unexecuted path-policy tests.
 - PR #57 — Stage 10H local image resize/crop/rotate/convert using bounded SAF source reads, concrete output MIME handling, optional image-generation provider contracts, remote-consent gate with source labels, and unexecuted payload/consent tests.
-- PR #58 — Stage 10I streamed shell binary output: Termux stdin chunks and Shizuku PFD/AIDL pipe, explicit backend schema, no-clobber publication, SHA-256/size/signature checks, partial cleanup, and unexecuted identity/path tests. Rish remains disabled pending Stage 10J stdin-forwarding proof.
+- PR #59 — Stage 10I streamed shell binary output: Termux stdin chunks and Shizuku PFD/AIDL pipe, explicit backend schema, no-clobber publication, SHA-256/size/signature checks, partial cleanup, and unexecuted identity/path tests. Rish remains disabled pending Stage 10J stdin-forwarding proof.
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
