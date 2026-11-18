@@ -73,5 +73,21 @@ internal object AccessibilityScreenInspectionPolicy {
     }
   }
 
+  fun supportsAction(
+    action: AccessibilitySemanticAction,
+    enabled: Boolean,
+    clickable: Boolean,
+    longClickable: Boolean,
+    scrollable: Boolean,
+  ): Boolean {
+    if (!enabled) return false
+    return when (action) {
+      AccessibilitySemanticAction.CLICK -> clickable
+      AccessibilitySemanticAction.LONG_CLICK -> longClickable
+      AccessibilitySemanticAction.SCROLL_FORWARD,
+      AccessibilitySemanticAction.SCROLL_BACKWARD -> scrollable
+    }
+  }
+
   fun isValidHandle(value: String): Boolean = value.matches(Regex("ui_[a-f0-9]{16}"))
 }
