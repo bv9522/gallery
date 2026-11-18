@@ -23,11 +23,16 @@ class PdfArtifactGenerator(context: Context? = null) : ArtifactGenerator {
   override val format = ArtifactFormat.PDF
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
-  override fun estimateBytes(request: ArtifactCreateRequest): Long? =
-    (request.payload.toString().length * ESTIMATED_BYTES_PER_CHARACTER)
-      .toLong()
+  override fun estimateBytes(request: ArtifactCreateRequest): Long? {
+    val imageCount = request.payload.get("pages")?.takeIf { it.isJsonArray }?.asJsonArray?.sumOf { page ->
+      page.takeIf { it.isJsonObject }?.asJsonObject?.get("images")
+        ?.takeIf { it.isJsonArray }?.asJsonArray?.size() ?: 0
+    } ?: 0
+    return (request.payload.toString().length.toLong() * ESTIMATED_BYTES_PER_CHARACTER +
+      imageCount.toLong() * MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES)
       .coerceAtLeast(MIN_ESTIMATED_BYTES)
       .coerceAtMost(maxOutputBytes)
+  }
 
   override fun write(request: ArtifactCreateRequest, output: OutputStream): String {
     require(request.format == ArtifactFormat.PDF) { "PDF generator received a non-PDF request." }
@@ -249,6 +254,7 @@ class PdfArtifactGenerator(context: Context? = null) : ArtifactGenerator {
     const val MAX_PAGES = 100
     const val MAX_TOTAL_EMBEDDED_IMAGES = 8
     const val MAX_TOTAL_EMBEDDED_IMAGE_BYTES = 8 * 1024 * 1024
+    const val MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES = 4L * 1024L * 1024L
     const val MAX_TITLE_CHARS = 200
     const val MAX_BLOCK_CHARS = 8_000
     const val MAX_BLOCKS_PER_SECTION = 100
