@@ -30,7 +30,8 @@ class ArtifactGenerationTool(
       "SAF currently refuses replacement of an existing file; choose a new filename. Shell overwrite requires overwrite=true and explicit user approval. " +
       "Shell destinations require an explicit TERMUX or SHIZUKU backend and an absolute path accessible to that identity. TERMUX_RISH binary output is unavailable until remote stdin forwarding is verified. " +
       "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
-      "Generated content remains local. The image format currently means bounded on-device resize/crop/rotate/convert only; no generative-image provider is registered."
+      "Local image operations are bounded on-device resize/crop/rotate/convert/compose/annotate. Image generation uses a configured provider: Firebase Gemini remote generation is available only when Firebase is configured and always requires one-time disclosure and approval before prompt/source upload; no on-device generative provider is registered. " +
+      "PDF and DOCX accept up to four embedded SAF images per document; PPTX accepts one per slide and four per presentation. Embedded sources must be selected from a persisted Gallery read grant."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
