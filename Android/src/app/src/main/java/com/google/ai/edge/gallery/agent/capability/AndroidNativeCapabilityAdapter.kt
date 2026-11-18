@@ -372,17 +372,6 @@ class AndroidNativeCapabilityAdapter(
       ProviderAvailability.UNSUPPORTED
     }
 
-    val wifiSettingsAvailable = listOf(
-      Intent(Settings.Panel.ACTION_WIFI),
-      Intent(Settings.ACTION_WIFI_SETTINGS),
-    ).any { it.resolveActivity(appContext.packageManager) != null }
-    capabilities[AndroidCapability.WIFI_CONTROL] = if (wifiSettingsAvailable) {
-      ProviderAvailability.AVAILABLE
-    } else {
-      details[AndroidCapability.WIFI_CONTROL] = "Android does not expose a Wi-Fi settings activity."
-      ProviderAvailability.UNSUPPORTED
-    }
-
     val bluetoothAdapter = appContext.getSystemService(BluetoothManager::class.java)?.adapter
     capabilities[AndroidCapability.BLUETOOTH_DISCOVERY] = when {
       bluetoothAdapter == null -> {
