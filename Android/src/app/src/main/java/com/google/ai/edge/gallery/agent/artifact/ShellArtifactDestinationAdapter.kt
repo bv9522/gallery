@@ -115,8 +115,8 @@ class ShellArtifactDestinationAdapter(
       val preflight =
         "command -v base64 >/dev/null 2>&1 && command -v sha256sum >/dev/null 2>&1 && " +
           "parent=\$(dirname -- $quotedTarget) && [ -d \"\$parent\" ] && " +
-          "[ ! -L $quotedTarget ] && { " + targetPolicy +
-          "} && umask 077 && : > $quotedTemp && printf READY"
+          "[ ! -L $quotedTarget ] && { " + targetPolicy + "; } && " +
+          "umask 077 && : > $quotedTemp && printf READY"
       check(termux.runBinaryTransferCommand(preflight) == "READY") {
         "Termux destination preflight failed; no artifact was committed."
       }
