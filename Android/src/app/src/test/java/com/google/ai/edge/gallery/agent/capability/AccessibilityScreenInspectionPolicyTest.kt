@@ -167,7 +167,9 @@ class AccessibilityScreenInspectionPolicyTest {
   fun textEntryRejectsSensitiveAndUnboundedValues() {
     assertTrue(AccessibilityScreenInspectionPolicy.isSafeInputText("search for blue cars"))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText(""))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("   "))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("password123"))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("zero\\u200Bwidth"))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("my bank account"))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("user@example.com"))
     assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText(listOf("line one", "line two").joinToString(System.lineSeparator())))
