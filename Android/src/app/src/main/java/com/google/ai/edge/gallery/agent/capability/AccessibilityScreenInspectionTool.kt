@@ -29,7 +29,7 @@ class AccessibilityScreenInspectionTool internal constructor(
 
   override val name = "screen_inspect"
   override val description =
-    "Use operation=status to check Gallery's opt-in AccessibilityService and screen-capture availability. Use operation=inspect to read a bounded semantic summary of the active window after Gallery accessibility special access is manually enabled. Use operation=capture only when the user asks Gemma to visually inspect an app: it requires one-time SCREEN_CAPTURE approval and captures exactly one visible non-Gallery application window arranged alongside Gallery (normally split-screen). Capture requires Android API 34+, a complete safe accessibility hierarchy, and exactly one unambiguous external app window. Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. The image is resized to at most 1280 px on its longest side and 2 MiB JPEG, delivered in memory to the local model, and erased from coordinator memory after inference. No image file, full-display fallback, taps, gestures, typing, monitoring, or background capture is implemented. Sensitive-screen detection is conservative but cannot recognize every possible sensitive visual; only request capture when the user has confirmed the target screen is appropriate. Use operation=open_settings only when the user explicitly asks to enable access; the user must manually enable Gallery in Android Accessibility settings."
+    "Use operation=status to check Gallery's opt-in AccessibilityService and screen-capture availability. Use operation=inspect to read a bounded semantic summary of the active window after Gallery accessibility special access is manually enabled. Use operation=capture only when the user asks Gemma to visually inspect an app: it requires one-time SCREEN_CAPTURE approval and captures exactly one visible non-Gallery application window arranged alongside Gallery (normally split-screen). Capture requires Android API 34+, a complete safe accessibility hierarchy, and exactly one unambiguous external app window. Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. The image is resized to at most 1280 px on its longest side and 2 MiB JPEG, delivered in memory to the local model, with raw coordinator bytes erased after inference; the model conversation may retain visual context in memory until that conversation is reset. No image file, full-display fallback, taps, gestures, typing, monitoring, or background capture is implemented. Sensitive-screen detection is conservative but cannot recognize every possible sensitive visual; only request capture when the user has confirmed the target screen is appropriate. Use operation=open_settings only when the user explicitly asks to enable access; the user must manually enable Gallery in Android Accessibility settings."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -47,7 +47,7 @@ class AccessibilityScreenInspectionTool internal constructor(
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
     val operation = arguments.get("operation")
       ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-      ?: return AgentToolResult("operation must be status, inspect, or open_settings.", false)
+      ?: return AgentToolResult("operation must be status, inspect, capture, or open_settings.", false)
     if (arguments.keySet() != setOf("operation")) {
       return AgentToolResult("Unexpected arguments are not accepted.", false)
     }
@@ -155,7 +155,7 @@ class AccessibilityScreenInspectionTool internal constructor(
     }
     if (!authorizer.authorize(
         AndroidCapability.SCREEN_CAPTURE,
-        "Capture one screenshot of the single visible non-Gallery app window (split-screen required): maximum 1280 px and 2 MiB JPEG. Gallery will check the accessibility hierarchy for sensitive or uncertain content first. The image is sent only to the selected local Gemma model in memory and erased after inference; no image file or background capture is created. Confirm that the target screen is appropriate and contains no sensitive/private information."
+        "Capture one screenshot of the single visible non-Gallery app window (split-screen required): maximum 1280 px and 2 MiB JPEG. Gallery will check the accessibility hierarchy for sensitive or uncertain content first. The image is sent only to the selected local Gemma model in memory with raw coordinator bytes erased after inference; the model conversation may retain visual context in memory until reset. No image file or background capture is created. Confirm that the target screen is appropriate and contains no sensitive/private information."
       )) {
       return AgentToolResult("Visual screen capture was not approved.", false)
     }
