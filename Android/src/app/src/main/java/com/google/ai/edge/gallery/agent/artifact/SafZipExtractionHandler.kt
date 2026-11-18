@@ -10,6 +10,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import java.io.FilterInputStream
 import java.io.InputStream
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -108,14 +109,18 @@ class SafZipExtractionHandler(
           mimeType = null,
           bytesWritten = written,
           sha256 = null,
-          message = "Extracted ${plan.files} files (${written} expanded bytes); ${plan.directories} directories were created or materialized.",
+          message = "Extracted ${plan.files} files (${written} expanded bytes) and created ${created.size - plan.files} folders.",
         )
       } catch (cancelled: CancellationException) {
-        cleanup(created)
+        if (!cleanup(created)) {
+          cancelled.addSuppressed(IllegalStateException("Cleanup of one or more partial extracted items could not be confirmed."))
+        }
         throw cancelled
       } catch (error: Exception) {
-        cleanup(created)
-        failure(request, error.message ?: error.javaClass.simpleName)
+        val cleaned = cleanup(created)
+        val message = (error.message ?: error.javaClass.simpleName) +
+          if (cleaned) "" else " Cleanup of partial extracted items could not be confirmed; some files or folders may remain."
+        failure(request, message)
       }
     }
 
@@ -168,7 +173,7 @@ class SafZipExtractionHandler(
       }
     }
     validatePathCollisions(plans)
-    ExtractionPlan(plans, fileCount, directoryCount, totalExpanded, counted.bytesRead)
+    ExtractionPlan(plans, fileCount, directoryCount, totalExpanded, counted.bytesRead, counted.sha256())
   }
 
   private suspend fun extractToSaf(
@@ -237,6 +242,9 @@ class SafZipExtractionHandler(
     }
     require(planIndex == plan.entries.size) { "ZIP contents changed after preflight; one or more entries disappeared." }
     require(totalWritten == plan.totalExpandedBytes) { "ZIP expanded size changed after preflight." }
+    require(counted.sha256() == plan.archiveSha256) {
+      "The source ZIP changed after preflight and approval; partial extraction was rolled back."
+    }
     totalWritten
   }
 
@@ -389,13 +397,15 @@ class SafZipExtractionHandler(
     return names
   }
 
-  private suspend fun cleanup(created: List<Uri>) {
+  private suspend fun cleanup(created: List<Uri>): Boolean =
     withContext(NonCancellable + Dispatchers.IO) {
+      var complete = true
       created.asReversed().forEach { uri ->
-        runCatching { DocumentsContract.deleteDocument(resolver, uri) }
+        val removed = runCatching { DocumentsContract.deleteDocument(resolver, uri) }.getOrDefault(false)
+        if (!removed) complete = false
       }
+      complete
     }
-  }
 
   private fun payloadString(request: ArtifactCreateRequest, key: String): String {
     val value = request.payload.get(key)
@@ -424,16 +434,24 @@ class SafZipExtractionHandler(
   private class BoundedCountingInputStream(input: InputStream, private val limit: Long) : FilterInputStream(input) {
     var bytesRead: Long = 0
       private set
+    private val digest = MessageDigest.getInstance("SHA-256")
     override fun read(): Int {
       val value = super.read()
-      if (value >= 0) addCount(1)
+      if (value >= 0) {
+        addCount(1)
+        digest.update(value.toByte())
+      }
       return value
     }
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
       val count = super.read(buffer, offset, length)
-      if (count > 0) addCount(count)
+      if (count > 0) {
+        addCount(count)
+        digest.update(buffer, offset, count)
+      }
       return count
     }
+    fun sha256(): String = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
     private fun addCount(count: Int) {
       bytesRead += count
       require(bytesRead <= limit) { "ZIP compressed input exceeds the $limit byte limit." }
@@ -453,6 +471,7 @@ class SafZipExtractionHandler(
     val directories: Int,
     val totalExpandedBytes: Long,
     val compressedBytes: Long,
+    val archiveSha256: String,
   )
 
   private companion object {
