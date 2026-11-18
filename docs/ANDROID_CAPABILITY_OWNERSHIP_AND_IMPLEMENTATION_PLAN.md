@@ -8,7 +8,7 @@
 > **Last reconciled:** 2026-11-18 (Stage 10A–10I implementation slices onboarded, including bounded embedded images and configured Firebase Gemini remote generation; TERMUX_RISH binary output remains unavailable; Stage 10J consolidated validation is now unlocked but not yet executed)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `stage-10h-image-followups` (final image integration, stacked on PR #58)  
-> **Current change:** final Stage 10 image integration PR (PDF/DOCX/PPTX embedded images, EXIF normalization, provider wiring and roadmap reconciliation), stacked on [PR #58 — Stage 10I binary artifact output for Termux and Shizuku](https://github.com/bv9522/gallery/pull/58), then [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), and [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
+> **Current change:** [PR #60 — Stage 10 embedded image integration and final validation prep](https://github.com/bv9522/gallery/pull/60), stacked on [PR #58 — Stage 10I binary artifact output for Termux and Shizuku](https://github.com/bv9522/gallery/pull/58), then [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), and [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
 > **Overall state:** Stage 10A–10I implementation is onboarded. Stage 10J consolidated validation is unlocked and must run before Stage 8 provider validation/S21 acceptance and Stage 9 integration/release. Tests were authored throughout and are still unexecuted at this point.
 
 ## How to read and maintain this roadmap
@@ -320,7 +320,7 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
 | Wave 6 consolidated S21 acceptance | DEFERRED UNTIL STAGE 10 COMPLETE | Test inventory/preflight prepared; do not execute tests, builds, or S21 acceptance before all Stage 10 slices are onboarded |
-| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IN PROGRESS — 10C–10I code implemented | PDF/DOCX/XLSX/PPTX, ZIP create/extract, local image transforms/provider consent boundary, SAF output, Termux stdin chunks, Shizuku PFD output; TERMUX_RISH unavailable pending proof; embedded document images and Stage 10J acceptance remain; tests deferred |
+| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IMPLEMENTATION COMPLETE — 10A–10I | PDF/DOCX/XLSX/PPTX, ZIP create/extract, bounded embedded images, local image transforms/composition/annotation, conditionally configured Firebase Gemini remote generation with one-time consent, SAF output, Termux stdin chunks, Shizuku PFD output; TERMUX_RISH and on-device generation honestly unavailable; Stage 10J validation remains |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
