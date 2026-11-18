@@ -86,6 +86,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -996,8 +997,18 @@ private fun AgentMediaPlaybackDialog(
   val player = remember(action.contentUri) { ExoPlayer.Builder(context).build() }
   var playbackError by remember(action.contentUri) { mutableStateOf<String?>(null) }
 
-  DisposableEffect(player) {
-    onDispose { player.release() }
+  DisposableEffect(player, action) {
+    val listener = object : Player.Listener {
+      override fun onPlayerError(error: PlaybackException) {
+        playbackError = error.message ?: "Gallery could not play this video."
+        if (!action.result.isCompleted) action.result.complete(false)
+      }
+    }
+    player.addListener(listener)
+    onDispose {
+      player.removeListener(listener)
+      player.release()
+    }
   }
 
   DisposableEffect(action) {
