@@ -396,6 +396,10 @@ class NativeAgentRuntimeExecutor(
               downloadOperations = downloadRepository,
               mediaOperations = mediaOperations,
             ),
+            ShareContentCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+            ),
             DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
