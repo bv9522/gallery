@@ -129,8 +129,9 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
   ): Bundle {
     var temporary: File? = null
     return try {
-      require(destinationPath.startsWith("/") && destinationPath.length <= MAX_BINARY_PATH_CHARS &&
-        '\u0000' !in destinationPath &&
+      require(destinationPath.startsWith("/") && !destinationPath.endsWith("/") &&
+        destinationPath.length <= MAX_BINARY_PATH_CHARS &&
+        destinationPath.none { it.code < 0x20 || it.code == 0x7f } &&
         destinationPath.split('/').none { it == "." || it == ".." }) {
         "Destination must be a safe absolute path."
       }
