@@ -301,12 +301,22 @@ class GalleryAccessibilityService : AccessibilityService() {
       if (visibleBounds.isEmpty) {
         return Result.failure(IllegalStateException("The inspected application window is no longer visible; no text action was dispatched."))
       }
-      val root = window.root
+      val initialRoot = window.root
         ?: return Result.failure(IllegalStateException("The inspected application window no longer exposes a root node."))
-      if (root.packageName?.toString() != fingerprint.packageName) {
-        root.recycle()
+      if (initialRoot.packageName?.toString() != fingerprint.packageName) {
+        initialRoot.recycle()
         return Result.failure(IllegalStateException("The target application identity changed; no text action was dispatched."))
       }
+      when (val safe = inspectRoot(initialRoot, fingerprint.windowId, allowSafeTextInputs = true)) {
+        is AccessibilityWindowSnapshot.Ready -> {
+          if (safe.packageName != fingerprint.packageName || safe.windowId != fingerprint.windowId || safe.truncated) {
+            return Result.failure(IllegalStateException("The target hierarchy is no longer complete and safe; no text action was dispatched."))
+          }
+        }
+        else -> return Result.failure(IllegalStateException("The target hierarchy is no longer safe; no text action was dispatched."))
+      }
+      val root = window.root
+        ?: return Result.failure(IllegalStateException("The target window changed during text-input revalidation."))
       queue.add(root to 0)
       val matches = ArrayList<AccessibilityNodeInfo>(1)
       var incomplete = false
