@@ -254,7 +254,7 @@ class AgentCoordinatorTest {
   }
 
   @Test
-  fun multimodalToolImageIsPassedToModelAndErasedAfterPrefill() = runBlocking {
+  fun multimodalToolImageIsPassedToModelAndErasedAfterInference() = runBlocking {
     val imageBytes = byteArrayOf(1, 2, 3, 4)
     val imageTool = object : AgentTool {
       override val name = "capture"
