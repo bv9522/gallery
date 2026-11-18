@@ -2,7 +2,7 @@
 
 **Status:** Termux RUN_COMMAND stdin-chunk and Shizuku ParcelFileDescriptor pipe implementations are present in PR #58. TERMUX_RISH remains intentionally unavailable for binary artifact output until end-to-end stdin forwarding and cancellation are independently proven.
 
-**Validation:** Focused pure policy tests were added but not executed. No Gradle tests, builds, instrumentation tests, or device checks were run. Final protocol verification belongs to Stage 10J.
+**Validation:** Pure policy tests and fake-transport adapter tests (multi-chunk Termux, Shizuku identity/metadata, failure cleanup, cancellation cleanup, and Rish rejection) were added but not executed. No Gradle tests, builds, instrumentation tests, or device checks were run. Final protocol verification belongs to Stage 10J.
 
 ## Shared behavior
 
