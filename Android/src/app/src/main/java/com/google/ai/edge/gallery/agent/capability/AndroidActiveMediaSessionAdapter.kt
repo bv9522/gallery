@@ -28,7 +28,7 @@ data class ActiveMediaSessionSnapshot(
   val supportedActions: List<String>,
 )
 data class ActiveMediaSessionList(val sessions: List<ActiveMediaSessionSnapshot>, val truncated: Boolean)
-data class ActiveMediaSessionHandleSummary(val appLabel: String, val title: String?)
+data class ActiveMediaSessionHandleSummary(val appLabel: String, val title: String?, val artist: String?)
 
 data class ActiveMediaSessionControlResult(val success: Boolean, val message: String)
 
@@ -114,7 +114,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
       handles.remove(handle, entry)
       return null
     }
-    return ActiveMediaSessionHandleSummary(entry.snapshot.appLabel, entry.snapshot.title)
+    return ActiveMediaSessionHandleSummary(entry.snapshot.appLabel, entry.snapshot.title, entry.snapshot.artist)
   }
 
   fun control(handle: String, action: ActiveMediaSessionAction, positionMs: Long? = null): ActiveMediaSessionControlResult {
@@ -130,6 +130,11 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
       ?: return ActiveMediaSessionControlResult(false, "The selected media session is no longer active. Run media_sessions list again.")
     val playback = current.playbackState
       ?: return ActiveMediaSessionControlResult(false, "The selected media session no longer exposes playback state.")
+    val currentMetadata = current.metadata
+    if (entry.snapshot.title != currentMetadata?.getString(MediaMetadata.METADATA_KEY_TITLE) ||
+      entry.snapshot.artist != currentMetadata?.getString(MediaMetadata.METADATA_KEY_ARTIST)) {
+      return ActiveMediaSessionControlResult(false, "The selected track changed after discovery. Run media_sessions list again before controlling it.")
+    }
     if (!ActiveMediaSessionActionPolicy.isSupported(action, playback.actions)) {
       return ActiveMediaSessionControlResult(false, "The selected media session does not currently support ${action.name}. Run media_sessions list again.")
     }
