@@ -266,7 +266,7 @@ class AccessibilityScreenInspectionTool internal constructor(
     }
     if (!authorizer.authorize(
         AndroidCapability.UI_TREE_READ,
-        "Inspect exactly one visible external app window alongside Gallery for ordinary single-line plain-text fields only. Sensitive or unsupported editable fields block the entire inspection. Return safe labels and character counts only; never return current field contents. Issue 30-second one-shot handles."
+        "Inspect exactly one visible external app window alongside Gallery for ordinary single-line plain-text fields only. Sensitive or unsupported editable fields block the entire inspection. Return safe labels and character counts only; never return current field contents. Issue 30-second one-shot handles. The user must verify the visible app context contains no private or sensitive information; text-based screening is heuristic and cannot guarantee detection."
       )) {
       return AgentToolResult("External text-field inspection was not approved.", false)
     }
@@ -301,7 +301,7 @@ class AccessibilityScreenInspectionTool internal constructor(
     }
     val targetLabel = target.label?.let { "'" + it + "'" } ?: "an unlabeled text field"
     val summary = "Enter exactly this text into " + targetLabel + ": " + value +
-      ". The field must still be the same safe, enabled, empty, ordinary single-line text field immediately before dispatch. Existing text will not be overwritten."
+      ". The field must still be the same safe, enabled, empty, ordinary single-line text field immediately before dispatch. Existing text will not be overwritten. Review the surrounding app screen before approving; sensitive-screen screening is heuristic and cannot guarantee detection."
     if (!authorizer.authorize(AndroidCapability.UI_TEXT_INPUT, summary)) {
       return AgentToolResult("Text entry was not approved. No text was entered.", false)
     }
@@ -329,7 +329,7 @@ class AccessibilityScreenInspectionTool internal constructor(
     val targetLabel = target.label?.let { "'" + it + "'" } ?: "an unlabeled text field"
     val summary = "Select characters " + start + " through " + end +
       " (end-exclusive) in " + targetLabel +
-      ". Gallery will revalidate the same safe field and current text length immediately before dispatch. No field contents are read back or changed."
+      ". Gallery will revalidate the same safe field and current text length immediately before dispatch. No field contents are read back or changed. Review the surrounding app screen before approving; sensitive-screen screening is heuristic and cannot guarantee detection."
     if (!authorizer.authorize(AndroidCapability.UI_TEXT_INPUT, summary)) {
       return AgentToolResult("Text selection was not approved. No selection was changed.", false)
     }
