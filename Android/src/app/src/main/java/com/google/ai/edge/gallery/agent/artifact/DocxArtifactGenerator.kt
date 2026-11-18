@@ -20,6 +20,8 @@ class DocxArtifactGenerator : ArtifactGenerator {
     (request.payload.toString().length * ESTIMATED_BYTES_PER_CHARACTER)
       .toLong().coerceAtLeast(MIN_ESTIMATED_BYTES).coerceAtMost(maxOutputBytes)
 
+  fun validatePayload(payload: JsonObject) { DocxPayload.parse(payload) }
+
   override fun write(request: ArtifactCreateRequest, output: OutputStream): String {
     require(request.format == ArtifactFormat.DOCX) { "DOCX generator received a non-DOCX request." }
     val content = DocxPayload.parse(request.payload)
@@ -163,6 +165,7 @@ class DocxArtifactGenerator : ArtifactGenerator {
       require(title.isNotBlank() && title.length <= MAX_TITLE_CHARS) {
         "DOCX title must contain 1–$MAX_TITLE_CHARS characters."
       }
+      require(isXml10Text(title)) { "DOCX title contains characters not permitted in XML 1.0." }
       val header = optionalString(payload, "header", MAX_HEADER_FOOTER_CHARS)
       val footer = optionalString(payload, "footer", MAX_HEADER_FOOTER_CHARS)
       val sections = payload.get("sections")?.takeIf { it.isJsonArray }?.asJsonArray
