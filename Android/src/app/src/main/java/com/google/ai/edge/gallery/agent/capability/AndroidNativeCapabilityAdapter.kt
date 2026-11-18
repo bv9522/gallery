@@ -33,6 +33,7 @@ import android.app.NotificationManager
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.ClipData
+import android.content.ComponentName
 import android.content.ClipboardManager
 import android.content.ContentValues
 import android.content.Context
@@ -45,6 +46,7 @@ import android.hardware.camera2.CameraManager
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import android.media.AudioManager
+import android.media.session.MediaSessionManager
 import android.media.MediaRecorder
 import android.media.AudioDeviceInfo
 import android.net.Uri
@@ -587,6 +589,21 @@ class AndroidNativeCapabilityAdapter(
       !hasRuntimePermission(Manifest.permission.RECORD_AUDIO) -> {
         details[AndroidCapability.SPEECH_RECOGNITION] =
           "Microphone permission is required; provider discovery did not request it."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
+
+    val mediaSessionManager = appContext.getSystemService(MediaSessionManager::class.java)
+    val mediaSessionComponent = ComponentName(appContext, GalleryMediaSessionListenerService::class.java)
+    capabilities[AndroidCapability.MEDIA_SESSION_CONTROL] = when {
+      mediaSessionManager == null -> {
+        details[AndroidCapability.MEDIA_SESSION_CONTROL] = "Android MediaSessionManager is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+      notificationManager?.isNotificationListenerAccessGranted(mediaSessionComponent) != true -> {
+        details[AndroidCapability.MEDIA_SESSION_CONTROL] =
+          "Notification-listener special access is not enabled for Gallery. It is opt-in and must be enabled manually in Android settings; provider discovery never opens settings or requests access."
         ProviderAvailability.PERMISSION_REQUIRED
       }
       else -> ProviderAvailability.AVAILABLE
