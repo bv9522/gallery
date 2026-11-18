@@ -317,24 +317,8 @@ class SafZipExtractionHandler(
     }
   }
 
-  private fun validateEntryPath(entry: ZipEntry): String {
-    val raw = entry.name
-    val path = if (entry.isDirectory) raw.removeSuffix("/") else raw
-    require(path.isNotBlank() && path.length <= MAX_PATH_CHARS) {
-      "ZIP entry path must contain 1–$MAX_PATH_CHARS characters."
-    }
-    require(!path.startsWith('/') && '\\' !in path && ':' !in path &&
-      path.none { it.isISOControl() || it == '\u0000' }) {
-      "ZIP entry '$path' contains an absolute path, drive prefix, backslash, or control character."
-    }
-    val segments = path.split('/')
-    require(segments.all { segment ->
-      segment.isNotBlank() && segment != "." && segment != ".." &&
-        segment.length <= MAX_SEGMENT_CHARS &&
-        segment.substringBefore('.').uppercase(Locale.ROOT) !in WINDOWS_RESERVED_NAMES
-    }) { "ZIP entry '$path' contains an unsafe path segment." }
-    return path
-  }
+  private fun validateEntryPath(entry: ZipEntry): String =
+    ZipExtractionPathPolicy.validate(entry.name, entry.isDirectory)
 
   private fun validatePathCollisions(entries: List<PlannedEntry>) {
     val filePaths = entries.filterNot { it.isDirectory }.map { it.path.lowercase(Locale.ROOT) }.toSet()
@@ -502,4 +486,30 @@ class SafZipExtractionHandler(
       DocumentsContract.Document.COLUMN_SIZE,
     )
   }
+}
+
+/** Pure ZIP member path policy shared with JVM unit tests. */
+internal object ZipExtractionPathPolicy {
+  fun validate(rawName: String, isDirectory: Boolean): String {
+    val path = if (isDirectory) rawName.removeSuffix("/") else rawName
+    require(path.isNotBlank() && path.length <= MAX_PATH_CHARS) {
+      "ZIP entry path must contain 1–$MAX_PATH_CHARS characters."
+    }
+    require(!path.startsWith('/') && '\\' !in path && ':' !in path &&
+      path.none { it.isISOControl() || it == '\u0000' }) {
+      "ZIP entry '$path' contains an absolute path, drive prefix, backslash, or control character."
+    }
+    val segments = path.split('/')
+    require(segments.all { segment ->
+      segment.isNotBlank() && segment != "." && segment != ".." &&
+        segment.length <= MAX_SEGMENT_CHARS &&
+        segment.substringBefore('.').uppercase(Locale.ROOT) !in WINDOWS_RESERVED_NAMES
+    }) { "ZIP entry '$path' contains an unsafe path segment." }
+    return path
+  }
+
+  private const val MAX_PATH_CHARS = 240
+  private const val MAX_SEGMENT_CHARS = 128
+  private val WINDOWS_RESERVED_NAMES = setOf("CON", "PRN", "AUX", "NUL") +
+    (1..9).flatMap { listOf("COM$it", "LPT$it") }
 }
