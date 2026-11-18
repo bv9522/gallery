@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (Wave 3E media discovery/playback implementation added; per-slice test/build execution deferred)  
+> **Last reconciled:** 2026-11-17 (PR #35 opened; per-slice test/build execution deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `wave-3e-media-library-playback` (stacked on `wave-3e-gallery-download-management`)  
-> **Current change:** Wave 3E media search/indexing/Gallery-owned playback, stacked on [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34); media PR #35 is being prepared. PRs #33–#34 remain draft/open/unmerged.  
+> **Current change:** [PR #35 — Wave 3E media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), draft/open/unmerged, stacked on [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34). PRs #33–#35 remain draft/open/unmerged.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
