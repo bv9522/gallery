@@ -32,6 +32,32 @@ import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
   @Test
+  fun readNotificationsDelegatesOnlyWhenCapabilityIsAvailable() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val result = tool.execute(arguments("read_notifications"))
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("Chat preview"))
+    assertTrue(adapter.discoveryCalls.contains("read_notifications"))
+  }
+
+  @Test
+  fun readNotificationsFailsClosedWhenListenerAccessIsUnavailable() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations().apply {
+      availability[AndroidCapability.NOTIFICATION_READ] = ProviderAvailability.PERMISSION_REQUIRED
+    }
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val result = tool.execute(arguments("read_notifications"))
+
+    assertFalse(result.isSuccessful)
+    assertTrue(result.content.contains("Notification-listener"))
+    assertFalse(adapter.discoveryCalls.contains("read_notifications"))
+  }
+
+  @Test
   fun runtimePermissionRequesterReturnsOnlyTheSystemPermissionResult() = runBlocking {
     val actions = Channel<ToolAction>(Channel.UNLIMITED)
     val requester = ChannelNativeRuntimePermissionRequester(actions, timeoutMs = 1_000L)
@@ -957,6 +983,16 @@ class AndroidNativeCapabilityToolTest {
     ): NativeCapabilityActionResult {
       discoveryCalls += "post_notification:$title:$message:$channelId"
       return NativeCapabilityActionResult(true, "Notification posted with ID 42.")
+    }
+
+    override suspend fun readOtherNotifications(): NativeOtherNotificationList {
+      discoveryCalls += "read_notifications"
+      return NativeOtherNotificationList(
+        notifications = listOf(
+          NativeOtherNotification("Messages", "New message", "Chat preview", 1_800_000_000_000L)
+        ),
+        truncated = false,
+      )
     }
 
     override fun listPostedNotifications(): List<NativePostedNotification> {
