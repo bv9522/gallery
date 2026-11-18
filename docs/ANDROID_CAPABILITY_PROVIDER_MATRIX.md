@@ -28,7 +28,7 @@ Every model-independent capability has exactly one selected owner in the capabil
 | Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
-| Screen capture and semantic UI interaction | Android AccessibilityService | Explicitly enabled service; bounded screen/tree/gesture operations |
+| Semantic UI inspection and future UI automation | Android AccessibilityService | Explicitly enabled service; bounded active-window tree reads; screenshots and UI actions remain separate future slices |
 
 Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
 Termux:API is a distinct capability owner only for the bounded command families assigned in the
