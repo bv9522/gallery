@@ -59,7 +59,7 @@ class GalleryAccessibilityService : AccessibilityService() {
     if (windowInfos.isEmpty()) {
       return AccessibilityWindowSnapshot.Unavailable("Android did not expose any interactive application windows.")
     }
-    val candidateRoots = ArrayList<AccessibilityNodeInfo>()
+    val candidateRoots = ArrayList<Pair<AccessibilityNodeInfo, Int>>()
     var selectedRoot: AccessibilityNodeInfo? = null
     try {
       var incomplete = false
@@ -82,7 +82,7 @@ class GalleryAccessibilityService : AccessibilityService() {
         if (ownerPackage == packageName) {
           root.recycle()
         } else {
-          candidateRoots += root
+          candidateRoots += root to window.id
         }
       }
       if (incomplete) {
@@ -101,11 +101,12 @@ class GalleryAccessibilityService : AccessibilityService() {
           )
         }
       }
-      selectedRoot = candidateRoots.removeAt(0)
-      return inspectRoot(selectedRoot).also { selectedRoot = null }
+      val selected = candidateRoots.removeAt(0)
+      selectedRoot = selected.first
+      return inspectRoot(selected.first, selected.second).also { selectedRoot = null }
     } finally {
       selectedRoot?.recycle()
-      candidateRoots.forEach { runCatching { it.recycle() } }
+      candidateRoots.forEach { runCatching { it.first.recycle() } }
       windowInfos.forEach { runCatching { it.recycle() } }
     }
   }
@@ -203,7 +204,10 @@ class GalleryAccessibilityService : AccessibilityService() {
     }
   }
 
-  private fun inspectRoot(root: AccessibilityNodeInfo): AccessibilityWindowSnapshot {
+  private fun inspectRoot(
+    root: AccessibilityNodeInfo,
+    expectedWindowId: Int = root.windowId,
+  ): AccessibilityWindowSnapshot {
     val visited = ArrayList<Pair<AccessibilityNodeInfo, Int>>(MAX_NODES)
     val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
     queue.add(root to 0)
@@ -263,6 +267,11 @@ class GalleryAccessibilityService : AccessibilityService() {
       var meaningfulCount = 0
       var textTruncated = false
       for ((node, _) in visited) {
+        if (node.windowId != expectedWindowId) {
+          return AccessibilityWindowSnapshot.Excluded(
+            "The visible hierarchy crossed an application-window boundary; capture was blocked."
+          )
+        }
         if (!node.isVisibleToUser) continue
         val rawText = node.text?.toString().orEmpty()
         val rawDescription = node.contentDescription?.toString().orEmpty()
@@ -310,7 +319,12 @@ class GalleryAccessibilityService : AccessibilityService() {
           )
         }
       }
-      return AccessibilityWindowSnapshot.Ready(packageName, elements, meaningfulCount > MAX_ELEMENTS || textTruncated)
+      return AccessibilityWindowSnapshot.Ready(
+        packageName,
+        expectedWindowId,
+        elements,
+        meaningfulCount > MAX_ELEMENTS || textTruncated,
+      )
     } finally {
       visited.forEach { (node, _) -> runCatching { node.recycle() } }
       while (queue.isNotEmpty()) runCatching { queue.removeFirst().first.recycle() }
@@ -338,6 +352,7 @@ internal object AccessibilityServiceInstance {
 internal sealed class AccessibilityWindowSnapshot {
   data class Ready(
     val packageName: String,
+    val windowId: Int,
     val elements: List<AccessibilityElementSnapshot>,
     val truncated: Boolean,
   ) : AccessibilityWindowSnapshot()
