@@ -28,6 +28,8 @@ internal object AndroidControlArguments {
     "status" to setOf("operation"),
     "download_status" to setOf("operation"),
     "cancel_download" to setOf("operation", "download_handle"),
+    "media_search" to setOf("operation", "query", "media_kind", "search_mode", "limit"),
+    "media_index" to setOf("operation"),
     "device_info" to setOf("operation"),
     "telephony_info" to setOf("operation"),
     "dial_phone" to setOf("operation", "phone_number"),
@@ -94,6 +96,7 @@ internal object AndroidControlArguments {
     "bluetooth_gatt_read" to setOf("device_address", "service_uuid", "characteristic_uuid"),
     "bluetooth_gatt_write" to setOf("device_address", "service_uuid", "characteristic_uuid", "value_base64"),
     "contacts_search" to setOf("query"),
+    "media_search" to setOf("query"),
     "clipboard_write" to setOf("text"),
     "speak_text" to setOf("speech_text"),
     "post_notification" to setOf("title", "message"),
@@ -135,6 +138,31 @@ internal object AndroidControlArguments {
       if (!handle.matches(Regex("^dl_[0-9a-f]{32}$"))) {
         return "download_handle must be copied exactly from the most recent download_status result."
       }
+    }
+
+    if (operation == "media_search") {
+      val query = arguments.get("query")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (query.isBlank() || query.length > 120) {
+        return "media_search query must contain 1–120 non-whitespace characters."
+      }
+      val mediaKind = arguments.get("media_kind")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString ?: "ANY"
+      if (mediaKind !in setOf("ANY", "IMAGE", "VIDEO")) {
+        return "media_kind must be ANY, IMAGE, or VIDEO."
+      }
+      val searchMode = arguments.get("search_mode")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString ?: "AUTO"
+      if (searchMode !in setOf("AUTO", "NAME", "VISUAL")) {
+        return "search_mode must be AUTO, NAME, or VISUAL."
+      }
+      val limit = arguments.get("limit")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+        ?.asString?.toIntOrNull() ?: 10
+      if (limit !in 1..20) return "media_search limit must be from 1 to 20."
     }
 
     if (operation in setOf("bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write")) {
