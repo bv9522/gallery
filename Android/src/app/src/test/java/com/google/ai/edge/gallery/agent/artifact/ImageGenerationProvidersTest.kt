@@ -1,7 +1,10 @@
 package com.google.ai.edge.gallery.agent.artifact
 
 import android.net.Uri
+import com.google.ai.edge.gallery.tools.AskRemoteImageGenerationPermissionAction
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -9,6 +12,30 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImageGenerationProvidersTest {
+  @Test fun channelConsentRequesterShowsExactRemoteDisclosureAndWaitsForOneTimeDecision() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(Channel.UNLIMITED)
+    val requester = ChannelRemoteImageGenerationConsentRequester(channel)
+    val pending = async {
+      requester.requestConsent(
+        RemoteImageGenerationConsentDetails(
+          providerId = "firebase-gemini-image",
+          prompt = "Create a blue mountain landscape",
+          outputMimeType = "image/png",
+          sourceImageCount = 1,
+          sourceImageLabels = listOf("Private family photo"),
+        ),
+      )
+    }
+    val action = channel.receive() as AskRemoteImageGenerationPermissionAction
+    assertEquals("firebase-gemini-image", action.providerId)
+    assertEquals("Create a blue mountain landscape", action.prompt)
+    assertEquals("image/png", action.outputMimeType)
+    assertEquals(listOf("Private family photo"), action.sourceImageLabels)
+    action.result.complete(true)
+    assertTrue(pending.await())
+    channel.close()
+  }
+
   @Test fun remoteProviderIsNotCalledWhenConsentIsDenied() = runBlocking {
     var generated = false
     val provider = FakeProvider(ImageGenerationDataBoundary.REMOTE) { generated = true; "image/png" }
