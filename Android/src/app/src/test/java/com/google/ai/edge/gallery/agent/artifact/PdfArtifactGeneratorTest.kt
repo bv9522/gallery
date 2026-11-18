@@ -51,6 +51,19 @@ class PdfArtifactGeneratorTest {
   }
 
   @Test(expected = IllegalArgumentException::class)
+  fun rejectsMoreThanOneHundredCombinedParagraphAndBulletBlocks() {
+    generator.validatePayload(JsonObject().apply {
+      addProperty("title", "Report")
+      add("pages", com.google.gson.JsonArray().apply {
+        add(JsonObject().apply {
+          add("paragraphs", com.google.gson.JsonArray().apply { repeat(51) { add("paragraph") } })
+          add("bullet_items", com.google.gson.JsonArray().apply { repeat(50) { add("bullet") } })
+        })
+      })
+    })
+  }
+
+  @Test(expected = IllegalArgumentException::class)
   fun rejectsMoreThanOneHundredSections() {
     generator.validatePayload(JsonObject().apply {
       addProperty("title", "Report")
