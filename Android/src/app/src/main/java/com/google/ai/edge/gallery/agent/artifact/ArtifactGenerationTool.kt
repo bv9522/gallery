@@ -62,8 +62,8 @@ class ArtifactGenerationTool(
       addProperty("additionalProperties", false)
     }
 
-  override suspend fun execute(arguments: JsonObject): AgentToolResult =
-    when (val parsed = ArtifactCreateArguments.parse(arguments)) {
+  override suspend fun execute(arguments: JsonObject): AgentToolResult {
+    return when (val parsed = ArtifactCreateArguments.parse(arguments)) {
       is ArtifactArgumentsParseResult.Invalid -> AgentToolResult(parsed.message, false)
       is ArtifactArgumentsParseResult.Valid -> {
         val request = parsed.request
@@ -78,6 +78,7 @@ class ArtifactGenerationTool(
         AgentToolResult(Gson().toJson(result), result.isSuccessful)
       }
     }
+  }
 
   private companion object {
     val ShellBackendNames = listOf("TERMUX", "SHIZUKU", "TERMUX_RISH")
