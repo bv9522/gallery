@@ -6,13 +6,14 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 
 ## Current progress snapshot (2026-11-17)
 
-- Active branch: `wave-3e-gallery-download-management` (documentation checkpoint stacked on `wave-3e-media-sharing-tts`).
-- Active PR: [#34 — Wave 3E: define safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), draft/open/unmerged; [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33) remains open beneath it.
+- Active branch: `wave-3e-media-library-playback`, stacked on `wave-3e-gallery-download-management`.
+- Active prior PR: [#34 — Wave 3E: define safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), draft/open/unmerged. The current media slice is being prepared as PR #35; [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33) remains open beneath the stack.
 - Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
-- Remaining Wave 3E work: Gallery-owned downloads/status/cancellation, media scanning/indexing and Gallery-initiated playback, active media-session controls (special access remains user-granted only), and user-mediated text/file sharing.
-- PR #34 now reuses `DefaultDownloadRepository` / `DownloadWorker` / WorkManager and adds bounded snapshots, allowlist-backed labels, opaque handles, exact-worker cancellation, scoped approval, and unit tests. Local validation is pending.
+- PR #34 reuses `DefaultDownloadRepository` / `DownloadWorker` / WorkManager and adds bounded snapshots, allowlist-backed labels, opaque handles, exact-worker cancellation, scoped approval, and unit tests. The user confirmed its local tests and Shizuku debug build passed; device acceptance remains pending.
+- Current media slice adds bounded filename/visual search, EmbeddingGemma-2 / Smart Album index reuse, SAF-granted storage discovery/indexing, and Gallery-owned Media3 video playback. Tests are being added but have not been executed.
 - PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
-- PR #23–#29 and #16–#27 still require the applicable local validation and consolidated S21 acceptance recorded in the master roadmap.
+- **Validation policy:** per the owner's instruction, do not run tests, Gradle builds, or device acceptance per slice. Add tests as implementation proceeds and execute the accumulated suite/build only after all capability onboarding is complete.
+- PR #23–#29 and #16–#27 still require consolidated S21 acceptance recorded in the master roadmap.
 - Consolidated S21 acceptance is intentionally gated until capability onboarding and the ownership audit are complete.
 
 ## Single-owner policy
@@ -49,7 +50,7 @@ The list below reflects previously integrated Gallery-native operations; it is n
 
 ## Onboarding readiness
 
-The capability onboarding chain through Wave 3D consists of open draft PRs #23–#32. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E covers downloads, media, user-mediated sharing, and integration with Gallery's existing TTS stack. The `speak_text` operation is implemented on the Wave 3E branch with a 1,000-character bound, exact-text one-time approval, and Agent Chat dispatch to the existing TTS playback controller; local validation is pending. Consolidated S21 device acceptance remains deferred until onboarding is complete.
+The capability onboarding chain through Wave 3D consists of open draft PRs #23–#32. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E now includes downloads/status/cancellation (PR #34), media search/indexing/Gallery-owned playback (current PR #35 preparation), and user-mediated sharing still planned. The `speak_text` operation reuses the existing TTS playback controller. Per-slice tests/builds are deferred by owner instruction until all capability onboarding is complete. Consolidated S21 device acceptance remains deferred until onboarding is complete.
 
 The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available.
 
@@ -133,6 +134,16 @@ inbox reads remain planned.
   content URIs with an explicit SYSTEM/LOCK/BOTH target. This keeps content URI permissions under
   Gallery's identity and avoids passing paths or URLs into Termux:API.
 
+
+## Gallery media discovery, visual indexing, and playback — Wave 3E draft
+
+- `android_control.media_search` searches MediaStore-visible photos/videos by filename and searches persisted user-granted SAF trees (including USB/OTG storage) by filename. AUTO combines filename results with semantic visual matches; NAME is filename-only; VISUAL requests semantic search. Results are capped at 20 and expose short-lived opaque handles only—never raw content URIs or filesystem paths.
+- Visual search reuses the existing EmbeddingGemma-2 model, Smart Album user vector database, and `SemanticRetrievalService`. It does not load the chat LLM to inspect each video and does not create a second embedding model or scanner. Videos use the existing Smart Album keyframe indexing path.
+- `media_index` requires one-time scoped approval, reports the current MediaStore item count and number of persisted read-granted storage trees, and reuses `SmartAlbumIndexingWorker`. It indexes permitted MediaStore photos/videos and up to 1,000 discovered media documents from granted SAF trees per pass. SAF traversal is capped at depth 8 and 10,000 visited nodes. Media stays on-device.
+- SAF document URIs are resolved only beneath persisted tree grants. The photo-library URI restoration path reads MIME type and display name from the provider so USB videos remain recognized as videos after process restart.
+- `media_play` accepts only a fresh opaque handle from the latest search result, requires one-time approval for the exact video, and opens Gallery's own Media3 PlayerView/ExoPlayer dialog. It does not dispatch arbitrary ACTION_VIEW intents. Image playback is not exposed by this operation.
+- Android MediaStore permission gaps are reported; Gallery does not silently broaden access. A user-granted SAF tree remains independently searchable when MediaStore access is unavailable.
+- Active media-session discovery/control is still a separate capability and is not implemented by Gallery-owned playback. Any future notification-listener special access remains opt-in and user-granted.
 
 ## Native microphone ownership — Phase 6C draft
 
