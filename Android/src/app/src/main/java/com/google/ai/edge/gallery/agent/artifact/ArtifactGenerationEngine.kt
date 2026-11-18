@@ -9,9 +9,7 @@ import com.google.ai.edge.gallery.tools.ToolAction
 import java.io.FilterOutputStream
 import java.io.OutputStream
 import java.security.MessageDigest
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -99,6 +97,7 @@ class ArtifactGeneratorRegistry(generators: List<ArtifactGenerator>) {
   private val byFormat = generators.associateBy { it.format }
   init {
     require(byFormat.size == generators.size) { "Only one generator may own each artifact format." }
+    require(generators.all { it.maxOutputBytes > 0L }) { "Every artifact generator must declare a positive output limit." }
   }
   fun find(format: ArtifactFormat): ArtifactGenerator? = byFormat[format]
 }
@@ -140,9 +139,14 @@ class DefaultArtifactGenerationEngine(
       estimatedBytes = generator.estimateBytes(request),
       overwrite = request.overwrite,
     )
-    if (!approvalRequester.requestApproval(approval)) {
-      return failure(request, "Artifact generation was not approved.")
+    val approved = try {
+      approvalRequester.requestApproval(approval)
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      return failure(request, error.message ?: "Artifact approval could not be completed.")
     }
+    if (!approved) return failure(request, "Artifact generation was not approved.")
     return try {
       val written = withTimeoutOrNull(operationTimeoutMs) {
         destination.write(request) { rawOutput ->
@@ -165,8 +169,15 @@ class DefaultArtifactGenerationEngine(
             }
           }
           val mimeType = generator.write(request, bounded)
+          require(request.format.acceptsMimeType(mimeType)) {
+            "The generator returned MIME type '$mimeType' for format ${request.format.name.lowercase()}."
+          }
           bounded.flush()
-          ArtifactOutputMetadata(mimeType, count, digest.digest().joinToString("") { "%02x".format(it) })
+          ArtifactOutputMetadata(
+            mimeType,
+            count,
+            digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) },
+          )
         }
       } ?: return failure(request, "Artifact generation exceeded the operation time limit.")
       ArtifactGenerationResult(
