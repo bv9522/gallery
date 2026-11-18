@@ -147,7 +147,9 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       require(!Files.exists(targetPath, LinkOption.NOFOLLOW_LINKS) || overwrite) {
         "Destination already exists; choose another filename or explicitly approve overwrite."
       }
-      require(!target.isDirectory) { "Destination is a folder, not a regular file." }
+      require(!Files.exists(targetPath, LinkOption.NOFOLLOW_LINKS) || Files.isRegularFile(targetPath, LinkOption.NOFOLLOW_LINKS)) {
+        "Destination exists but is not a regular file."
+      }
 
       val staging = File.createTempFile("." + requested.name.take(48) + ".", ".part", parent)
       temporary = staging
@@ -177,6 +179,9 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       require(!Files.isSymbolicLink(targetPath)) { "Destination changed to a symbolic link during transfer." }
       require(!Files.exists(targetPath, LinkOption.NOFOLLOW_LINKS) || overwrite) {
         "Destination appeared during transfer; refusing to replace it."
+      }
+      require(!Files.exists(targetPath, LinkOption.NOFOLLOW_LINKS) || Files.isRegularFile(targetPath, LinkOption.NOFOLLOW_LINKS)) {
+        "Destination changed to a non-regular file during transfer."
       }
       if (overwrite) {
         Os.rename(staging.absolutePath, target.absolutePath)
