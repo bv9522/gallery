@@ -135,6 +135,11 @@ class GalleryAccessibilityService : AccessibilityService() {
                       screenshot.colorSpace,
                     ) ?: error("Android returned an unreadable screenshot buffer.")
                     val softwareBitmap = try {
+                      require(
+                        hardwareBitmap.width <= MAX_SOURCE_DIMENSION &&
+                          hardwareBitmap.height <= MAX_SOURCE_DIMENSION &&
+                          hardwareBitmap.width.toLong() * hardwareBitmap.height <= MAX_SOURCE_PIXELS
+                      ) { "Screenshot source dimensions exceed the safe processing limit." }
                       hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
                         ?: error("Screenshot could not be copied into a safe software bitmap.")
                     } finally {
@@ -336,6 +341,8 @@ class GalleryAccessibilityService : AccessibilityService() {
     const val MAX_DEPTH = 12
     const val MAX_ELEMENTS = 32
     const val MAX_SOURCE_TEXT_CHARS = 512
+    const val MAX_SOURCE_DIMENSION = 4_096
+    const val MAX_SOURCE_PIXELS = 16L * 1_024 * 1_024
     const val MAX_SCREENSHOT_DIMENSION = 1_280
     const val MAX_SCREENSHOT_BYTES = 2 * 1_024 * 1_024
     const val SCREENSHOT_TIMEOUT_MS = 10_000L
