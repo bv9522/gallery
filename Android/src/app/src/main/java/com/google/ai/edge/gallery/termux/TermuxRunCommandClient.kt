@@ -46,7 +46,7 @@ import kotlinx.coroutines.ensureActive
  * issue cleanup.
  */
 interface TermuxBinaryArtifactWriter {
-  override suspend fun appendBinaryFileChunk(
+  suspend fun appendBinaryFileChunk(
     temporaryPath: String,
     encodedChunk: String,
     firstChunk: Boolean,
@@ -216,7 +216,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBina
    * documented RUN_COMMAND stdin extra. Each Intent stays comfortably below the platform's
    * approximate combined-extra ceiling; the caller verifies the complete file before rename.
    */
-  suspend fun appendBinaryFileChunk(
+  override suspend fun appendBinaryFileChunk(
     temporaryPath: String,
     encodedChunk: String,
     firstChunk: Boolean,
