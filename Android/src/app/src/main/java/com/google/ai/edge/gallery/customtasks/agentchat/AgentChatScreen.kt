@@ -164,6 +164,7 @@ fun AgentChatScreen(
   agentTools.skillsProvider = skillManagerViewModel.skillManager
   agentTools.dataStoreRepository = skillManagerViewModel.skillManager.dataStoreRepository
   agentTools.mcpManagerViewModel = mcpManagerViewModel
+  agentTools.modelManagerViewModel = modelManagerViewModel
   agentTools.taskId = task.id
   val density = LocalDensity.current
   val windowInfo = LocalWindowInfo.current
