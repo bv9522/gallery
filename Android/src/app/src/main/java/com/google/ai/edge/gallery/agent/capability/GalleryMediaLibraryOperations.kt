@@ -16,9 +16,10 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
-import android.content.ContentUris
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.MediaStore
@@ -187,6 +188,9 @@ class GalleryMediaLibraryOperations(
     }
 
     val treeScan = scanGrantedTrees(query = null, mediaKind = "ANY", maxMatches = MAX_TREE_INDEX_ASSETS)
+    if (treeScan.assets.isEmpty() && !hasMediaStoreReadAccess()) {
+      throw SecurityException("Gallery has no Android photo/video permission and no media files were found in persisted storage grants. Open Smart Album to grant photo/video access or grant a storage folder through document_tree request_access.")
+    }
     if (treeScan.assets.isNotEmpty()) {
       photoLibrary.addCustomAssets(treeScan.assets)
     }
@@ -259,8 +263,15 @@ class GalleryMediaLibraryOperations(
       Log.i(TAG, "MediaStore filename search requires media permission: ${error.message}")
     }
     val truncated = ids.size > limit
-    val assets = ids.take(limit).mapNotNull { id -> photoLibrary.fetchAsset(id) }
-    MediaStoreSearchResult(assets, permissionRequired, truncated)
+    val assets = ids.take(limit).mapNotNull { id ->
+      try {
+        photoLibrary.fetchAsset(id)
+      } catch (error: SecurityException) {
+        permissionRequired = true
+        null
+      }
+    }
+    MediaStoreSearchResult(assets, permissionRequired || !hasMediaStoreReadAccess(), truncated)
   }
 
   private suspend fun searchVisualIndex(
@@ -301,6 +312,24 @@ class GalleryMediaLibraryOperations(
       }
     } finally {
       provider.close()
+    }
+  }
+
+  private fun hasMediaStoreReadAccess(): Boolean {
+    val permissions = when {
+      Build.VERSION.SDK_INT >= 34 -> listOf(
+        Manifest.permission.READ_MEDIA_IMAGES,
+        Manifest.permission.READ_MEDIA_VIDEO,
+        Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED,
+      )
+      Build.VERSION.SDK_INT >= 33 -> listOf(
+        Manifest.permission.READ_MEDIA_IMAGES,
+        Manifest.permission.READ_MEDIA_VIDEO,
+      )
+      else -> listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+    return permissions.any { permission ->
+      appContext.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
     }
   }
 
