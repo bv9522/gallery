@@ -24,6 +24,9 @@ class AccessibilityScreenInspectionPolicyTest {
       "Verification code",
       "Patient portal",
       "Recovery phrase",
+      "Email",
+      "Phone",
+      "Username",
     ).forEach { label ->
       assertTrue("Expected sensitive marker in: $label",
         AccessibilityScreenInspectionPolicy.containsSensitiveText(label))
