@@ -129,7 +129,7 @@ class ShellArtifactDestinationAdapter(
         "[ ! -e $quotedTarget ]"
       }
       val preflight =
-        "command -v base64 >/dev/null 2>&1 && command -v sha256sum >/dev/null 2>&1 && " +
+        "for utility in base64 sha256sum dirname wc tr cut mv rm; do command -v \"$utility\" >/dev/null 2>&1 || exit 26; done && " +
           "parent=\$(dirname -- $quotedTarget) && [ -d \"\$parent\" ] && " +
           "[ ! -L $quotedTarget ] && { " + targetPolicy + "; } && " +
           "umask 077 && : > $quotedTemp && printf READY"
