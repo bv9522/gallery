@@ -320,7 +320,7 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
 | Wave 6 consolidated S21 acceptance | DEFERRED UNTIL STAGE 10 COMPLETE | Test inventory/preflight prepared; do not execute tests, builds, or S21 acceptance before all Stage 10 slices are onboarded |
-| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IN PROGRESS — 10C–10H cores implemented | PDF/DOCX/XLSX/PPTX, ZIP create/extract, local image transforms, provider consent boundary, SAF binary output; embedded document images and shell streaming pending; tests deferred |
+| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IN PROGRESS — 10C–10I code implemented | PDF/DOCX/XLSX/PPTX, ZIP create/extract, local image transforms/provider consent boundary, SAF output, Termux stdin chunks, Shizuku PFD output; TERMUX_RISH unavailable pending proof; embedded document images and Stage 10J acceptance remain; tests deferred |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
