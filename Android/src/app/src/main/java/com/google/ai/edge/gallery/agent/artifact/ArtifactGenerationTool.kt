@@ -6,6 +6,7 @@ package com.google.ai.edge.gallery.agent.artifact
 
 import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
+import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionBackend
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -15,11 +16,15 @@ class ArtifactGenerationTool(
   private val engine: DefaultArtifactGenerationEngine,
   private val supportedFormats: Set<ArtifactFormat>,
   private val supportedDestinations: Set<DestinationType>,
+  private val supportedShellBackends: Set<ShellExecutionBackend> = emptySet(),
   private val zipExtractionHandler: SafZipExtractionHandler? = null,
 ) : AgentTool {
   init {
     require(supportedFormats.isNotEmpty()) { "At least one artifact format must be exposed." }
     require(supportedDestinations.isNotEmpty()) { "At least one artifact destination must be exposed." }
+    require((DestinationType.SHELL in supportedDestinations) == supportedShellBackends.isNotEmpty()) {
+      "Shell destination exposure and supported shell backend set must agree."
+    }
   }
   override val name: String = "artifact_create"
   override val description: String =
@@ -27,7 +32,8 @@ class ArtifactGenerationTool(
       supportedFormats.joinToString { it.name.lowercase() } + ". " +
       "Supported destinations: " + supportedDestinations.joinToString { it.name.lowercase() } + ". " +
       "SAF requires a persisted Gallery document-tree grant and a tree URI/document ID returned by document_tree grants/list operations. " +
-      "Shell destinations, when enabled, require an explicit TERMUX, SHIZUKU, or TERMUX_RISH backend and an absolute path accessible to that identity. " +
+      "Shell destinations, when enabled, require an explicit backend from: " +
+      supportedShellBackends.joinToString { it.name } + ", and an absolute path accessible to that identity. " +
       "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
       "Generated content remains local. The image format currently means bounded on-device resize/crop/rotate/convert only; no generative-image provider is registered."
 
@@ -50,7 +56,7 @@ class ArtifactGenerationTool(
         add("parent_document_id", JsonObject().apply { addProperty("type", "string") })
         add("backend", JsonObject().apply {
           addProperty("type", "string")
-          add("enum", JsonArray().apply { ShellBackendNames.forEach { add(it) } })
+          add("enum", JsonArray().apply { supportedShellBackends.sortedBy { it.name }.forEach { add(it.name) } })
         })
         add("path", JsonObject().apply { addProperty("type", "string") })
         add("overwrite", JsonObject().apply { addProperty("type", "boolean") })
@@ -67,6 +73,20 @@ class ArtifactGenerationTool(
       is ArtifactArgumentsParseResult.Invalid -> AgentToolResult(parsed.message, false)
       is ArtifactArgumentsParseResult.Valid -> {
         val request = parsed.request
+        if (request.format !in supportedFormats) {
+          return AgentToolResult("Artifact format ${request.format.name.lowercase()} is not enabled in this runtime.", false)
+        }
+        val destinationType = when (request.destination) {
+          is ArtifactDestinationSpec.SafTree -> DestinationType.SAF
+          is ArtifactDestinationSpec.ShellPath -> DestinationType.SHELL
+        }
+        if (destinationType !in supportedDestinations) {
+          return AgentToolResult("Artifact destination $destinationType is not enabled in this runtime.", false)
+        }
+        if (request.destination is ArtifactDestinationSpec.ShellPath &&
+          request.destination.backend !in supportedShellBackends) {
+          return AgentToolResult("Shell backend ${request.destination.backend} is not enabled for binary artifact output; no fallback is allowed.", false)
+        }
         val operation = request.payload.get("operation")
           ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: "create"
         val result = if (request.format == ArtifactFormat.ZIP && operation == "extract") {
@@ -80,7 +100,5 @@ class ArtifactGenerationTool(
     }
   }
 
-  private companion object {
-    val ShellBackendNames = listOf("TERMUX", "SHIZUKU", "TERMUX_RISH")
-  }
+  private companion object
 }
