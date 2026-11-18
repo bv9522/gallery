@@ -36,6 +36,11 @@ class SafZipExtractionHandler(
   suspend fun execute(request: ArtifactCreateRequest): ArtifactGenerationResult =
     withTimeout(OPERATION_TIMEOUT_MS) {
       require(request.format == ArtifactFormat.ZIP) { "ZIP extraction handler received a non-ZIP request." }
+      require(!request.overwrite) { "ZIP extraction never overwrites existing files or folders." }
+      val allowedPayloadKeys = setOf("operation", "source_tree_uri", "source_document_id")
+      val unexpected = request.payload.keySet() - allowedPayloadKeys
+      require(unexpected.isEmpty()) { "Unsupported ZIP extraction payload field(s): ${unexpected.sorted().joinToString()}." }
+      require(payloadString(request, "operation") == "extract") { "ZIP extraction requires operation='extract'." }
       val sourceTreeUri = payloadString(request, "source_tree_uri")
       val sourceDocumentId = payloadString(request, "source_document_id")
       val sourceTree = requireTreeGrant(sourceTreeUri, write = false)
@@ -51,6 +56,9 @@ class SafZipExtractionHandler(
       }
       require(sourceIsChild) { "The selected ZIP source is outside the persisted source tree." }
       val sourceMetadata = withContext(Dispatchers.IO) { queryDocument(sourceUri) }
+      require(request.fileName == sourceMetadata.displayName) {
+        "file_name must exactly match the selected ZIP source filename."
+      }
       require(sourceMetadata.mimeType != DocumentsContract.Document.MIME_TYPE_DIR) {
         "The selected ZIP source must be a file."
       }
