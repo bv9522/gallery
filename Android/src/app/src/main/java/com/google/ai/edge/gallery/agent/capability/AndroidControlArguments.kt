@@ -154,7 +154,7 @@ internal object AndroidControlArguments {
       val query = arguments.get("query")
         ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
         ?.asString.orEmpty()
-      if (query.isBlank() || query.length > 120) {
+      if (query.isBlank() || query.length > 120 || query.any { it.isISOControl() }) {
         return "media_search query must contain 1–120 non-whitespace characters."
       }
       if (arguments.has("media_kind")) {
