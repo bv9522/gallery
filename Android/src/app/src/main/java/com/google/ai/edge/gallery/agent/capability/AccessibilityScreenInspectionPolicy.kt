@@ -123,9 +123,15 @@ internal object AccessibilityScreenInspectionPolicy {
   }
 
   fun isSafeInputText(value: String): Boolean =
-    value.isNotEmpty() &&
+    value.isNotBlank() &&
       value.length <= MAX_INPUT_TEXT_CHARS &&
-      value.none { it.isISOControl() } &&
+      value.none {
+        val category = Character.getType(it)
+        it.isISOControl() ||
+          category == Character.FORMAT.toInt() ||
+          category == Character.LINE_SEPARATOR.toInt() ||
+          category == Character.PARAGRAPH_SEPARATOR.toInt()
+      } &&
       !containsSensitiveInputMarker(value)
 
   fun isValidSelection(start: Int, end: Int, textLength: Int): Boolean =
