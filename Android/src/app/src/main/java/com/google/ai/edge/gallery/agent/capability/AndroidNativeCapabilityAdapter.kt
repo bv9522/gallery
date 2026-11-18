@@ -59,7 +59,6 @@ import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.provider.ContactsContract
 import android.provider.MediaStore
-import android.service.notification.StatusBarNotification
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.telephony.TelephonyManager
