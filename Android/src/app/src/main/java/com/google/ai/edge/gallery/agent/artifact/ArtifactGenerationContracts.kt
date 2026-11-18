@@ -17,6 +17,9 @@ enum class ArtifactFormat(val mimeType: String) {
   ZIP("application/zip"),
   IMAGE("image/*");
 
+  fun acceptsMimeType(value: String): Boolean =
+    if (this == IMAGE) value in setOf("image/png", "image/jpeg", "image/webp") else value == mimeType
+
   fun acceptsFileName(name: String): Boolean {
     val extension = name.substringAfterLast('.', "").lowercase()
     return when (this) {
