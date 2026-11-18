@@ -157,22 +157,28 @@ internal object AndroidControlArguments {
       if (query.isBlank() || query.length > 120) {
         return "media_search query must contain 1–120 non-whitespace characters."
       }
-      val mediaKind = arguments.get("media_kind")
-        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
-        ?.asString ?: "ANY"
-      if (mediaKind !in setOf("ANY", "IMAGE", "VIDEO")) {
-        return "media_kind must be ANY, IMAGE, or VIDEO."
+      if (arguments.has("media_kind")) {
+        val mediaKind = arguments.get("media_kind")
+          ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+          ?.asString ?: return "media_kind must be a string."
+        if (mediaKind !in setOf("ANY", "IMAGE", "VIDEO")) {
+          return "media_kind must be ANY, IMAGE, or VIDEO."
+        }
       }
-      val searchMode = arguments.get("search_mode")
-        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
-        ?.asString ?: "AUTO"
-      if (searchMode !in setOf("AUTO", "NAME", "VISUAL")) {
-        return "search_mode must be AUTO, NAME, or VISUAL."
+      if (arguments.has("search_mode")) {
+        val searchMode = arguments.get("search_mode")
+          ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+          ?.asString ?: return "search_mode must be a string."
+        if (searchMode !in setOf("AUTO", "NAME", "VISUAL")) {
+          return "search_mode must be AUTO, NAME, or VISUAL."
+        }
       }
-      val limit = arguments.get("limit")
-        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
-        ?.asString?.toIntOrNull() ?: 10
-      if (limit !in 1..20) return "media_search limit must be from 1 to 20."
+      if (arguments.has("limit")) {
+        val limit = arguments.get("limit")
+          ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+          ?.asString?.toIntOrNull() ?: return "media_search limit must be an integer."
+        if (limit !in 1..20) return "media_search limit must be from 1 to 20."
+      }
     }
 
     if (operation in setOf("bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write")) {
