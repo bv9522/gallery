@@ -27,6 +27,7 @@ import android.location.Geocoder
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
@@ -751,6 +752,7 @@ class DefaultPhotoLibraryService(
       val mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
       var displayName = uri.lastPathSegment ?: if (mimeType?.startsWith("video/") == true) "Video" else "Media"
       var sizeBytes = 0L
+      var modifiedMs = 0L
       try {
         context.contentResolver.query(
           uri,
@@ -773,6 +775,22 @@ class DefaultPhotoLibraryService(
       } catch (e: Exception) {
         Log.w(TAG, "Unable to read display metadata for selected media URI.", e)
       }
+      if (runCatching { DocumentsContract.isDocumentUri(context, uri) }.getOrDefault(false)) {
+        runCatching {
+          context.contentResolver.query(
+            uri,
+            arrayOf(DocumentsContract.Document.COLUMN_LAST_MODIFIED),
+            null,
+            null,
+            null,
+          )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+              val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+              if (index >= 0 && !cursor.isNull(index)) modifiedMs = cursor.getLong(index)
+            }
+          }
+        }.onFailure { Log.w(TAG, "Unable to read modification time for selected document URI.", it) }
+      }
       val uriString = uri.toString()
       val extensionSuggestsVideo =
         listOf(".mp4", ".mov", ".mkv", ".webm", ".3gp", ".m4v").any {
@@ -782,7 +800,7 @@ class DefaultPhotoLibraryService(
       PhotoAsset(
         id = uriString,
         contentUri = uri,
-        dateTaken = System.currentTimeMillis(),
+        dateTaken = modifiedMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
         sizeBytes = sizeBytes,
         displayName = displayName,
         isVideo = isVideo,
