@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #36 opened; user-mediated sharing onboarded; per-slice test/build execution deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (PR #37 opened; active media-session control onboarded; per-slice test/build execution deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-3e-user-mediated-sharing` (stacked on `wave-3e-media-library-playback`)  
-> **Current change:** [PR #36 — Wave 3E user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), draft/open/unmerged, stacked on [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35). PRs #33–#36 remain draft/open/unmerged.  
+> **Current implementation branch:** `wave-3e-active-media-session-control` (stacked on `wave-3e-user-mediated-sharing`)  
+> **Current change:** [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), draft/open/unmerged, stacked on [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36). PRs #33–#37 remain draft/open/unmerged.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -151,7 +151,9 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [CODE / VALIDATION DEFERRED — PR #35] Bounded `media_search` across MediaStore-visible internal/removable media and persisted user-granted SAF trees. AUTO combines filename search with the existing EmbeddingGemma-2 Smart Album visual index; NAME is filename-only; VISUAL requests semantic visual search. Results contain five-minute opaque handles, not paths or content URIs.
 - [CODE / VALIDATION DEFERRED — PR #35] `media_index` reuses the existing SmartAlbumIndexingWorker and EmbeddingGemma-2 vector database. It indexes permitted MediaStore photos/videos, media previously selected through Gallery's photo picker, and up to 1,000 media files discovered per pass in already-granted SAF trees; indexing requires one-time approval and remains on-device. SAF discovery is bounded to depth 8 / 10,000 visited nodes; subsequent runs skip already indexed SAF document URIs and advance through the bounded scan.
 - [CODE / VALIDATION DEFERRED — PR #35] `media_play` requires a fresh search handle and one-time approval, then opens the selected video in Gallery's own Media3 player. It does not launch an external ACTION_VIEW intent and does not expose cross-app media-session controls.
-- [ ] Active media-session discovery/control remains distinct from Gallery-initiated playback; do not expose it unless the user explicitly grants any required notification-listener special access.
+- [CODE / VALIDATION DEFERRED — PR #37] `media_sessions.list` reads up to 10 active cross-app media sessions through `MediaSessionManager` only after the user enables Gallery's notification-listener special access. It returns bounded app/track metadata, playback state, supported actions, and 2-minute opaque handles. It does not inspect/store notifications or expose package names/session tokens.
+- [CODE / VALIDATION DEFERRED — PR #37] `media_sessions.control` supports only advertised PLAY, PAUSE, NEXT, PREVIOUS, and SEEK actions; SEEK requires a known track duration and an in-range integer position. Every inspection/control requires one-time approval. Handles are refreshed by each list call, revalidated against the active session, and consumed after successful dispatch.
+- [CODE / VALIDATION DEFERRED — PR #37] `media_sessions.open_settings` is available only when explicitly requested; it opens Android notification-listener settings but does not grant access. Provider status reports `PERMISSION_REQUIRED` until the user enables Gallery manually. Gallery's listener service does not read, store, or summarize notifications.
 - [CODE / VALIDATION DEFERRED — PR #36] `share_content.share_text` approves the exact bounded text (1–4,000 characters) and opens Android's ACTION_SEND chooser. `share_file` accepts only a document ID plus a persisted SAF tree URI already granted to Gallery; it verifies the file metadata, requires a known size up to 25 MiB, and grants temporary read access through ACTION_SEND/ClipData. The user chooses the receiving app and completes or cancels; opening the chooser is not evidence of delivery.
 - [x] Add bounded argument-validation tests and document the exact chooser, approval, SAF-grant, temporary-read, and non-delivery semantics. Tests/builds/device checks for PR #36 remain unexecuted under the owner-directed deferral; consolidated validation remains later.
 
@@ -228,7 +230,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3C telephony/user-mediated actions | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #31 |
 | Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
-| Wave 3E downloads/media/sharing | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media and PR #36 user-mediated sharing (tests added, not run); device acceptance pending |
+| Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | PLANNED | No implementation PR in current chain |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
@@ -254,6 +256,7 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #34 — Gallery-owned download status and exact cancellation (**local tests/build user-confirmed; device acceptance pending**).
 - PR #35 — media discovery, visual indexing, and Gallery-owned video playback (**tests added; execution deferred by owner instruction**).
 - PR #36 — user-mediated text and SAF file sharing through Android's ACTION_SEND chooser (**tests added; execution deferred by owner instruction**).
+- PR #37 — active cross-app media-session discovery/control through opt-in notification-listener special access (**tests added; execution deferred by owner instruction**).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
@@ -355,7 +358,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
 | Media scan / index | Native Kotlin (MediaScannerConnection / MediaStore) | Planned |
 | Media playback initiated by the app | Native Kotlin (existing media stack or platform MediaPlayer) | Planned |
-| Active media-session control | Native Kotlin (MediaSessionManager) | Planned; notification-listener access may be required |
+| Active media-session control | Native Kotlin (MediaSessionManager) | CODE / VALIDATION DEFERRED — PR #37; user-opt-in notification-listener special access, one-time approval, bounded session handles and controls |
 | Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
 | Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
 | App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Draft in PR #30: approved schedule/list/cancel operations reuse Gallery's existing scheduler; user-confirmed unit tests and debug build passed; WorkManager remains for deferrable jobs, not exact-time notification alarms |

@@ -56,6 +56,7 @@ class CapabilityRegistryTest {
       AndroidCapability.CLIPBOARD_WRITE,
       AndroidCapability.SPEECH_RECOGNITION,
       AndroidCapability.TEXT_TO_SPEECH,
+      AndroidCapability.MEDIA_SESSION_CONTROL,
     ).forEach { capability ->
       val ownership = CapabilityCatalog.preferences.single { it.capability == capability }
       assertEquals(CapabilityProviderId.ANDROID_NATIVE, ownership.providerId)

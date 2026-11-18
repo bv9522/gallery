@@ -21,6 +21,7 @@ import android.content.ContextWrapper
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import android.os.Bundle
 import android.util.Log
 import android.webkit.ConsoleMessage
@@ -121,6 +122,7 @@ import com.google.ai.edge.gallery.tools.SkillProgressToolAction
 import com.google.ai.edge.gallery.tools.SpeakTextToolAction
 import com.google.ai.edge.gallery.tools.PlayMediaToolAction
 import com.google.ai.edge.gallery.tools.ShareContentToolAction
+import com.google.ai.edge.gallery.tools.OpenMediaSessionSettingsToolAction
 import com.google.ai.edge.gallery.ui.common.BaseGalleryWebViewClient
 import com.google.ai.edge.gallery.ui.common.tts.TtsPlaybackViewModel
 import com.google.ai.edge.gallery.ui.common.GalleryWebView
@@ -353,6 +355,16 @@ fun AgentChatScreen(
           when (action) {
             is PlayMediaToolAction -> {
               currentMediaPlaybackAction = action
+            }
+            is OpenMediaSessionSettingsToolAction -> {
+              runCatching {
+                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+              }.onSuccess {
+                action.result.complete(true)
+              }.onFailure { error ->
+                Log.w(TAG, "Notification-listener settings could not be opened.", error)
+                action.result.complete(false)
+              }
             }
             is ShareContentToolAction -> {
               runCatching {
