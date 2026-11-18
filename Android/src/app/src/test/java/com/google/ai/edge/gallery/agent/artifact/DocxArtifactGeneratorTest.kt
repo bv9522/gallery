@@ -5,6 +5,9 @@ import com.google.gson.JsonObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipInputStream
+import javax.xml.parsers.DocumentBuilderFactory
+import org.xml.sax.InputSource
+import java.io.StringReader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,6 +38,21 @@ class DocxArtifactGeneratorTest {
     assertTrue(entries.getValue("word/document.xml").contains("A &amp; B"))
     assertTrue(entries.getValue("word/_rels/document.xml.rels").contains("rIdHeader"))
     assertTrue(output.toByteArray().copyOfRange(0, 2).contentEquals(byteArrayOf(0x50, 0x4b)))
+  }
+
+  @Test fun everyXmlPackagePartIsWellFormed() {
+    val output = ByteArrayOutputStream()
+    generator.write(request(), output)
+    ZipInputStream(ByteArrayInputStream(output.toByteArray())).use { zip ->
+      while (true) {
+        val entry = zip.nextEntry ?: break
+        if (entry.name.endsWith(".xml") || entry.name.endsWith(".rels")) {
+          val xml = zip.readBytes().toString(Charsets.UTF_8)
+          DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            .parse(InputSource(StringReader(xml)))
+        }
+      }
+    }
   }
 
   @Test fun validatesBoundedStructuredContent() {
