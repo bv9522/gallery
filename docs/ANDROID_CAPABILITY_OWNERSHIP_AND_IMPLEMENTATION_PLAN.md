@@ -203,7 +203,7 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 **Status: IN PROGRESS — test planning unlocked; execution not yet started.** All capability onboarding (Stages 4–7) and the final source-level ownership audit are complete in the stacked draft PR chain #39–#47. The next immediate action is a test-inventory and build-environment preflight against the combined head, not a per-PR test run.
 
 #### 8A — Consolidated test and build preflight
-- [ ] Confirm the complete dependency chain resolves through PR #47 head `570e73a487e5539f1aad08b17ce5099c2df4e402`; keep all PRs draft/open/unmerged.
+- [ ] Confirm the complete dependency chain resolves through PR #47 head `1dd2129be234039b6766dc2cf50d2b8208f55ce7`; keep all PRs draft/open/unmerged.
 - [ ] Inventory every test source and existing Gradle task; map each new capability to its unit/policy/parser/dispatch tests and identify uncovered integration seams.
 - [ ] Confirm Windows JDK/Gradle/Android SDK paths, compile SDK 37 installation, signing identity, available disk space, and ADB/device connectivity before execution.
 - [ ] Capture baseline repository state and exact commands/results; do not clean or wipe app/device data as a precondition unless specifically needed and approved.
