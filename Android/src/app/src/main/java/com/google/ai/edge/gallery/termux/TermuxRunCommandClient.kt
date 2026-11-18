@@ -228,8 +228,23 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     require(maxOutputChars in MIN_OUTPUT_CHARS..MAX_OUTPUT_CHARS) {
       "Output limit must be between $MIN_OUTPUT_CHARS and $MAX_OUTPUT_CHARS characters."
     }
+    ensureTermuxStdinSupported()
     ensureTermuxReady()
     return invokeTermux(command, workingDirectory, timeoutMs, maxOutputChars, stdin)
+  }
+
+  private fun ensureTermuxStdinSupported() {
+    val versionName = try {
+      @Suppress("DEPRECATION")
+      appContext.packageManager.getPackageInfo(TERMUX_PACKAGE, 0).versionName.orEmpty()
+    } catch (error: PackageManager.NameNotFoundException) {
+      throw IllegalStateException("Termux is not installed. Install and initialize Termux first.")
+    }
+    val parts = versionName.substringBefore('-').split('.').mapNotNull { it.toIntOrNull() }
+    val supported = parts.size >= 2 && (parts[0] > 0 || parts[1] >= MIN_STDIN_TERMUX_MINOR)
+    check(supported) {
+      "Termux $MIN_STDIN_TERMUX_VERSION or newer is required for RUN_COMMAND stdin binary transfer; found '$versionName'."
+    }
   }
 
   private suspend fun awaitCompletion(directory: String): SupervisorState {
@@ -511,6 +526,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
     private const val EXTRA_STDIN = "com.termux.RUN_COMMAND_STDIN"
     private const val MAX_STDIN_CHARS = 180_000
+    private const val MIN_STDIN_TERMUX_VERSION = "0.109.0"
+    private const val MIN_STDIN_TERMUX_MINOR = 109
 
     internal const val EXTRA_PLUGIN_RESULT_BUNDLE = "result"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT = "stdout"
