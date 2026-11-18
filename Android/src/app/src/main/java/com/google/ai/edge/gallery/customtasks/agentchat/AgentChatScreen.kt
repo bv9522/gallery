@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -994,7 +995,12 @@ private fun AgentMediaPlaybackDialog(
   onDismiss: () -> Unit,
 ) {
   val context = LocalContext.current
-  val player = remember(action.contentUri) { ExoPlayer.Builder(context).build() }
+  val player = remember(action.contentUri) {
+    ExoPlayer.Builder(context).build().apply {
+      setAudioAttributes(AudioAttributes.DEFAULT, true)
+      setHandleAudioBecomingNoisy(true)
+    }
+  }
   var playbackError by remember(action.contentUri) { mutableStateOf<String?>(null) }
 
   DisposableEffect(player, action) {
