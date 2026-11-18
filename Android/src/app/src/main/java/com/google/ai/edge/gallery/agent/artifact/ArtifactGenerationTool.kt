@@ -13,12 +13,20 @@ import com.google.gson.JsonObject
 /** Single model-facing entry point for all generated artifact formats. */
 class ArtifactGenerationTool(
   private val engine: DefaultArtifactGenerationEngine,
+  private val supportedFormats: Set<ArtifactFormat>,
+  private val supportedDestinations: Set<DestinationType>,
 ) : AgentTool {
+  init {
+    require(supportedFormats.isNotEmpty()) { "At least one artifact format must be exposed." }
+    require(supportedDestinations.isNotEmpty()) { "At least one artifact destination must be exposed." }
+  }
   override val name: String = "artifact_create"
   override val description: String =
-    "Create one bounded PDF, DOCX, XLSX, PPTX, ZIP, or processed image artifact. " +
-      "Choose exactly one destination: a persisted Gallery SAF tree grant or an explicit TERMUX, SHIZUKU, or TERMUX_RISH path. " +
-      "Use only tree URIs/document IDs returned by document_tree grants/list operations. Shell paths must be absolute and accessible to the selected backend. " +
+    "Create a bounded artifact in one of the currently supported formats: " +
+      supportedFormats.joinToString { it.name.lowercase() } + ". " +
+      "Supported destinations: " + supportedDestinations.joinToString { it.name.lowercase() } + ". " +
+      "SAF requires a persisted Gallery document-tree grant and a tree URI/document ID returned by document_tree grants/list operations. " +
+      "Shell destinations, when enabled, require an explicit TERMUX, SHIZUKU, or TERMUX_RISH backend and an absolute path accessible to that identity. " +
       "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
       "Generated content remains local; remote image generation is a separate opt-in provider flow."
 
@@ -29,13 +37,13 @@ class ArtifactGenerationTool(
         add("format", JsonObject().apply {
           addProperty("type", "string")
           add("enum", JsonArray().apply {
-            ArtifactFormat.entries.forEach { add(it.name.lowercase()) }
+            supportedFormats.sortedBy { it.name }.forEach { add(it.name.lowercase()) }
           })
         })
         add("file_name", JsonObject().apply { addProperty("type", "string"); addProperty("maxLength", ArtifactCreateArguments.MAX_FILE_NAME_CHARS) })
         add("destination_type", JsonObject().apply {
           addProperty("type", "string")
-          add("enum", JsonArray().apply { add("saf"); add("shell") })
+          add("enum", JsonArray().apply { supportedDestinations.sortedBy { it.name }.forEach { add(it.name.lowercase()) } })
         })
         add("tree_uri", JsonObject().apply { addProperty("type", "string") })
         add("parent_document_id", JsonObject().apply { addProperty("type", "string") })
