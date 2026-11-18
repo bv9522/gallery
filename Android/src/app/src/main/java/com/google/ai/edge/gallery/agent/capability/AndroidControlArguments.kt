@@ -54,6 +54,7 @@ internal object AndroidControlArguments {
     "set_flashlight" to setOf("operation", "enabled"),
     "launch_app" to setOf("operation", "package_name"),
     "open_url" to setOf("operation", "url"),
+    "wifi_open_settings" to setOf("operation"),
     "bluetooth_bonded_devices" to setOf("operation"),
     "bluetooth_le_scan" to setOf("operation", "duration_ms"),
     "bluetooth_gatt_services" to setOf("operation", "device_address", "timeout_ms"),
