@@ -270,9 +270,6 @@ internal object ImageTransformArguments {
     }
     val rotation = optionalInt(payload, "rotation_degrees", setOf(0, 90, 180, 270)) ?: 0
     val quality = optionalInt(payload, "quality", 1..100) ?: DEFAULT_QUALITY
-    require(resizeWidth != null || cropWidth != null || rotation != 0) {
-      "Specify at least one resize, crop, or rotation operation; choose a different output extension to convert formats."
-    }
     return ImageTransformRequest(
       sourceTree, sourceId, resizeWidth, resizeHeight, cropX, cropY, cropWidth, cropHeight, rotation, quality,
     )
