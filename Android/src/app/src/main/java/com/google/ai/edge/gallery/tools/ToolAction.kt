@@ -34,6 +34,7 @@ enum class ToolActionName() {
   OPEN_DOCUMENT_TREE,
   SPEAK_TEXT,
   PLAY_MEDIA,
+  SHARE_CONTENT,
 }
 
 /**
@@ -218,3 +219,14 @@ class SpeakTextToolAction(
   val text: String,
   val result: CompletableDeferred<Boolean> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.SPEAK_TEXT)
+
+
+/** Requests Android's system share chooser; success means only that the chooser opened. */
+class ShareContentToolAction(
+  val mimeType: String,
+  val text: String? = null,
+  val contentUri: String? = null,
+  val displayName: String? = null,
+  val chooserTitle: String,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.SHARE_CONTENT)
