@@ -1157,15 +1157,16 @@ class AndroidNativeCapabilityAdapter(
     val continuationRef = AtomicReference<kotlinx.coroutines.CancellableContinuation<Boolean>?>(null)
     val receiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent?) {
-        if (intent?.action != action) return
+        val receivedIntent = intent ?: return
+        if (receivedIntent.action != action) return
         @Suppress("DEPRECATION")
         val returnedDevice = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-          intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+          receivedIntent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
         } else {
-          intent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
+          receivedIntent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
         }
         if (returnedDevice?.deviceName != device.deviceName) return
-        val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+        val granted = receivedIntent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
         continuationRef.getAndSet(null)?.let { continuation ->
           if (continuation.isActive) continuation.resume(granted)
         }
