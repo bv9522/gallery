@@ -631,7 +631,11 @@ class GalleryAccessibilityService : AccessibilityService() {
           rawDescription.length > MAX_SOURCE_TEXT_CHARS || rawHint.length > MAX_SOURCE_TEXT_CHARS) {
           return AccessibilityWindowSnapshot.Excluded("A visible element exceeds the safe text-inspection limit; no screen content was returned.")
         }
+        val safeInputLabel = AccessibilityScreenInspectionPolicy.sanitizeLabel(
+          listOf(rawHint, rawDescription).firstOrNull { it.isNotBlank() }
+        )
         val safeTextInput = node.isEditable && allowSafeTextInputs &&
+          safeInputLabel != null &&
           AccessibilityScreenInspectionPolicy.isSafeTextInputField(
             className = node.className?.toString().orEmpty(),
             inputType = node.inputType,
@@ -651,10 +655,10 @@ class GalleryAccessibilityService : AccessibilityService() {
             "This screen contains sign-in, financial, identity, health, or other sensitive content and is excluded."
           )
         }
-        val label = AccessibilityScreenInspectionPolicy.sanitizeLabel(
-          if (node.isEditable) listOf(rawHint, rawDescription).firstOrNull { it.isNotBlank() }
-          else listOf(rawText, rawDescription, rawHint).firstOrNull { it.isNotBlank() }
-        )
+        val label = if (node.isEditable) safeInputLabel else
+          AccessibilityScreenInspectionPolicy.sanitizeLabel(
+            listOf(rawText, rawDescription, rawHint).firstOrNull { it.isNotBlank() }
+          )
         val useful = !label.isNullOrBlank() || node.isClickable || node.isLongClickable ||
           node.isScrollable || node.isCheckable || node.isFocusable || safeTextInput
         if (!useful) continue
