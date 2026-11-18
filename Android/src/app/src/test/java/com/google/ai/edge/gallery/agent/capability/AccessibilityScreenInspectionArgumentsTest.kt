@@ -128,9 +128,16 @@ class AccessibilityScreenInspectionArgumentsTest {
       addProperty("element_handle", "ui_0123456789abcdef")
       addProperty("selection_start", 0)
     }
+    val fractional = JsonObject().apply {
+      addProperty("operation", "select_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("selection_start", 0.5)
+      addProperty("selection_end", 2)
+    }
     assertNull(AccessibilityScreenInspectionArguments.validate(valid))
     assertNotNull(AccessibilityScreenInspectionArguments.validate(empty))
     assertNotNull(AccessibilityScreenInspectionArguments.validate(tooLarge))
     assertNotNull(AccessibilityScreenInspectionArguments.validate(missingEnd))
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(fractional))
   }
 }
