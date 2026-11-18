@@ -37,6 +37,12 @@ class ArtifactCreateArgumentsTest {
     assertTrue(parsed.request.overwrite)
   }
 
+  @Test fun validatesPdfMimeAndBinarySignature() {
+    assertTrue(ArtifactFormat.PDF.acceptsMimeType("application/pdf"))
+    assertTrue(ArtifactFormat.PDF.acceptsSignature("%PDF-1.7".toByteArray()))
+    assertFalse(ArtifactFormat.PDF.acceptsSignature("not a pdf".toByteArray()))
+  }
+
   @Test fun rejectsMixedDestinationIdentities() {
     val args = JsonObject().apply {
       addProperty("format", "pdf")

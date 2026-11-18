@@ -24,13 +24,45 @@ class ArtifactGenerationEngineTest {
     assertTrue(result.isSuccessful)
     assertEquals("report.pdf", result.fileName)
     assertEquals("application/pdf", result.mimeType)
-    assertEquals(7L, result.bytesWritten)
+    assertEquals(8L, result.bytesWritten)
     assertEquals(64, result.sha256?.length)
   }
 
   @Test(expected = IllegalArgumentException::class)
   fun duplicateFormatOwnersAreRejected() {
     ArtifactGeneratorRegistry(listOf(FakeGenerator(), FakeGenerator()))
+  }
+
+
+  @Test fun rejectsOutputWithWrongFileSignature() = runBlocking {
+    val destination = object : ArtifactDestinationAdapter {
+      override val destinationType = DestinationType.SAF
+      override suspend fun describe(request: ArtifactCreateRequest) = "Granted Documents folder"
+      override suspend fun write(
+        request: ArtifactCreateRequest,
+        producer: ArtifactOutputProducer,
+      ): ArtifactDestinationWriteResult {
+        val bytes = ByteArrayOutputStream()
+        val metadata = producer.write(bytes)
+        return ArtifactDestinationWriteResult("Granted Documents folder", metadata)
+      }
+    }
+    val wrongGenerator = object : ArtifactGenerator {
+      override val format = ArtifactFormat.PDF
+      override val maxOutputBytes = 1_024L
+      override fun write(request: ArtifactCreateRequest, output: java.io.OutputStream): String {
+        output.write("not a pdf".toByteArray())
+        return "application/pdf"
+      }
+    }
+    val engine = DefaultArtifactGenerationEngine(
+      ArtifactGeneratorRegistry(listOf(wrongGenerator)),
+      ArtifactDestinationRegistry(listOf(destination)),
+      ArtifactGenerationApprovalRequester { true },
+    )
+    val result = engine.create(request())
+    assertFalse(result.isSuccessful)
+    assertTrue(result.message.contains("signature"))
   }
 
   private fun engine(approved: Boolean, onWrite: () -> Unit = {}): DefaultArtifactGenerationEngine {
@@ -66,7 +98,7 @@ class ArtifactGenerationEngineTest {
     override val format = ArtifactFormat.PDF
     override val maxOutputBytes = 1_024L
     override fun write(request: ArtifactCreateRequest, output: java.io.OutputStream): String {
-      output.write("pdfdata".toByteArray())
+      output.write("%PDF-1.7".toByteArray())
       return "application/pdf"
     }
   }

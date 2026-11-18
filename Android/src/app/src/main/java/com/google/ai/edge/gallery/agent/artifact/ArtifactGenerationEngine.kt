@@ -7,6 +7,7 @@ package com.google.ai.edge.gallery.agent.artifact
 import com.google.ai.edge.gallery.tools.AskArtifactGenerationPermissionAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import java.io.FilterOutputStream
+import java.io.ByteArrayOutputStream
 import java.io.OutputStream
 import java.security.MessageDigest
 import kotlinx.coroutines.CancellationException
@@ -151,12 +152,18 @@ class DefaultArtifactGenerationEngine(
       val written = withTimeoutOrNull(operationTimeoutMs) {
         destination.write(request) { rawOutput ->
           val digest = MessageDigest.getInstance("SHA-256")
+          val prefix = ByteArrayOutputStream(16)
           var count = 0L
           val bounded = object : FilterOutputStream(rawOutput) {
+            private fun capture(bytes: ByteArray, offset: Int, length: Int) {
+              val remaining = 16 - prefix.size()
+              if (remaining > 0) prefix.write(bytes, offset, minOf(length, remaining))
+            }
             override fun write(value: Int) {
               count++
               require(count <= generator.maxOutputBytes) { "Artifact exceeds the format output limit." }
               digest.update(value.toByte())
+              if (prefix.size() < 16) prefix.write(value)
               out.write(value)
             }
             override fun write(bytes: ByteArray, offset: Int, length: Int) {
@@ -165,12 +172,16 @@ class DefaultArtifactGenerationEngine(
               }
               count += length
               digest.update(bytes, offset, length)
+              capture(bytes, offset, length)
               out.write(bytes, offset, length)
             }
           }
           val mimeType = generator.write(request, bounded)
           require(request.format.acceptsMimeType(mimeType)) {
             "The generator returned MIME type '$mimeType' for format ${request.format.name.lowercase()}."
+          }
+          require(request.format.acceptsSignature(prefix.toByteArray())) {
+            "The generated output does not have a valid ${request.format.name.lowercase()} file signature."
           }
           bounded.flush()
           ArtifactOutputMetadata(
