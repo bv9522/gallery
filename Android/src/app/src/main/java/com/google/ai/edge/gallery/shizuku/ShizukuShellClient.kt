@@ -56,7 +56,18 @@ interface ShizukuShellExecutor {
  * One persistent shell session is retained for this client instance so cwd and exported variables
  * survive consecutive tool calls. This class does not grant root access.
  */
-class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
+interface ShizukuBinaryArtifactWriter {
+  override suspend fun writeBinaryFile(
+    sourceFile: File,
+    destinationPath: String,
+    overwrite: Boolean,
+    maxBytes: Long,
+    timeoutMs: Long,
+    expectedSha256: String,
+  ): ShizukuBinaryFileResult
+}
+
+class ShizukuShellClient(context: Context) : ShizukuShellExecutor, ShizukuBinaryArtifactWriter {
 
   private val appContext = context.applicationContext
   private val sessionMutex = Mutex()
