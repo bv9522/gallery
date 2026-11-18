@@ -372,6 +372,17 @@ class AndroidNativeCapabilityAdapter(
       ProviderAvailability.UNSUPPORTED
     }
 
+    val wifiSettingsAvailable = listOf(
+      Intent(Settings.Panel.ACTION_WIFI),
+      Intent(Settings.ACTION_WIFI_SETTINGS),
+    ).any { it.resolveActivity(appContext.packageManager) != null }
+    capabilities[AndroidCapability.WIFI_CONTROL] = if (wifiSettingsAvailable) {
+      ProviderAvailability.AVAILABLE
+    } else {
+      details[AndroidCapability.WIFI_CONTROL] = "Android does not expose a Wi-Fi settings activity."
+      ProviderAvailability.UNSUPPORTED
+    }
+
     val bluetoothAdapter = appContext.getSystemService(BluetoothManager::class.java)?.adapter
     capabilities[AndroidCapability.BLUETOOTH_DISCOVERY] = when {
       bluetoothAdapter == null -> {
@@ -2409,6 +2420,36 @@ class AndroidNativeCapabilityAdapter(
       NativeCapabilityActionResult(false, "No application can open this URL: ${error.message}")
     } catch (error: SecurityException) {
       NativeCapabilityActionResult(false, "Android denied opening this URL: ${error.message}")
+    }
+  }
+
+  override suspend fun openWifiSettings(): NativeCapabilityActionResult {
+    if (!authorizer.authorize(
+        AndroidCapability.WIFI_CONTROL,
+        "Open Android Wi-Fi settings so you can review or change Wi-Fi manually. Gallery will not toggle Wi-Fi.",
+      )
+    ) {
+      return NativeCapabilityActionResult(false, "Opening Wi-Fi settings was not approved.")
+    }
+
+    val candidates = listOf(
+      Intent(Settings.Panel.ACTION_WIFI),
+      Intent(Settings.ACTION_WIFI_SETTINGS),
+    )
+    val intent = candidates.firstOrNull { it.resolveActivity(appContext.packageManager) != null }
+      ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      ?: return NativeCapabilityActionResult(false, "Android does not provide a Wi-Fi settings activity.")
+
+    return try {
+      appContext.startActivity(intent)
+      NativeCapabilityActionResult(
+        true,
+        "Opened Android Wi-Fi controls. Review the available options and make any Wi-Fi change yourself; Gallery did not toggle Wi-Fi.",
+      )
+    } catch (error: ActivityNotFoundException) {
+      NativeCapabilityActionResult(false, "Android Wi-Fi settings could not be opened: ${error.message}")
+    } catch (error: SecurityException) {
+      NativeCapabilityActionResult(false, "Android denied opening Wi-Fi settings: ${error.message}")
     }
   }
 
