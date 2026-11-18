@@ -15,6 +15,7 @@
 -->
 
 <resources xmlns:tools="http://schemas.android.com/tools">
+  <string name="accessibility_service_description" translatable="true">Allows explicitly requested accessibility operations when enabled by the user. This initial version does not inspect screen content or perform actions.</string>
   <string name="about_this_update" translatable="true" description="Title of the alert dialog that shows information about a model update. [CHAR_LIMIT=29]">About this update</string>
   <string name="all" translatable="true" description="Label for selecting or filtering all items (e.g., all models, all cutouts). [CHAR_LIMIT=18]">All</string>
   <string name="add" translatable="true" description="Button label to add a new item, such as a skill or server. [CHAR_LIMIT=6]">Add</string>
