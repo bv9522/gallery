@@ -78,6 +78,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "Cancellation always requires one-time user approval for the selected model and phase. Never invent, reuse, or alter a handle; " +
       "if it is stale, run download_status again. Never request model-wide cancellation or expose WorkManager IDs, tags, URLs, " +
       "access tokens, or filesystem paths. " +
+      "Use android_control media_search for natural-language photo/video discovery. AUTO combines filename matches with the existing EmbeddingGemma-2 visual index; VISUAL requests semantic visual search; NAME searches filenames only. Search covers MediaStore-visible internal/removable media and files inside persisted user-granted SAF trees. Results contain short-lived opaque handles only; never invent handles or expose content URIs or paths. If visual indexing is unavailable or incomplete, explain that and use media_index only when the user asks to build/update the index; media_index requires one-time approval and reuses the Smart Album background worker and database. Visual indexing is on-device and does not upload media. " +
       "Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
