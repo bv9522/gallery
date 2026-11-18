@@ -47,6 +47,7 @@ import com.google.ai.edge.gallery.agent.artifact.DestinationType
 import com.google.ai.edge.gallery.agent.artifact.DefaultArtifactGenerationEngine
 import com.google.ai.edge.gallery.agent.artifact.ChannelArtifactGenerationApprovalRequester
 import com.google.ai.edge.gallery.agent.artifact.PdfArtifactGenerator
+import com.google.ai.edge.gallery.agent.artifact.DocxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
@@ -175,9 +176,10 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
   )
   append(
     "ARTIFACT GENERATION RULES: Use artifact_create only when the user explicitly asks to create a file or artifact. " +
-      "The currently exposed format is PDF and the currently exposed destination is a persisted Gallery SAF document tree. " +
+      "The currently exposed formats are PDF and editable DOCX; the currently exposed destination is a persisted Gallery SAF document tree. " +
       "If no suitable tree grant exists, first use document_tree grants to inspect existing grants or request_access to let the user choose a folder; never invent a content URI or filesystem path. " +
-      "Use a safe filename ending in .pdf and provide a structured payload with a title and a pages array; each section may contain a heading, paragraphs, bullet_items, and a table of string rows. " +
+      "For PDF use a .pdf filename and a structured payload with title and pages sections; each section may contain heading, paragraphs, bullet_items, and a table of string rows. " +
+      "For DOCX use a .docx filename and a structured payload with title, optional header/footer, and sections; each section may contain heading, paragraphs, bullet_items, and a table of string rows. " +
       "The operation shows the exact filename and destination for one-time approval before creating the file. " +
       "Existing files are never silently replaced; choose a new filename if one already exists. " +
       "The generated PDF is local and its bytes are not returned to the model. " +
@@ -415,7 +417,7 @@ class NativeAgentRuntimeExecutor(
         )
         val artifactContext = checkNotNull(context) { "Agent application context is unavailable." }
         val artifactEngine = DefaultArtifactGenerationEngine(
-          generators = ArtifactGeneratorRegistry(listOf(PdfArtifactGenerator())),
+          generators = ArtifactGeneratorRegistry(listOf(PdfArtifactGenerator(), DocxArtifactGenerator())),
           destinations = ArtifactDestinationRegistry(listOf(SafArtifactDestinationAdapter(artifactContext))),
           approvalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel),
         )
@@ -452,7 +454,7 @@ class NativeAgentRuntimeExecutor(
             ),
             ArtifactGenerationTool(
               engine = artifactEngine,
-              supportedFormats = setOf(ArtifactFormat.PDF),
+              supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX),
               supportedDestinations = setOf(DestinationType.SAF),
             ),
           )
