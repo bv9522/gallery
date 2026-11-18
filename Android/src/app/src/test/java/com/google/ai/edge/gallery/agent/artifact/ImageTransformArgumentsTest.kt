@@ -23,6 +23,15 @@ class ImageTransformArgumentsTest {
     assertEquals(85, parsed.quality)
   }
 
+  @Test fun allowsFormatConversionWithoutGeometricTransform() {
+    val parsed = ImageTransformArguments.parse(JsonObject().apply {
+      addProperty("source_tree_uri", "content://provider/tree/root")
+      addProperty("source_document_id", "document-123")
+    })
+    assertEquals(0, parsed.rotationDegrees)
+    assertEquals(90, parsed.quality)
+  }
+
   @Test(expected = IllegalArgumentException::class)
   fun rejectsIncompleteResizePair() {
     ImageTransformArguments.parse(JsonObject().apply {
