@@ -161,7 +161,7 @@ class GalleryMediaLibraryOperations(
     val visualUsed = visualIndex?.results?.isNotEmpty() == true
     val visualAvailable = visualIndex?.indexAvailable == true
     val note = when {
-      mediaStoreSearch.permissionRequired -> "Android media permission is not granted; results include only files in persisted user-granted storage folders."
+      mediaStoreSearch.permissionRequired -> "Android photo/video permission is not granted. Search is limited to any existing visual-index matches and persisted user-granted storage folders; open Smart Album to grant media-library access."
       mode == "NAME" -> "Filename search only."
       visualIndex == null || !visualIndex.indexAvailable ->
         "Visual index unavailable. Install EmbeddingGemma-2 and run media_index to build the local visual index."
