@@ -115,7 +115,7 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
    */
   suspend fun captureExternalWindow(): Result<ByteArray> = withContext(Dispatchers.Main.immediate) {
     handles.clear()
-    if (android.os.Build.VERSION.SDK_INT < 34) {
+    if (!AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT)) {
       return@withContext Result.failure(
         UnsupportedOperationException(
           "Window-specific screenshots require Android API 34 or newer. Full-display capture is not used."
