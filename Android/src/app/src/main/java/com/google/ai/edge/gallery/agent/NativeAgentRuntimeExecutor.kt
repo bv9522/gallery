@@ -54,6 +54,9 @@ import com.google.ai.edge.gallery.agent.artifact.ZipArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafZipExtractionHandler
 import com.google.ai.edge.gallery.agent.artifact.ImageArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
+import com.google.ai.edge.gallery.agent.artifact.ShellArtifactDestinationAdapter
+import com.google.ai.edge.gallery.agent.artifact.TermuxShellBinaryArtifactTransport
+import com.google.ai.edge.gallery.agent.artifact.ShizukuShellBinaryArtifactTransport
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.DownloadRepository
@@ -221,6 +224,7 @@ class NativeAgentRuntimeExecutor(
   @Volatile private var coordinator: AgentCoordinator? = null
   @Volatile private var shellRouter: ShellExecutionRouter? = null
   @Volatile private var shizukuClient: ShizukuShellClient? = null
+  @Volatile private var termuxClient: TermuxRunCommandClient? = null
   @Volatile private var usingFallback = false
   @Volatile private var sessionId: String? = null
 
@@ -247,6 +251,7 @@ class NativeAgentRuntimeExecutor(
     val appContext = context.applicationContext
     val termux = TermuxRunCommandClient(appContext)
     val shizuku = ShizukuShellClient(appContext)
+    termuxClient = termux
     shizukuClient = shizuku
     shellRouter = ShellExecutionRouter(
       mapOf(
@@ -432,7 +437,22 @@ class NativeAgentRuntimeExecutor(
           generators = ArtifactGeneratorRegistry(
             listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator(), ImageArtifactGenerator(artifactContext)),
           ),
-          destinations = ArtifactDestinationRegistry(listOf(SafArtifactDestinationAdapter(artifactContext))),
+          destinations = ArtifactDestinationRegistry(
+            listOf(
+              SafArtifactDestinationAdapter(artifactContext),
+              ShellArtifactDestinationAdapter(
+                router = router,
+                transports = mapOf(
+                  ShellExecutionBackend.TERMUX to TermuxShellBinaryArtifactTransport(
+                    checkNotNull(termuxClient) { "Termux binary transport is not initialized." },
+                  ),
+                  ShellExecutionBackend.SHIZUKU to ShizukuShellBinaryArtifactTransport(
+                    checkNotNull(shizukuClient) { "Shizuku binary transport is not initialized." },
+                  ),
+                ),
+              ),
+            ),
+          ),
           approvalRequester = artifactApprovalRequester,
         )
         val zipExtractionHandler = SafZipExtractionHandler(artifactContext, artifactApprovalRequester)
@@ -470,7 +490,8 @@ class NativeAgentRuntimeExecutor(
             ArtifactGenerationTool(
               engine = artifactEngine,
               supportedFormats = setOf(ArtifactFormat.PDF, ArtifactFormat.DOCX, ArtifactFormat.XLSX, ArtifactFormat.PPTX, ArtifactFormat.ZIP, ArtifactFormat.IMAGE),
-              supportedDestinations = setOf(DestinationType.SAF),
+              supportedDestinations = setOf(DestinationType.SAF, DestinationType.SHELL),
+              supportedShellBackends = setOf(ShellExecutionBackend.TERMUX, ShellExecutionBackend.SHIZUKU),
               zipExtractionHandler = zipExtractionHandler,
             ),
           )
