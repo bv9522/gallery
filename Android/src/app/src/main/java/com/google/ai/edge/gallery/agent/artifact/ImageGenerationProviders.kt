@@ -62,7 +62,7 @@ class ChannelRemoteImageGenerationConsentRequester(
   }
 }
 
-/** Optional provider contract. No provider is registered by the local-only baseline. */
+/** Optional provider contract; concrete providers are registered only when their runtime is configured. */
 interface ImageGenerationProvider {
   val id: String
   val dataBoundary: ImageGenerationDataBoundary
