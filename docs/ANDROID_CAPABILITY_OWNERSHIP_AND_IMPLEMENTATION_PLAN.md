@@ -208,6 +208,21 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 - [ ] Confirm Windows JDK/Gradle/Android SDK paths, compile SDK 37 installation, signing identity, available disk space, and ADB/device connectivity before execution.
 - [ ] Capture baseline repository state and exact commands/results; do not clean or wipe app/device data as a precondition unless specifically needed and approved.
 
+#### Initial test-source inventory (PR changed-file review: #16–#47)
+The first pass over changed-file lists identifies these existing/extended unit-test seams (this is an inventory, not proof that coverage is complete):
+- Termux:API: `TermuxApiCapabilityToolTest`, `TermuxApiReadCommandTest`.
+- Native capability dispatch and contracts: `AndroidControlArgumentsTest`, `AndroidNativeCapabilityToolTest`.
+- Ownership and routing: `CapabilityRegistryTest`.
+- SAF and document-tree operations: `DocumentTreeCapabilityToolTest`.
+- Media, sharing, and notifications: `ActiveMediaSessionCapabilityToolTest`, `ShareContentArgumentsTest`, `NotificationContentPolicyTest`, plus shared native argument/dispatch tests.
+- Accessibility and multimodal agent loop: `AccessibilityScreenInspectionArgumentsTest`, `AccessibilityScreenInspectionPolicyTest`, `AgentCoordinatorTest`, `AgentToolResultBudgetTest`, `LiteRtLmResponseProtocolTest`.
+- USB: `UsbDescriptorParserTest`.
+- Model catalog: `GalleryAllowlistedModelCatalogTest`.
+
+The changed-file review of PRs #16–#47 surfaced no changed `androidTest` source paths; this does not establish that the repository has no instrumentation tests. The combined-head inventory must inspect the complete test tree and Gradle task graph before deciding whether instrumentation coverage exists or needs to be added.
+
+**High-priority coverage review:** verify permission/approval ordering and denial at the provider boundary; stale/replayed handles and cancellation/cleanup; multimodal image-byte delivery and clearing; SAF grant/revocation; notification/call-log/SMS eligibility; USB disconnect/permission timeout; and lifecycle behavior when the app backgrounds or the process dies. These are the highest-risk integration seams and should be explicitly mapped to tests before the first full-suite run.
+
 #### 8B — Consolidated automated validation (run once preflight is complete)
 - [ ] Run the complete `:app:testShizukuDebugUnitTest` suite on the combined head; preserve full logs and distinguish pre-existing failures from regressions.
 - [ ] Run `:app:assembleShizukuDebug` on the same head; record APK path, SHA-256, versionCode, signing certificate fingerprint, and build warnings.
