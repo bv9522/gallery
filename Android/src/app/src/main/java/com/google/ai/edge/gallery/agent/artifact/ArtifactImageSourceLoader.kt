@@ -8,7 +8,10 @@ import android.content.ContentResolver
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.exifinterface.media.ExifInterface
@@ -120,18 +123,30 @@ internal class ArtifactImageSourceLoader(context: Context) {
       val keepPng = metadata.second == "image/png" && oriented.hasAlpha()
       val mime = if (keepPng) "image/png" else "image/jpeg"
       val format = if (keepPng) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG
-      val encoded = BoundedImageOutputStream(MAX_EMBEDDED_BYTES)
-      require(oriented.compress(format, JPEG_QUALITY, encoded)) {
-        "Android could not encode the embedded image."
+      val bitmapForOutput = if (!keepPng && oriented.hasAlpha()) {
+        Bitmap.createBitmap(oriented.width, oriented.height, Bitmap.Config.RGB_565).also { flattened ->
+          Canvas(flattened).apply {
+            drawColor(Color.WHITE)
+            drawBitmap(oriented, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+          }
+        }
+      } else oriented
+      try {
+        val encoded = BoundedImageOutputStream(MAX_EMBEDDED_BYTES)
+        require(bitmapForOutput.compress(format, JPEG_QUALITY, encoded)) {
+          "Android could not encode the embedded image."
+        }
+        return ArtifactEmbeddedImageAsset(
+          bytes = encoded.toByteArray(),
+          mimeType = mime,
+          extension = if (keepPng) "png" else "jpg",
+          width = bitmapForOutput.width,
+          height = bitmapForOutput.height,
+          altText = request.altText.ifBlank { metadata.first.take(MAX_ALT_TEXT_CHARS) },
+        )
+      } finally {
+        if (bitmapForOutput !== oriented) bitmapForOutput.recycle()
       }
-      return ArtifactEmbeddedImageAsset(
-        bytes = encoded.toByteArray(),
-        mimeType = mime,
-        extension = if (keepPng) "png" else "jpg",
-        width = oriented.width,
-        height = oriented.height,
-        altText = request.altText.ifBlank { metadata.first.take(MAX_ALT_TEXT_CHARS) },
-      )
     } catch (memory: OutOfMemoryError) {
       throw IllegalStateException("Insufficient memory to normalize the embedded image.", memory)
     } finally {
