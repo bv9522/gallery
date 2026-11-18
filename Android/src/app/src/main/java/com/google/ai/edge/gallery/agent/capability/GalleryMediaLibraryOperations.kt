@@ -30,7 +30,6 @@ import com.google.ai.edge.gallery.customtasks.smartalbum.SmartAlbumIndexingWorke
 import com.google.ai.edge.gallery.customtasks.smartalbum.SmartAlbumSource
 import com.google.ai.edge.gallery.customtasks.smartalbum.SmartAlbumViewModel
 import com.google.ai.edge.gallery.data.Model
-import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.services.photolibrary.DefaultPhotoLibraryService
 import com.google.ai.edge.gallery.services.photolibrary.PhotoAsset
 import com.google.ai.edge.gallery.services.photolibrary.PhotoLibraryService
@@ -40,6 +39,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 private const val TAG = "AgentMediaLibrary"
@@ -112,9 +113,17 @@ class GalleryMediaLibraryOperations(
       throw SecurityException("Media search was not approved.")
     }
 
-    val mediaStoreSearch = searchMediaStoreByName(query, mediaKind, limit)
+    val mediaStoreSearch = if (mode == "VISUAL") {
+      MediaStoreSearchResult(emptyList(), !hasMediaStoreReadAccess(), false)
+    } else {
+      searchMediaStoreByName(query, mediaKind, limit)
+    }
     val mediaStoreMatches = mediaStoreSearch.assets
-    val treeScan = scanGrantedTrees(query, mediaKind, MAX_TREE_SEARCH_MATCHES)
+    val treeScan = if (mode == "VISUAL") {
+      TreeScanResult(emptyList(), 0, false)
+    } else {
+      scanGrantedTrees(query, mediaKind, MAX_TREE_SEARCH_MATCHES)
+    }
     val visualIndex = if (mode == "NAME") null else searchVisualIndex(query, mediaKind, limit)
     val combined = linkedMapOf<String, Pair<PhotoAsset, Float?>>()
 
@@ -161,7 +170,7 @@ class GalleryMediaLibraryOperations(
       query = query,
       returned = items.size,
       limit = limit,
-      truncated = treeScan.truncated || mediaStoreSearch.truncated || combined.size > limit,
+      truncated = treeScan.truncated || mediaStoreSearch.truncated || combined.size > limit || (visualIndex?.results?.size == limit),
       visualSearchUsed = visualUsed,
       visualIndexAvailable = visualAvailable,
       items = items,
@@ -384,8 +393,11 @@ class GalleryMediaLibraryOperations(
         }
         val node = queue.removeFirst()
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, node.documentId)
+        currentCoroutineContext().ensureActive()
         val cursor = try {
           resolver.query(childrenUri, projection, null, null, null)
+        } catch (cancelled: CancellationException) {
+          throw cancelled
         } catch (error: Exception) {
           Log.w(TAG, "Unable to inspect a granted storage folder: ${error.message}")
           null
