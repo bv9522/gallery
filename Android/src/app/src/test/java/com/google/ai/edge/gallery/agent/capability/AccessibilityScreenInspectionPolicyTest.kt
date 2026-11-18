@@ -87,4 +87,36 @@ class AccessibilityScreenInspectionPolicyTest {
     assertFalse(AccessibilityScreenInspectionPolicy.isValidHandle("ui_0123456789ABCDEf"))
     assertFalse(AccessibilityScreenInspectionPolicy.isValidHandle("ui_0123456789abcdef-extra"))
   }
+
+  @Test
+  fun semanticActionsRequireEnabledMatchingNodeCapabilities() {
+    assertTrue(AccessibilityScreenInspectionPolicy.supportsAction(
+      AccessibilitySemanticAction.CLICK, true, clickable = true,
+      longClickable = false, scrollable = false,
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.supportsAction(
+      AccessibilitySemanticAction.CLICK, false, clickable = true,
+      longClickable = false, scrollable = false,
+    ))
+    assertTrue(AccessibilityScreenInspectionPolicy.supportsAction(
+      AccessibilitySemanticAction.LONG_CLICK, true, clickable = false,
+      longClickable = true, scrollable = false,
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.supportsAction(
+      AccessibilitySemanticAction.LONG_CLICK, true, clickable = true,
+      longClickable = false, scrollable = false,
+    ))
+    assertTrue(AccessibilityScreenInspectionPolicy.supportsAction(
+      AccessibilitySemanticAction.SCROLL_FORWARD, true, clickable = false,
+      longClickable = false, scrollable = true,
+    ))
+    assertTrue(AccessibilityScreenInspectionPolicy.supportsAction(
+      AccessibilitySemanticAction.SCROLL_BACKWARD, true, clickable = false,
+      longClickable = false, scrollable = true,
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.supportsAction(
+      AccessibilitySemanticAction.SCROLL_FORWARD, true, clickable = false,
+      longClickable = false, scrollable = false,
+    ))
+  }
 }

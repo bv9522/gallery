@@ -6,8 +6,9 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 
 ## Current progress snapshot (2026-11-17)
 
-- Active branch: `wave-5b-window-vision-input`, stacked on `wave-3e-accessibility-screen-inspection`.
-- Active PR: [#40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), draft/open/unmerged, stacked on [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), and [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33).
+- Active branch: `wave-5c-semantic-ui-actions`, stacked on `wave-5b-window-vision-input`.
+- Active PR: [#41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), draft/open/unmerged, stacked on [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), and [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33).
+- PR #41 adds `inspect_external` and separately approved semantic click, long-click, and scroll actions. Tests are added but not run; no build or device acceptance is performed.
 - Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
 - PR #34 reuses `DefaultDownloadRepository` / `DownloadWorker` / WorkManager and adds bounded snapshots, allowlist-backed labels, opaque handles, exact-worker cancellation, scoped approval, and unit tests. The user confirmed its local tests and Shizuku debug build passed; device acceptance remains pending.
 - PR #35 adds bounded filename/visual search, EmbeddingGemma-2 / Smart Album index reuse, SAF-granted storage discovery/indexing, and Gallery-owned Media3 video playback. Tests are added but have not been executed.
@@ -28,7 +29,7 @@ Every model-independent capability has exactly one selected owner in the capabil
 | Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
-| Semantic UI inspection, bounded window capture, and future UI automation | Android AccessibilityService | Explicitly enabled service; bounded tree reads and API 34+ window-only screenshots after one-time approval; UI actions remain separate future slices |
+| Semantic UI inspection, bounded window capture, and approved semantic actions | Android AccessibilityService | Explicitly enabled service; bounded tree reads, API 34+ window-only screenshots, and per-action approved click/long-click/scroll with fresh node revalidation; swipe and text entry remain planned |
 
 Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
 Termux:API is a distinct capability owner only for the bounded command families assigned in the
@@ -85,6 +86,14 @@ The capability catalog assigns exactly one owner to every declared capability. T
 - Image budgets reject oversized payloads instead of truncating them. Raw screenshot bytes are zeroed and references removed after inference and on failure/reset/turn-limit paths. LiteRT-LM may retain the visual representation in the in-memory conversation until that conversation is reset; no persistent screenshot file or background capture is created.
 - The heuristic sensitive-screen gate is deliberately conservative but cannot guarantee recognition of every sensitive visual in every third-party app. The approval prompt tells the user to verify the target screen is appropriate. No tap, gesture, typing, or app-switching capability is added.
 - Unit tests are added for multimodal coordinator delivery, image-budget enforcement, and transient-byte erasure. Tests/builds and S21 device acceptance remain deferred under the consolidated validation plan.
+
+## Accessibility provider — Wave 5C approved semantic UI actions (PR #41 draft)
+
+- Adds `screen_inspect inspect_external`, which reads exactly one visible non-Gallery application window alongside Gallery (normally split-screen), applies the same conservative sensitive-screen and complete-hierarchy checks, and issues opaque action handles that expire after 30 seconds.
+- Adds `screen_inspect act` for CLICK, LONG_CLICK, SCROLL_FORWARD, and SCROLL_BACKWARD only. Each action requires a separate one-time `UI_GESTURE` approval describing the exact action and sanitized target label.
+- Immediately before dispatch, the service rechecks that it remains connected, the same single external package/window is visible, the hierarchy is complete and safe, and exactly one node matches the stored package/window/class/label/bounds fingerprint and enabled/action flags. It also checks the node currently advertises the requested AccessibilityNodeInfo action.
+- Handles are consumed before dispatch. Stale, expired, ambiguous, changed, disabled, sensitive, or unsupported targets fail closed. No coordinate fallback, swipe gesture, text entry, selection, keyboard automation, or app switching is exposed.
+- A successful result confirms only that Android accepted the semantic action; Gallery does not claim the app's resulting state changed. Argument and pure action-eligibility tests are added but not run. All tests/builds and S21 acceptance remain deferred until capability onboarding is complete.
 
 ## Remaining capability groups
 
