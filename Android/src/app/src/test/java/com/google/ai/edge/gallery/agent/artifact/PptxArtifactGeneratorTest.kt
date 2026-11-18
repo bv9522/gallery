@@ -56,6 +56,15 @@ class PptxArtifactGeneratorTest {
     }
   }
 
+  @Test fun imagePayloadIsIncludedInApprovalSizeEstimate() {
+    val payload = request().payload.deepCopy()
+    payload.getAsJsonArray("slides")[0].asJsonObject.add(
+      "images",
+      JsonArray().apply { add(imageSource("slide-one-image")) },
+    )
+    assertTrue(generator.estimateBytes(request().copy(payload = payload))!! >= 4L * 1024L * 1024L)
+  }
+
   @Test fun validatesOneEmbeddedImagePerSlide() {
     val payload = request().payload.deepCopy()
     payload.getAsJsonArray("slides")[0].asJsonObject.add(
