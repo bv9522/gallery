@@ -220,7 +220,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBina
     temporaryPath: String,
     encodedChunk: String,
     firstChunk: Boolean,
-    timeoutMs: Long = BINARY_CHUNK_TIMEOUT_MS,
+    timeoutMs: Long,
   ) {
     require(temporaryPath.startsWith("/") && !temporaryPath.endsWith("/") &&
       temporaryPath.length <= 1_024 &&
