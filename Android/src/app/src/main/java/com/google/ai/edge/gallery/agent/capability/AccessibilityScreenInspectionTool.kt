@@ -29,7 +29,7 @@ class AccessibilityScreenInspectionTool internal constructor(
 
   override val name = "screen_inspect"
   override val description =
-    "Use operation=status to check Gallery's opt-in AccessibilityService state. Use operation=inspect to read a bounded semantic summary of the current visible app window after Gallery accessibility special access is manually enabled. Inspection is read-only, requires one-time approval, traverses at most 120 nodes/depth 12, and returns at most 32 labeled elements with 30-second opaque handles. Screens containing editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, or detected personal identifiers are excluded in full. Only the active window at invocation is inspected; because Agent Chat is normally foreground, this usually means Gallery's own window unless the user has arranged another active window (for example, split-screen). Text is sanitized and bounded; package names, view IDs, coordinates, screenshots, hidden content, and notification contents are never returned. Use operation=open_settings only when the user explicitly asks to enable access; the user must manually enable Gallery in Android Accessibility settings. No gestures, typing, taps, screenshots, monitoring, or background collection are implemented."
+    "Use operation=status to check Gallery's opt-in AccessibilityService and screen-capture availability. Use operation=inspect to read a bounded semantic summary of the active window after Gallery accessibility special access is manually enabled. Use operation=capture only when the user asks Gemma to visually inspect an app: it requires one-time SCREEN_CAPTURE approval and captures exactly one visible non-Gallery application window arranged alongside Gallery (normally split-screen). Capture requires Android API 34+, a complete safe accessibility hierarchy, and exactly one unambiguous external app window. Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. The image is resized to at most 1280 px on its longest side and 2 MiB JPEG, delivered in memory to the local model, and erased from coordinator memory after inference. No image file, full-display fallback, taps, gestures, typing, monitoring, or background capture is implemented. Sensitive-screen detection is conservative but cannot recognize every possible sensitive visual; only request capture when the user has confirmed the target screen is appropriate. Use operation=open_settings only when the user explicitly asks to enable access; the user must manually enable Gallery in Android Accessibility settings."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -37,7 +37,7 @@ class AccessibilityScreenInspectionTool internal constructor(
       add("properties", JsonObject().apply {
         add("operation", JsonObject().apply {
           addProperty("type", "string")
-          add("enum", JsonArray().apply { listOf("status", "inspect", "open_settings").forEach { add(it) } })
+          add("enum", JsonArray().apply { listOf("status", "inspect", "capture", "open_settings").forEach { add(it) } })
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -55,6 +55,7 @@ class AccessibilityScreenInspectionTool internal constructor(
       when (operation) {
         "status" -> status()
         "inspect" -> inspect()
+        "capture" -> capture()
         "open_settings" -> openSettings()
         else -> AgentToolResult("Unsupported operation.", false)
       }
@@ -80,7 +81,20 @@ class AccessibilityScreenInspectionTool internal constructor(
       appendLine("availability=$availability")
       appendLine("detail=$detail")
       appendLine("capability=SCREEN_CAPTURE")
-      appendLine("availability=UNSUPPORTED")
+      appendLine(
+        "availability=" + when {
+          android.os.Build.VERSION.SDK_INT < 34 -> ProviderAvailability.UNSUPPORTED
+          availability == ProviderAvailability.AVAILABLE -> ProviderAvailability.AVAILABLE
+          else -> availability
+        }
+      )
+      appendLine(
+        "detail=" + when {
+          android.os.Build.VERSION.SDK_INT < 34 -> "Window-specific screenshot API requires Android API 34 or newer; no full-display fallback is used."
+          availability == ProviderAvailability.AVAILABLE -> "Requires one-time approval and exactly one safe, visible external app window alongside Gallery."
+          else -> "Gallery accessibility service must be enabled and connected."
+        }
+      )
       appendLine("capability=UI_GESTURE")
       appendLine("availability=UNSUPPORTED")
       appendLine("capability=UI_TEXT_INPUT")
@@ -124,6 +138,34 @@ class AccessibilityScreenInspectionTool internal constructor(
       }
       appendLine("note=Handles expire after 30 seconds and are inspection references only; UI actions are not implemented in this slice.")
     }.trimEnd())
+  }
+
+  private suspend fun capture(): AgentToolResult {
+    if (android.os.Build.VERSION.SDK_INT < 34) {
+      return AgentToolResult(
+        "Window-specific screenshot capture requires Android API 34 or newer. Full-display capture is not used.",
+        false,
+      )
+    }
+    if (adapter.enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return AgentToolResult(
+        "Gallery accessibility service is not enabled and connected. No screen content was read or captured.",
+        false,
+      )
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.SCREEN_CAPTURE,
+        "Capture one screenshot of the single visible non-Gallery app window (split-screen required): maximum 1280 px and 2 MiB JPEG. Gallery will check the accessibility hierarchy for sensitive or uncertain content first. The image is sent only to the selected local Gemma model in memory and erased after inference; no image file or background capture is created. Confirm that the target screen is appropriate and contains no sensitive/private information."
+      )) {
+      return AgentToolResult("Visual screen capture was not approved.", false)
+    }
+    val image = adapter.captureExternalWindow().getOrElse { error ->
+      return AgentToolResult(error.message ?: "Visual screen capture was blocked.", false)
+    }
+    return AgentToolResult(
+      content = "A single bounded screenshot of the approved visible app window is attached to this tool result for visual understanding. The image is in-memory only; no screenshot file was saved.",
+      imageBytes = image,
+    )
   }
 
   private suspend fun openSettings(): AgentToolResult {
