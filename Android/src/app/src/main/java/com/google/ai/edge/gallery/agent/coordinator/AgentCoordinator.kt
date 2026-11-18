@@ -76,7 +76,12 @@ class AgentCoordinator(
 
       try {
         while (modelTurns < maxModelTurns) {
-          val response = model.generate(conversationMessages.toList())
+          val pendingMessages = conversationMessages.toList()
+          val response = try {
+            model.generate(pendingMessages)
+          } finally {
+            clearTransientToolImages()
+          }
           modelTurns++
           when (response) {
             is AgentModelResponse.FinalAnswer -> {
@@ -152,6 +157,7 @@ class AgentCoordinator(
         toolCallId = call.callId,
         toolName = call.name,
         toolSucceeded = result.isSuccessful,
+        toolImageBytes = result.imageBytes,
       )
     }
   }
@@ -174,7 +180,27 @@ class AgentCoordinator(
         isSuccessful = false,
       )
     }
-    return result.copy(content = resultBudget.constrain(result.content))
+    val boundedImage = result.imageBytes?.let(resultBudget::constrainImage)
+    val imageRejected = result.imageBytes != null && boundedImage == null
+    val boundedContent = resultBudget.constrain(
+      if (imageRejected) result.content + "\\nImage payload omitted because the multimodal result budget was exceeded."
+      else result.content
+    )
+    return result.copy(
+      content = boundedContent,
+      isSuccessful = result.isSuccessful && !imageRejected,
+      imageBytes = boundedImage,
+    )
+  }
+
+  /** Raw screenshot bytes must not remain in coordinator history after LiteRT-LM consumes them. */
+  private fun clearTransientToolImages() {
+    for (index in conversationMessages.indices) {
+      val message = conversationMessages[index]
+      val imageBytes = message.toolImageBytes ?: continue
+      imageBytes.fill(0)
+      conversationMessages[index] = message.copy(toolImageBytes = null)
+    }
   }
 
   companion object {
