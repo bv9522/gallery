@@ -185,7 +185,8 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         // replace a file that appeared after preflight. Filesystems without hard-link support
         // fail closed rather than weakening no-overwrite semantics.
         Os.link(staging.absolutePath, target.absolutePath)
-        runCatching { Os.unlink(staging.absolutePath) }
+        val stagingRemoved = runCatching { Os.unlink(staging.absolutePath); true }.getOrDefault(false) || staging.delete()
+        check(stagingRemoved) { "Artifact was committed, but its temporary hard-link cleanup could not be confirmed." }
       }
       temporary = null
       Bundle().apply {
