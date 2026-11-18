@@ -33,6 +33,7 @@ import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.ActiveMediaSessionCapabilityTool
+import com.google.ai.edge.gallery.agent.capability.AccessibilityScreenInspectionTool
 import com.google.ai.edge.gallery.agent.capability.ChannelNativeCapabilityAuthorizer
 import com.google.ai.edge.gallery.agent.capability.GalleryMediaLibraryOperations
 import com.google.ai.edge.gallery.agent.capability.ShareContentCapabilityTool
@@ -74,6 +75,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
     append("\n\n")
   }
   append(
+    "SCREEN INSPECTION RULES: Use screen_inspect operation=status to check opt-in access and operation=inspect only when the user asks about the currently visible app screen. Inspection is read-only, requires one-time approval, and excludes editable/password fields, sign-in, financial, identity, health, system-settings, and detected personal-identifier screens. Never use screen inspection for credentials, payments, banking, health records, or private account details. Handles are short-lived references only; no taps, gestures, typing, screenshots, or background monitoring are available. The user must manually enable Gallery in Android Accessibility settings. " +
     "DEVICE CONTROL TOOL RULES: Use android_control download_status to inspect up to 20 active Gallery model downloads. " +
       "Use cancel_download only after download_status, passing the exact opaque download_handle from that latest result. " +
       "Cancellation always requires one-time user approval for the selected model and phase. Never invent, reuse, or alter a handle; " +
@@ -401,6 +403,10 @@ class NativeAgentRuntimeExecutor(
               mediaOperations = mediaOperations,
             ),
             ActiveMediaSessionCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
+            ),
+            AccessibilityScreenInspectionTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
             ),

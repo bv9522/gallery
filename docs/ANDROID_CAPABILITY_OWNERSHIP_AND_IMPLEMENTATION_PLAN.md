@@ -173,15 +173,17 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 **Exit gate:** safe and reliable user-granted access to phone storage and USB removable storage, with no root or broad storage permission.
 
 ### Stage 7 — Accessibility and UI automation (Wave 5)
-- [ ] Define minimal AccessibilityService capability contracts and explicit user enable/disable lifecycle.
+- [x] Define the opt-in AccessibilityService contract, manual enable/disable lifecycle, and explicit settings handoff.
 - [ ] Implement bounded screen capture subject to Android restrictions and user-visible service state.
-- [ ] Implement semantic UI tree inspection with limits on node count, text, depth, and sensitive fields.
+- [x] Implement read-only semantic UI tree inspection with bounded traversal, sanitized labels, opaque short-lived element handles, and sensitive-screen exclusions (PR #39 draft; validation deferred).
 - [ ] Implement semantic tap/click/long-press/swipe using node identity and verified bounds.
 - [ ] Implement semantic text entry and selection with explicit target/context validation.
 - [ ] Keep coordinate gesture fallback on the existing unified shell route only when explicitly requested/authorized; do not duplicate semantic operations.
-- [ ] Add per-action approval rules, cancellation, stale-node handling, foreground/app-change checks, and sensitive-screen exclusions.
-- [ ] Add tests for service unavailable/disabled, permission denial, node churn, app transitions, timeouts, and bounded results.
+- [ ] Extend per-action approval rules, cancellation, stale-node handling, foreground/app-change checks, and sensitive-screen exclusions to future UI mutations.
+- [ ] Add integration tests for service unavailable/disabled, permission denial, node churn, app transitions, timeouts, and bounded results. Pure policy tests have been added in PR #39 but are not run.
 - [ ] Device-test accessibility enablement, screen capture restrictions, multiple apps, keyboard behavior, and safe failure.
+
+**Wave 5A — bounded semantic screen inspection (PR #39 draft):** `screen_inspect` supports `status`, `inspect`, and explicit `open_settings`. Gallery's AccessibilityService is manually enabled in Android settings and reports `PERMISSION_REQUIRED` until enabled and connected. The service ignores accessibility events and reads the active window only during an approved inspection request. Traversal is capped at 120 nodes and depth 12; more complex or changing trees fail closed. At most 32 semantic elements are returned, with labels sanitized to 120 characters and 30-second opaque `ui_` handles. Any editable/password field, sensitive label or identifier, protected app category, Android Settings/system/permission UI, or incomplete tree blocks the entire screen. No package names, view IDs, coordinates, screenshots, hidden content, notifications, or raw node references are returned. The handles are references for a future action slice only; no UI actions are exposed in this PR. Policy tests are added but remain unrun under the consolidated validation plan.
 
 **Exit gate:** user-enabled accessibility is transparent, controllable, bounded, and demonstrably safer than generic coordinate automation.
 

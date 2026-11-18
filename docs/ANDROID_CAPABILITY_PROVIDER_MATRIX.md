@@ -28,7 +28,7 @@ Every model-independent capability has exactly one selected owner in the capabil
 | Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
-| Screen capture and semantic UI interaction | Android AccessibilityService | Explicitly enabled service; bounded screen/tree/gesture operations |
+| Semantic UI inspection and future UI automation | Android AccessibilityService | Explicitly enabled service; bounded active-window tree reads; screenshots and UI actions remain separate future slices |
 
 Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
 Termux:API is a distinct capability owner only for the bounded command families assigned in the
@@ -62,6 +62,17 @@ The capability catalog assigns exactly one owner to every declared capability. T
 - `android_control` exposes approved immediate notification posting, bounded active-notification listing/dismissal, scheduled reminder creation/listing/cancellation, and bounded channel listing/creation. Mutations require scoped approval; Android 13+ notification permission is requested only after approval.
 - Provider discovery reports permission/global-notification state without prompting. Blocked channels and globally disabled notifications are explicit failures. Active notification and channel listings are bounded; at most 50 reminders are persisted. Schedule persistence and alarm updates are serialized, and boot recovery reads authoritative DataStore state.
 - Reading notifications from other apps remains unsupported and separate; it requires NotificationListenerService special access and is not silently enabled by this phase.
+
+## Accessibility provider — Wave 5A semantic inspection (PR #39 draft)
+
+- `screen_inspect status` reports the AccessibilityService lifecycle without reading screen content. `PERMISSION_REQUIRED` is returned until the user manually enables Gallery in Android Accessibility settings; an enabled but disconnected service reports `SERVICE_STOPPED`.
+- `screen_inspect inspect` requires one-time approval and reads only the active visible application window on demand. The service subscribes only to window-state changes and ignores the event payload; it stores no event history or screen tree. Inspection reads only the active window at invocation. Since Agent Chat is normally foreground, this usually means Gallery's own window unless the user has arranged another active window (for example, split-screen); app switching is not automated.
+- Traversal is breadth-first, capped at 120 nodes and depth 12. A changing, incomplete, or over-limit tree is rejected in full. Output is limited to 32 semantic elements; each sanitized label is capped at 120 characters.
+- Every editable/password field, sensitive-screen keyword, detected email/phone/long numeric identifier, protected app category, Android Settings/system/permission window, or missing active window blocks the whole inspection. This is a conservative heuristic, not a guarantee that every third-party app labels sensitive content correctly.
+- Results contain semantic roles, bounded labels, basic visible/enabled/selected/checkable state, and random opaque `ui_` handles with a 30-second lifetime. Handles are not coordinates or node IDs and cannot trigger actions in this slice.
+- Package names, resource/view IDs, coordinates, screenshots, hidden/off-screen content, notification text, and editable field values are never returned. No taps, gestures, typing, background monitoring, or screenshots are implemented.
+- The Android Accessibility special-access screen warns about the broad capability Android grants. Gallery does not enable or disable the service automatically; the user manually controls it in Settings. The settings handoff itself requires scoped one-time approval.
+- Pure policy tests were added; all tests/builds and S21 acceptance remain deferred until the capability onboarding campaign is complete.
 
 ## Remaining capability groups
 
