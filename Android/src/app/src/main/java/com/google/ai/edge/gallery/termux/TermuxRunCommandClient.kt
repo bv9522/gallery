@@ -419,8 +419,8 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBina
       putExtra(EXTRA_ARGUMENTS, arrayOf("-lc", command))
       putExtra(EXTRA_WORKDIR, workingDirectory)
       putExtra(EXTRA_RUNNER, RUNNER_APP_SHELL)
-      putExtra(EXTRA_COMMAND_LABEL, "Android MCP process supervisor")
-      putExtra(EXTRA_COMMAND_DESCRIPTION, "Supervised command control request.")
+      putExtra(EXTRA_COMMAND_LABEL, if (stdin == null) "Android MCP process supervisor" else "Android MCP artifact transfer")
+      putExtra(EXTRA_COMMAND_DESCRIPTION, if (stdin == null) "Supervised command control request." else "Bounded binary artifact chunk transfer.")
       putExtra(EXTRA_PENDING_INTENT, callback)
       stdin?.let { putExtra(EXTRA_STDIN, it) }
     }
