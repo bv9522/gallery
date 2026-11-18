@@ -11,6 +11,7 @@ import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.SystemClock
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -71,8 +72,9 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
     requireAccess()
     val controllers = (manager ?: error("Android MediaSessionManager is unavailable."))
       .getActiveSessions(component)
+      .filter { it.packageName != appContext.packageName }
     handles.clear()
-    val now = System.currentTimeMillis()
+    val now = SystemClock.elapsedRealtime()
     val sessions = controllers.take(MAX_SESSIONS).mapNotNull { controller ->
       val playback = controller.playbackState ?: return@mapNotNull null
       val metadata = controller.metadata
@@ -107,7 +109,7 @@ class AndroidActiveMediaSessionAdapter(context: Context) {
 
   fun describeHandle(handle: String): ActiveMediaSessionHandleSummary? {
     val entry = handles[handle] ?: return null
-    if (entry.expiresAtMs < System.currentTimeMillis()) {
+    if (entry.expiresAtMs < SystemClock.elapsedRealtime()) {
       handles.remove(handle, entry)
       return null
     }
