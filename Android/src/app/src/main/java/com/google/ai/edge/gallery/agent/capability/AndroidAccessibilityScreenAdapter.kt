@@ -149,13 +149,12 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
         )
       )
     }
-    val windowIds = target.elements.map { it.windowId }.distinct()
-    if (windowIds.size != 1) {
+    if (target.elements.any { it.windowId != target.windowId }) {
       return@withContext Result.failure(
         IllegalStateException("The visible app window identity is inconsistent; capture was blocked.")
       )
     }
-    val windowId = windowIds.single()
+    val windowId = target.windowId
     val imageBytes = service.captureWindowJpeg(windowId).getOrElse { error ->
       return@withContext Result.failure(error)
     }
@@ -164,7 +163,8 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
       after.packageName == target.packageName &&
       !after.truncated &&
       after.elements.isNotEmpty() &&
-      after.elements.map { it.windowId }.distinct() == listOf(windowId)
+      after.windowId == windowId &&
+      after.elements.all { it.windowId == windowId }
     if (
       AccessibilityServiceInstance.current !== service ||
       enabledServiceAvailability() != ProviderAvailability.AVAILABLE ||
