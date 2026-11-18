@@ -358,7 +358,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | Download management | Native Kotlin (DownloadManager or app-owned downloader) | Planned |
 | Media scan / index | Native Kotlin (MediaScannerConnection / MediaStore) | Planned |
 | Media playback initiated by the app | Native Kotlin (existing media stack or platform MediaPlayer) | Planned |
-| Active media-session control | Native Kotlin (MediaSessionManager) | Planned; notification-listener access may be required |
+| Active media-session control | Native Kotlin (MediaSessionManager) | CODE / VALIDATION DEFERRED — PR #37; user-opt-in notification-listener special access, one-time approval, bounded session handles and controls |
 | Share text/files | Native Kotlin (ACTION_SEND / chooser) | Planned; user-mediated |
 | Wallpaper set | Native Kotlin (WallpaperManager + content URI) | Phase 6B draft; Gallery-readable image URI only, SYSTEM/LOCK/BOTH target allowlist, explicit approval |
 | App-owned notification scheduling | Native Kotlin (AlarmManager + NotificationScheduleManager / DataStore) | Draft in PR #30: approved schedule/list/cancel operations reuse Gallery's existing scheduler; user-confirmed unit tests and debug build passed; WorkManager remains for deferrable jobs, not exact-time notification alarms |
