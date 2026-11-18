@@ -81,6 +81,6 @@ class ArtifactGenerationTool(
   }
 
   private companion object {
-    val ShellBackendNames = listOf("TERMUX", "SHIZUKU", "TERMUX_RISH")
+    val ShellBackendNames = listOf("TERMUX", "SHIZUKU")
   }
 }
