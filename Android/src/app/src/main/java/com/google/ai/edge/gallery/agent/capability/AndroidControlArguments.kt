@@ -68,6 +68,7 @@ internal object AndroidControlArguments {
     "list_posted_notifications" to setOf("operation"),
     "read_notifications" to setOf("operation"),
     "read_call_log" to setOf("operation"),
+    "read_sms_inbox" to setOf("operation"),
     "cancel_posted_notification" to setOf("operation", "notification_id"),
     "list_scheduled_notifications" to setOf("operation"),
     "cancel_scheduled_notification" to setOf("operation", "notification_id"),
