@@ -94,7 +94,7 @@ class PptxArtifactGenerator : ArtifactGenerator {
   private fun slideMasterXml() =
     """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""" +
       """<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">""" +
-      groupShapeTree() +
+      """<p:cSld name="Gallery Master"><p:spTree>""" + groupShapeTree() + """</p:spTree></p:cSld>""" +
       """<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>""" +
       """<p:sldLayoutIdLst><p:sldLayoutId id="1" r:id="rId1"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>"""
 
@@ -124,11 +124,15 @@ class PptxArtifactGenerator : ArtifactGenerator {
 
   private fun themeXml() =
     """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""" +
-      """<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Gallery">""" +
-      """<a:themeElements><a:clrScheme name="Gallery"><a:dk1><a:srgbClr val="202124"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="3C4043"/></a:dk2><a:lt2><a:srgbClr val="F8F9FA"/></a:lt2>""" +
+      """<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Gallery"><a:themeElements>""" +
+      """<a:clrScheme name="Gallery"><a:dk1><a:srgbClr val="202124"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="3C4043"/></a:dk2><a:lt2><a:srgbClr val="F8F9FA"/></a:lt2>""" +
       """<a:accent1><a:srgbClr val="1A73E8"/></a:accent1><a:accent2><a:srgbClr val="188038"/></a:accent2><a:accent3><a:srgbClr val="F9AB00"/></a:accent3><a:accent4><a:srgbClr val="D93025"/></a:accent4><a:accent5><a:srgbClr val="A142F4"/></a:accent5><a:accent6><a:srgbClr val="12B5CB"/></a:accent6><a:hlink><a:srgbClr val="1A73E8"/></a:hlink><a:folHlink><a:srgbClr val="681DA8"/></a:folHlink></a:clrScheme>""" +
-      """<a:fontScheme name="Gallery"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme>""" +
-      """<a:fmtScheme name="Gallery"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>"""
+      """<a:fontScheme name="Gallery"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>""" +
+      """<a:fmtScheme name="Gallery"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst>""" +
+      """<a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst>""" +
+      """<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>""" +
+      """<a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>""" +
+      """</a:themeElements><a:objectDefaults/><a:extraClrSchemeLst/></a:theme>"""
 
   private fun groupShapeTree() =
     """<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>""" +
