@@ -14,8 +14,9 @@ class ShellArtifactDestinationAdapterTest {
   @Test fun describesExactSelectedBackendAndPath() = runBlocking {
     val router = ShellExecutionRouter(
       mapOf(
-        ShellExecutionBackend.TERMUX to ShellExecutionTransport { request ->
-          ShellExecutionResult(request.backend, "READY", "", 0)
+        ShellExecutionBackend.TERMUX to object : ShellExecutionTransport {
+          override suspend fun execute(request: ShellExecutionRequest) =
+            ShellExecutionResult(request.backend, "READY", "", 0)
         },
       ),
     )
@@ -34,9 +35,11 @@ class ShellArtifactDestinationAdapterTest {
     var invoked = false
     val router = ShellExecutionRouter(
       mapOf(
-        ShellExecutionBackend.TERMUX to ShellExecutionTransport { request ->
-          invoked = true
-          ShellExecutionResult(request.backend, "READY", "", 0)
+        ShellExecutionBackend.TERMUX to object : ShellExecutionTransport {
+          override suspend fun execute(request: ShellExecutionRequest): ShellExecutionResult {
+            invoked = true
+            return ShellExecutionResult(request.backend, "READY", "", 0)
+          }
         },
       ),
     )
@@ -56,8 +59,9 @@ class ShellArtifactDestinationAdapterTest {
   fun rejectsOverwriteRequests() = runBlocking {
     val router = ShellExecutionRouter(
       mapOf(
-        ShellExecutionBackend.SHIZUKU to ShellExecutionTransport { request ->
-          ShellExecutionResult(request.backend, "READY", "", 0)
+        ShellExecutionBackend.SHIZUKU to object : ShellExecutionTransport {
+          override suspend fun execute(request: ShellExecutionRequest) =
+            ShellExecutionResult(request.backend, "READY", "", 0)
         },
       ),
     )
