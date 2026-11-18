@@ -560,7 +560,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBina
     private const val POLL_TIMEOUT_MS = 5_000L
     private const val CLEANUP_TIMEOUT_MS = 5_000L
     private const val POLL_INTERVAL_MS = 150L
-    private const val MAX_BINARY_STDIN_CHARS = 256 * 1_024
+    private const val MAX_BINARY_STDIN_CHARS = 128 * 1_024
     private const val BINARY_CHUNK_TIMEOUT_MS = 15_000L
   }
 }
