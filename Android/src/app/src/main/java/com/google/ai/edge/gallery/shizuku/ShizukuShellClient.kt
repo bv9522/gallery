@@ -21,6 +21,7 @@ import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
@@ -157,6 +158,36 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
     }
   }
 
+  /**
+   * Streams one bounded artifact through a Binder PFD pipe to the shell-identity UserService.
+   * This is separate from the persistent command shell and never falls back to another backend.
+   */
+  suspend fun writeBinaryFile(
+    targetPath: String,
+    input: ParcelFileDescriptor,
+    maxBytes: Long,
+    mimeType: String,
+    timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+  ): android.os.Bundle {
+    require(targetPath.startsWith("/") && '\\u0000' !in targetPath) {
+      "Binary target must be an absolute NUL-free path."
+    }
+    require(maxBytes in 1L..MAX_BINARY_WRITE_BYTES) {
+      "Binary output limit must be between 1 and $MAX_BINARY_WRITE_BYTES bytes."
+    }
+    require(timeoutMs in MIN_TIMEOUT_MS..MAX_TIMEOUT_MS) {
+      "Binary transfer timeout must be between $MIN_TIMEOUT_MS and $MAX_TIMEOUT_MS ms."
+    }
+    check(!closed) { "Shizuku shell client is closed." }
+    val remote = connect()
+    return withContext(Dispatchers.IO) {
+      sessionMutex.withLock {
+        check(!closed) { "Shizuku shell client is closed." }
+        remote.writeBinaryFile(targetPath, input, maxBytes, mimeType, timeoutMs)
+      }
+    }
+  }
+
   /** Close the persistent shell session and unbind this client from the UserService. */
   suspend fun close() {
     if (closed) return
@@ -248,6 +279,7 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
     private const val MAX_TIMEOUT_MS = 120_000L
     private const val MIN_OUTPUT_CHARS = 1_024
     private const val MAX_OUTPUT_CHARS = 128 * 1_024
+    private const val MAX_BINARY_WRITE_BYTES = 100L * 1024L * 1024L
   }
 }
 
