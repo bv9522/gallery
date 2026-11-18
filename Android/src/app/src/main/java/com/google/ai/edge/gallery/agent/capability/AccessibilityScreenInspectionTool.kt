@@ -69,7 +69,7 @@ class AccessibilityScreenInspectionTool internal constructor(
         })
         add("element_handle", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Fresh opaque element_handle returned by the most recent inspect_external operation.")
+          addProperty("description", "Fresh opaque element_handle returned by the most recent matching inspect_external or inspect_inputs operation.")
           addProperty("maxLength", 19)
         })
         add("action", JsonObject().apply {
