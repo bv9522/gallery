@@ -380,11 +380,11 @@ class NativeAgentRuntimeExecutor(
         val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
         val actionChannel = config.actionChannel ?: agentTools.sendActionChannel
         val approval = ChannelShellExecutionApprovalPolicy(actionChannel)
-        val availableModels = runCatching { agentTools.modelManagerViewModel.getAllModels() }
-          .getOrDefault(emptyList())
         val mediaOperations = GalleryMediaLibraryOperations(
           context = checkNotNull(this@NativeAgentRuntimeExecutor.context),
-          models = availableModels,
+          modelsProvider = {
+            runCatching { agentTools.modelManagerViewModel.getAllModels() }.getOrDefault(emptyList())
+          },
           authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
         )
         val runtimeTools = AgentToolRegistry(
