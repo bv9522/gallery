@@ -99,7 +99,7 @@ class GalleryMediaLibraryOperations(
     mode: String = "AUTO",
     limit: Int = DEFAULT_RESULT_LIMIT,
   ): AgentMediaSearchPage {
-    require(query.isNotBlank() && query.length <= MAX_QUERY_CHARS) {
+    require(query.isNotBlank() && query.length <= MAX_QUERY_CHARS && query.none { it.isISOControl() }) {
       "Media search query must contain 1–$MAX_QUERY_CHARS characters."
     }
     require(mediaKind in MEDIA_KINDS) { "media_kind must be ANY, IMAGE, or VIDEO." }
