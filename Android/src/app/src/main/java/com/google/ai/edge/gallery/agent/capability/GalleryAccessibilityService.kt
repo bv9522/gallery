@@ -56,6 +56,10 @@ class GalleryAccessibilityService : AccessibilityService() {
           }
           if (depth < MAX_DEPTH) {
             for (index in 0 until node.childCount) {
+              if (visited.size + queue.size >= MAX_NODES) {
+                overflow = true
+                break
+              }
               val childResult = runCatching { node.getChild(index) }
               val child = childResult.getOrNull()
               if (child == null) {
@@ -65,7 +69,7 @@ class GalleryAccessibilityService : AccessibilityService() {
               queue.add(child to depth + 1)
             }
           }
-          if (traversalFailed) break
+          if (traversalFailed || overflow) break
         }
       }
       if (traversalFailed) {
@@ -94,6 +98,10 @@ class GalleryAccessibilityService : AccessibilityService() {
         val rawText = node.text?.toString().orEmpty()
         val rawDescription = node.contentDescription?.toString().orEmpty()
         val rawHint = if (android.os.Build.VERSION.SDK_INT >= 26) node.hintText?.toString().orEmpty() else ""
+        if (rawText.length > MAX_SOURCE_TEXT_CHARS ||
+          rawDescription.length > MAX_SOURCE_TEXT_CHARS || rawHint.length > MAX_SOURCE_TEXT_CHARS) {
+          return AccessibilityWindowSnapshot.Excluded("A visible element exceeds the safe text-inspection limit; no screen content was returned.")
+        }
         if (node.isPassword || node.isEditable) {
           return AccessibilityWindowSnapshot.Excluded(
             "This screen contains an editable or password field and is excluded from inspection."
@@ -141,6 +149,7 @@ class GalleryAccessibilityService : AccessibilityService() {
     const val MAX_NODES = 120
     const val MAX_DEPTH = 12
     const val MAX_ELEMENTS = 32
+    const val MAX_SOURCE_TEXT_CHARS = 512
   }
 }
 
