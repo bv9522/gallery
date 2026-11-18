@@ -44,7 +44,7 @@ class ShellArtifactDestinationAdapter(
   ): ArtifactDestinationWriteResult {
     val destination = request.destination as? ArtifactDestinationSpec.ShellPath
       ?: throw IllegalArgumentException("Shell adapter received a non-shell destination.")
-    require(destination.backend != ShellExecutionBackend.TERMUX_RISH) {
+    require(ShellArtifactTransferPolicy.supportsBinaryOutput(destination.backend)) {
       "TERMUX_RISH binary artifact output is unavailable until remote stdin forwarding is verified."
     }
     require(stagingDirectory.exists() || stagingDirectory.mkdirs()) {
@@ -136,7 +136,7 @@ class ShellArtifactDestinationAdapter(
       val expectedBytes = metadata.bytesWritten.toString()
       val expectedHash = metadata.sha256
       val movePolicy = if (overwrite) {
-        "[ ! -L $quotedTarget ] && [ ! -d $quotedTarget ] && " +
+        "[ ! -L $quotedTarget ] && { [ ! -e $quotedTarget ] || [ -f $quotedTarget ]; } && " +
           "mv -f -- $quotedTemp $quotedTarget || exit 24; "
       } else {
         "[ ! -e $quotedTarget ] && [ ! -L $quotedTarget ] && " +
