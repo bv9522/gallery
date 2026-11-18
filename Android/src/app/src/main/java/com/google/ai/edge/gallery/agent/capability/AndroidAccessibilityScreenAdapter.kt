@@ -7,7 +7,6 @@ package com.google.ai.edge.gallery.agent.capability
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
-import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -41,9 +40,10 @@ internal data class AccessibilityElementFingerprint(
 class AndroidAccessibilityScreenAdapter(context: Context) {
   private val appContext = context.applicationContext
   private val component = ComponentName(appContext, GalleryAccessibilityService::class.java)
-  private val handles = linkedMapOf<String, AccessibilityElementFingerprint>()
+  private val handles = java.util.concurrent.ConcurrentHashMap<String, AccessibilityElementFingerprint>()
 
   fun enabledServiceAvailability(): ProviderAvailability {
+    pruneExpiredHandles()
     val manager = appContext.getSystemService(AccessibilityManager::class.java)
       ?: return ProviderAvailability.UNSUPPORTED
     val enabled = manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
@@ -51,9 +51,15 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
         val service = info.resolveInfo?.serviceInfo
         service?.packageName == component.packageName && service.name == component.className
       }
-    if (!enabled) return ProviderAvailability.PERMISSION_REQUIRED
+    if (!enabled) {
+      handles.clear()
+      return ProviderAvailability.PERMISSION_REQUIRED
+    }
     return if (AccessibilityServiceInstance.current != null) ProviderAvailability.AVAILABLE
-    else ProviderAvailability.SERVICE_STOPPED
+    else {
+      handles.clear()
+      ProviderAvailability.SERVICE_STOPPED
+    }
   }
 
   suspend fun inspect(): Result<SemanticScreenSnapshot> = withContext(Dispatchers.Main.immediate) {
@@ -105,15 +111,17 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
   fun isHandleFresh(handle: String): Boolean {
     if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) return false
     val fingerprint = handles[handle] ?: return false
-    if (fingerprint.expiresAtMs < android.os.SystemClock.elapsedRealtime()) {
+    if (fingerprint.expiresAtMs <= android.os.SystemClock.elapsedRealtime()) {
       handles.remove(handle)
       return false
     }
     return true
   }
 
-  fun openSettingsIntent(): android.content.Intent =
-    android.content.Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+  private fun pruneExpiredHandles() {
+    val now = android.os.SystemClock.elapsedRealtime()
+    handles.entries.removeIf { it.value.expiresAtMs <= now }
+  }
 
   companion object {
     const val HANDLE_TTL_MS = 30_000L
