@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.shizuku
 
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
@@ -148,7 +149,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       }
       require(!target.isDirectory) { "Destination is a folder, not a regular file." }
 
-      val staging = File.createTempFile(".\${requested.name.take(48)}.", ".part", parent)
+      val staging = File.createTempFile("." + requested.name.take(48) + ".", ".part", parent)
       temporary = staging
       val digest = MessageDigest.getInstance("SHA-256")
       var count = 0L
