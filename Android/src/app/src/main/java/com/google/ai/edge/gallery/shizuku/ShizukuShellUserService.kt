@@ -535,6 +535,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
     private const val MAX_OUTPUT_CHARS = 128 * 1_024
     private const val MAX_BINARY_WRITE_BYTES = 100L * 1024L * 1024L
     private const val MAX_BINARY_PATH_CHARS = 1_024
+    private const val MAX_BINARY_FILE_NAME_CHARS = 255
     private const val BINARY_BUFFER_BYTES = 32 * 1_024
     private val SUPPORTED_BINARY_MIME_TYPES = setOf(
       "application/pdf",
