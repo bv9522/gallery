@@ -137,10 +137,15 @@ class LiteRtLmAgentModel(
           userMessages.single().userContents?.let(Message::user)
             ?: Message.user(userMessages.single().content)
         } else {
-          val toolResponses = toolMessages.map { message ->
+          val toolResponses = toolMessages.flatMap { message ->
             val name = message.toolName
               ?: error("Tool result is missing its tool name.")
-            Content.ToolResponse(name, message.content)
+            buildList<Content> {
+              // LiteRT-LM Message.tool accepts general Content parts. Keep image data ahead of
+              // the textual tool response, matching the multimodal prompt ordering guidance.
+              message.toolImageBytes?.let { add(Content.ImageBytes(it)) }
+              add(Content.ToolResponse(name, message.content))
+            }
           }
           Message.tool(Contents.of(toolResponses))
         }
