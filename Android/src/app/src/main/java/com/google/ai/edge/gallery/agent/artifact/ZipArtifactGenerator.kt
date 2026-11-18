@@ -39,8 +39,13 @@ class ZipArtifactGenerator : ArtifactGenerator {
 
   private object ZipPayload {
     fun parse(payload: JsonObject): List<ZipTextEntry> {
-      val unknown = payload.keySet() - setOf("entries")
+      val unknown = payload.keySet() - setOf("operation", "entries")
       require(unknown.isEmpty()) { "Unsupported ZIP payload field(s): ${unknown.sorted().joinToString()}." }
+      val operation = payload.get("operation")?.let {
+        require(it.isJsonPrimitive && it.asJsonPrimitive.isString) { "ZIP operation must be a string." }
+        it.asString
+      } ?: "create"
+      require(operation == "create") { "ZIP create payload operation must be 'create'; use the guarded extraction operation for extraction." }
       val values = payload.get("entries")?.takeIf { it.isJsonArray }?.asJsonArray
         ?: throw IllegalArgumentException("ZIP payload requires an entries array.")
       require(values.size() in 1..MAX_ENTRIES) { "ZIP must contain 1–$MAX_ENTRIES text entries." }
