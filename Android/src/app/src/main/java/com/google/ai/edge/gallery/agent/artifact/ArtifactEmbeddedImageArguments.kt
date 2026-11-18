@@ -10,10 +10,17 @@ import com.google.gson.JsonElement
 internal object ArtifactEmbeddedImageArguments {
   const val MAX_IMAGES_PER_SECTION = 4
 
-  private fun isXml10Text(value: String): Boolean = value.all { char ->
-    val code = char.code
-    code == 0x9 || code == 0xA || code == 0xD ||
-      code in 0x20..0xD7FF || code in 0xE000..0xFFFD || code in 0x10000..0x10FFFF
+  private fun isXml10Text(value: String): Boolean {
+    var index = 0
+    while (index < value.length) {
+      val codePoint = value.codePointAt(index)
+      val valid = codePoint == 0x9 || codePoint == 0xA || codePoint == 0xD ||
+        codePoint in 0x20..0xD7FF || codePoint in 0xE000..0xFFFD ||
+        codePoint in 0x10000..0x10FFFF
+      if (!valid) return false
+      index += Character.charCount(codePoint)
+    }
+    return true
   }
 
   fun parse(element: JsonElement?): List<ArtifactEmbeddedImageRequest> {
