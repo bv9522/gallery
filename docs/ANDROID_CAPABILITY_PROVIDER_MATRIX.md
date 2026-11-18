@@ -111,7 +111,7 @@ The capability catalog assigns exactly one owner to every declared capability. T
 - No passwords, clipboard access, arbitrary keyboard events, multiline entry, coordinate gestures, hidden typing, or app switching are exposed. A success result confirms Android accepted the accessibility action only, not that the app state changed.
 - Pure policy and argument tests are added but not run. All tests/builds and S21 acceptance remain deferred until capability onboarding is complete.
 
-## Remaining capability groups
+## Capability ownership summary
 
 The four optional capability families are onboarded in draft PRs #43–#46: active notification content, call-log reads, received-SMS inbox reads, and read-only USB descriptor inspection. PR #47 adds the user-mediated Wi-Fi settings handoff. These are CODE / VALIDATION PENDING only; tests/builds and S21 acceptance remain deferred. USB mass-storage files remain on SAF; arbitrary non-storage endpoint transfers and writes are deliberately unsupported. The broader capability set remains owned by Termux:API (bounded sensors, location, Wi-Fi connection/last-scan, NFC, infrared, camera metadata), native Kotlin (Bluetooth/GATT, speech, contacts, clipboard, notifications, telephony, media, biometrics, microphone/camera capture, wallpaper, USB descriptor inspection and settings handoffs), SAF (user-granted removable-storage files), AccessibilityService (bounded semantic inspection/actions/text input), and the unified shell router (general shell/path operations).
 
