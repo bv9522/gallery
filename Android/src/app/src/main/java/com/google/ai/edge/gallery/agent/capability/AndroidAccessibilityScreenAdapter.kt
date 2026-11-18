@@ -51,7 +51,16 @@ internal data class AccessibilityActionTarget(
   val clickable: Boolean,
   val longClickable: Boolean,
   val scrollable: Boolean,
-)
+) {
+  fun supports(action: AccessibilitySemanticAction): Boolean =
+    AccessibilityScreenInspectionPolicy.supportsAction(
+      action = action,
+      enabled = true,
+      clickable = clickable,
+      longClickable = longClickable,
+      scrollable = scrollable,
+    )
+}
 
 internal enum class AccessibilitySemanticAction(val frameworkAction: Int) {
   CLICK(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK),
