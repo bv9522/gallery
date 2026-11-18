@@ -55,6 +55,14 @@ class DocxArtifactGeneratorTest {
     }
   }
 
+  @Test fun imagePayloadIsIncludedInApprovalSizeEstimate() {
+    val payload = request().payload.deepCopy().apply {
+      add("images", JsonArray().apply { add(imageSource("diagram-1")) })
+    }
+    val imageRequest = request().copy(payload = payload)
+    assertTrue(generator.estimateBytes(imageRequest)!! >= 4L * 1024L * 1024L)
+  }
+
   @Test fun validatesEmbeddedImageSourceReferences() {
     val payload = request().payload.deepCopy().apply {
       add("images", JsonArray().apply { add(imageSource("diagram-1")) })
