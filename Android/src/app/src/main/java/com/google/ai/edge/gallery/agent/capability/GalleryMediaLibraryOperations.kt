@@ -272,7 +272,7 @@ class GalleryMediaLibraryOperations(
     }
     val typeSelection = types.joinToString(" OR ") { "$mediaType = ?" }
     val selection = "($typeSelection) AND ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ? ESCAPE '\\'"
-    val args = types.map(Int::toString) + "%${escapeLike(query)}%"
+    val args = types.map { it.toString() } + "%${escapeLike(query)}%"
     val ids = mutableListOf<String>()
     var permissionRequired = false
     try {
