@@ -54,7 +54,7 @@ class AccessibilityScreenInspectionPolicyTest {
 
   @Test
   fun labelsAreSanitizedAndBounded() {
-    val result = AccessibilityScreenInspectionPolicy.sanitizeLabel("  Hello\\n\\u200B  world  ")
+    val result = AccessibilityScreenInspectionPolicy.sanitizeLabel("  Hello\n\u200B  world  ")
     assertEquals("Hello world", result)
     assertNull(AccessibilityScreenInspectionPolicy.sanitizeLabel(" \\n "))
     assertEquals(
