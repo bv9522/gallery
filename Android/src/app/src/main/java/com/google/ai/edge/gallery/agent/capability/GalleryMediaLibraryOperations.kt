@@ -201,7 +201,7 @@ class GalleryMediaLibraryOperations(
     }
     if (!authorizer.authorize(
         AndroidCapability.MEDIA_SCAN,
-        "Build or update Gallery's local visual media index using EmbeddingGemma-2. This analyzes all photos/videos currently permitted through MediaStore and up to $MAX_TREE_INDEX_ASSETS media files from each currently read-granted storage scope (grants found: $grantedTreeCount). Indexing may use CPU/GPU resources and run as background work. No media is uploaded."
+        "Build or update Gallery's local visual media index using EmbeddingGemma-2. This analyzes all photos/videos currently permitted through MediaStore and up to $MAX_TREE_INDEX_ASSETS media files across currently read-granted storage folders (grants found: $grantedTreeCount). Indexing may use CPU/GPU resources and run as background work. No media is uploaded."
       )
     ) {
       throw SecurityException("Media indexing was not approved.")
