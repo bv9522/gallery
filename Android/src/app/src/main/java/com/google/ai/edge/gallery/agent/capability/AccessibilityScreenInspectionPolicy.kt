@@ -90,6 +90,15 @@ internal object AccessibilityScreenInspectionPolicy {
   }
 
   const val MAX_INPUT_TEXT_CHARS = 256
+  private val sensitiveInputMarkers = listOf(
+    "password", "passcode", "pin", "otp", "secret", "token", "credential",
+    "private key", "recovery phrase", "seed phrase", "account", "bank",
+    "payment", "credit card", "debit card", "ssn", "email", "phone", "address",
+  )
+
+  private fun containsSensitiveInputMarker(value: String): Boolean =
+    containsSensitiveText(value) ||
+      sensitiveInputMarkers.any { marker -> value.contains(marker, ignoreCase = true) }
 
   fun isSafeTextInputField(
     className: String,
@@ -107,14 +116,14 @@ internal object AccessibilityScreenInspectionPolicy {
       (inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE) != 0
     ) return false
     val value = currentText.orEmpty()
-    return value.length <= MAX_INPUT_TEXT_CHARS && !containsSensitiveText(value)
+    return value.length <= MAX_INPUT_TEXT_CHARS && !containsSensitiveInputMarker(value)
   }
 
   fun isSafeInputText(value: String): Boolean =
     value.isNotEmpty() &&
       value.length <= MAX_INPUT_TEXT_CHARS &&
       value.none { it.isISOControl() } &&
-      !containsSensitiveText(value)
+      !containsSensitiveInputMarker(value)
 
   fun isValidSelection(start: Int, end: Int, textLength: Int): Boolean =
     start >= 0 && end > start && end <= textLength && textLength <= MAX_INPUT_TEXT_CHARS
