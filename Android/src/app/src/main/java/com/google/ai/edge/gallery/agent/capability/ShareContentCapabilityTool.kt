@@ -66,8 +66,7 @@ class ShareContentCapabilityTool internal constructor(
   }
 
   private suspend fun shareText(text: String): AgentToolResult {
-    val preview = text.take(500) + if (text.length > 500) "…" else ""
-    if (!authorizer.authorize(AndroidCapability.SHARE_CONTENT, "Open Android's share chooser with this exact text:\n\n" + preview)) {
+    if (!authorizer.authorize(AndroidCapability.SHARE_CONTENT, "Open Android's share chooser with this exact text:\n\n" + text)) {
       return AgentToolResult("Text sharing was denied or approval was unavailable.", false)
     }
     val opened = requester.request(ShareContentToolAction("text/plain", text = text, chooserTitle = "Share text"))
@@ -103,7 +102,7 @@ class ShareContentCapabilityTool internal constructor(
     } ?: throw IllegalArgumentException("The document was not found in the selected tree.")
     val (name, mime, size) = metadata
     require(mime.isNotBlank() && mime != DocumentsContract.Document.MIME_TYPE_DIR) { "Only individual files can be shared." }
-    require(size in 0..MAX_FILE_BYTES) { "File size must be known and no larger than 25 MiB to share." }
+    require(size in 0L..MAX_FILE_BYTES) { "File size must be known and no larger than 25 MiB to share." }
     val summary = "Open Android's share chooser for '" + name + "' (" + mime + ", " + size + " bytes). The receiver gets temporary read-only access."
     if (!authorizer.authorize(AndroidCapability.SHARE_CONTENT, summary)) {
       return AgentToolResult("File sharing was denied or approval was unavailable.", false)
