@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #37 opened; active media-session control onboarded; per-slice test/build execution deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (PR #38 opened; AccessibilityService lifecycle foundation onboarded; per-slice test/build execution deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-3e-active-media-session-control` (stacked on `wave-3e-user-mediated-sharing`)  
-> **Current change:** [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), draft/open/unmerged, stacked on [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36). PRs #33–#37 remain draft/open/unmerged.  
+> **Current implementation branch:** `wave-3e-accessibility-ui-automation` (stacked on `wave-3e-active-media-session-control`)  
+> **Current change:** [PR #38 — Wave 3E AccessibilityService lifecycle foundation](https://github.com/bv9522/gallery/pull/38), draft/open/unmerged, stacked on [PR #37 — active media-session discovery and control](https://github.com/bv9522/gallery/pull/37). PRs #33–#38 remain draft/open/unmerged.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -173,14 +173,15 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 **Exit gate:** safe and reliable user-granted access to phone storage and USB removable storage, with no root or broad storage permission.
 
 ### Stage 7 — Accessibility and UI automation (Wave 5)
-- [ ] Define minimal AccessibilityService capability contracts and explicit user enable/disable lifecycle.
-- [ ] Implement bounded screen capture subject to Android restrictions and user-visible service state.
-- [ ] Implement semantic UI tree inspection with limits on node count, text, depth, and sensitive fields.
-- [ ] Implement semantic tap/click/long-press/swipe using node identity and verified bounds.
-- [ ] Implement semantic text entry and selection with explicit target/context validation.
+- [x] Define and implement the opt-in AccessibilityService lifecycle, status query, and explicit settings handoff. Android settings require the user to manually enable or disable Gallery; the app cannot toggle this special access programmatically.
+- [ ] Implement bounded screen capture subject to Android restrictions and user-visible service state. The current service configuration explicitly disables window-content retrieval and gestures; no screenshots or screen content are accessed.
+- [ ] Implement semantic UI tree inspection with limits on node count, text, depth, and sensitive fields. Not exposed by PR #38.
+- [ ] Implement semantic tap/click/long-press/swipe using node identity and verified bounds. Not exposed by PR #38.
+- [ ] Implement semantic text entry and selection with explicit target/context validation. Not exposed by PR #38.
 - [ ] Keep coordinate gesture fallback on the existing unified shell route only when explicitly requested/authorized; do not duplicate semantic operations.
 - [ ] Add per-action approval rules, cancellation, stale-node handling, foreground/app-change checks, and sensitive-screen exclusions.
-- [ ] Add tests for service unavailable/disabled, permission denial, node churn, app transitions, timeouts, and bounded results.
+- [x] Add lifecycle-tool tests for enabled/disabled status, approval-gated settings launch, and strict argument validation (added, not run).
+- [ ] Add tests for node churn, app transitions, timeouts, and bounded results when inspection/interaction is implemented.
 - [ ] Device-test accessibility enablement, screen capture restrictions, multiple apps, keyboard behavior, and safe failure.
 
 **Exit gate:** user-enabled accessibility is transparent, controllable, bounded, and demonstrably safer than generic coordinate automation.
@@ -714,3 +715,11 @@ version compatibility must be verified on-device before an operation is marked i
 - Adds exact cancellation by opaque handle. The repository consumes each handle once, enforces a two-minute lifetime, re-queries WorkManager, verifies the same Gallery model/extra-data/task/version tags and active state, marks an observed job as user-cancelled, and calls `cancelWorkById` for that one UUID. The agent never accepts a caller-supplied worker ID and never uses model-wide tag cancellation.
 - Wires the existing Hilt-provided singleton DownloadRepository into the Agent runtime. `download_status` is read-only; `cancel_download` requires one-time approval showing the selected model label, phase, and opaque download reference.
 - Adds unit tests for read-only status, handle freshness, exact approval, and denial. Local Gradle validation and S21 device acceptance remain pending.
+
+
+## Accessibility lifecycle foundation — Wave 5 / Stage 7 (PR #38)
+
+- PR #38 adds a dedicated `GalleryAccessibilityService` declared with `BIND_ACCESSIBILITY_SERVICE` and a minimal metadata configuration. The service receives no accessibility event types, cannot retrieve window content, and cannot perform gestures in this foundation slice. Its event callback is intentionally inert; no screen tree, text, notifications, screenshots, or interaction data are collected or retained.
+- Agent tool `accessibility_control` exposes only `status` and `open_settings`. Status is observational. Opening Android Accessibility settings requires the existing one-time scoped approval and only occurs when the user explicitly asks to enable or disable access. The user must manually toggle Gallery; Android does not permit the app to grant or revoke this special access itself.
+- The user-facing description must clearly state that enabling an AccessibilityService grants broad potential ability to observe and interact with the screen. The current implementation does not exercise those powers. Screen inspection, screenshots, semantic targeting, gestures, and text entry remain unimplemented and unavailable until their own bounded contracts, safety exclusions, and tests are onboarded.
+- Tests are added but intentionally not run under the owner-directed consolidated-validation policy.
