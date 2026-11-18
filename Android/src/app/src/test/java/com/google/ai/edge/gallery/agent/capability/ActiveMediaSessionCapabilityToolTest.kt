@@ -62,7 +62,7 @@ class ActiveMediaSessionCapabilityToolTest {
 
   @Test
   fun playbackActionsAreLimitedToSessionAdvertisedCapabilities() {
-    val actions = 1L or 2L or 16L or 32L or 256L
+    val actions = 4L or 2L or 16L or 32L or 256L
     assertTrue(ActiveMediaSessionActionPolicy.isSupported(ActiveMediaSessionAction.PLAY, actions))
     assertTrue(ActiveMediaSessionActionPolicy.isSupported(ActiveMediaSessionAction.PAUSE, actions))
     assertTrue(ActiveMediaSessionActionPolicy.isSupported(ActiveMediaSessionAction.NEXT, actions))
