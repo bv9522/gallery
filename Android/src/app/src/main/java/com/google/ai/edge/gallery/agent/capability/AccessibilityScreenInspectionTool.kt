@@ -34,11 +34,18 @@ class AccessibilityScreenInspectionTool internal constructor(
   )
 
   override val name = "screen_inspect"
+  private val windowCaptureSupported: Boolean
+    get() = imageInputSupported &&
+      AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT)
+
   override val description =
-    if (imageInputSupported) {
-      "Use operation=status to check Gallery's opt-in AccessibilityService and screen-capture availability. Use operation=inspect to read a bounded semantic summary of the active window after Gallery accessibility special access is manually enabled. Use operation=capture only when the user asks Gemma to visually inspect an app: it requires one-time SCREEN_CAPTURE approval and captures exactly one visible non-Gallery application window arranged alongside Gallery (normally split-screen). Capture requires Android API 34+, a complete safe accessibility hierarchy, and exactly one unambiguous external app window. Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. The image is resized to at most 1280 px on its longest side and 2 MiB JPEG, delivered in memory to the local multimodal model, with raw coordinator bytes erased after inference; the model conversation may retain visual context in memory until reset. No image file, full-display fallback, taps, gestures, typing, monitoring, or background capture is implemented. Sensitive-screen detection is conservative but cannot recognize every possible sensitive visual; only request capture when the user has confirmed the target screen is appropriate. Use operation=open_settings only when the user explicitly asks to enable access; the user must manually enable Gallery in Android Accessibility settings."
-    } else {
-      "Use operation=status to check Gallery's opt-in AccessibilityService and operation=inspect for bounded semantic screen inspection after manual enablement. Visual screenshot capture is unavailable because the selected model or runtime configuration does not support image input. Use operation=open_settings only when the user explicitly asks to enable Gallery's accessibility service."
+    when {
+      !imageInputSupported ->
+        "Use operation=status to check Gallery's opt-in AccessibilityService and operation=inspect for bounded semantic screen inspection after manual enablement. Visual screenshot capture is unavailable because the selected model or runtime configuration does not support image input. Use operation=open_settings only when the user explicitly asks to enable Gallery's accessibility service."
+      !windowCaptureSupported ->
+        "Use operation=status to check Gallery's opt-in AccessibilityService and operation=inspect for bounded semantic screen inspection after manual enablement. Window-specific visual capture is unavailable on this Android version; no full-display fallback is used. Use operation=open_settings only when the user explicitly asks to enable Gallery's accessibility service."
+      else ->
+        "Use operation=status to check Gallery's opt-in AccessibilityService and screen-capture availability. Use operation=inspect to read a bounded semantic summary of the active window after Gallery accessibility special access is manually enabled. Use operation=capture only when the user asks Gemma to visually inspect an app: it requires one-time SCREEN_CAPTURE approval and captures exactly one visible non-Gallery application window arranged alongside Gallery (normally split-screen). Capture requires Android API 34+, a complete safe accessibility hierarchy, and exactly one unambiguous external app window. Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. The image is resized to at most 1280 px on its longest side and 2 MiB JPEG, delivered in memory to the local multimodal model, with raw coordinator bytes erased after inference; the model conversation may retain visual context in memory until reset. No image file, full-display fallback, taps, gestures, typing, monitoring, or background capture is implemented. Sensitive-screen detection is conservative but cannot recognize every possible sensitive visual; only request capture when the user has confirmed the target screen is appropriate. Use operation=open_settings only when the user explicitly asks to enable access; the user must manually enable Gallery in Android Accessibility settings."
     }
 
   override val parametersSchema: JsonObject
@@ -50,7 +57,7 @@ class AccessibilityScreenInspectionTool internal constructor(
           add("enum", JsonArray().apply {
             add("status")
             add("inspect")
-            if (imageInputSupported) add("capture")
+            if (windowCaptureSupported) add("capture")
             add("open_settings")
           })
         })
@@ -98,8 +105,7 @@ class AccessibilityScreenInspectionTool internal constructor(
       appendLine("capability=SCREEN_CAPTURE")
       appendLine(
         "availability=" + when {
-          !imageInputSupported -> ProviderAvailability.UNSUPPORTED
-          !AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT) -> ProviderAvailability.UNSUPPORTED
+          !windowCaptureSupported -> ProviderAvailability.UNSUPPORTED
           availability == ProviderAvailability.AVAILABLE -> ProviderAvailability.AVAILABLE
           else -> availability
         }
