@@ -163,8 +163,10 @@ class GalleryMediaLibraryOperations(
     val note = when {
       mediaStoreSearch.permissionRequired -> "Android photo/video permission is not granted. Search is limited to any existing visual-index matches and persisted user-granted storage folders; open Smart Album to grant media-library access."
       mode == "NAME" -> "Filename search only."
+      visualIndex == null && findDownloadedEmbeddingModel() == null ->
+        "EmbeddingGemma-2 is not downloaded. Download it from Gallery's model manager, then run media_index to build the local visual index."
       visualIndex == null || !visualIndex.indexAvailable ->
-        "Visual index unavailable. Install EmbeddingGemma-2 and run media_index to build the local visual index."
+        "No searchable visual index is available. Run media_index to build or update it; EmbeddingGemma-2 must be downloaded."
       visualIndex.results.isEmpty() ->
         "Visual index is available, but no indexed visual matches were returned. Filename matches are included where found."
       else -> "Visual matches are ranked first; filename matches follow."
@@ -328,7 +330,7 @@ class GalleryMediaLibraryOperations(
     return try {
       val service = provider.service(SmartAlbumSource.USER_PHOTOS)
       if (service.fetchRecordIdentifiers().isEmpty()) {
-        VisualSearchResult(emptyList(), true)
+        VisualSearchResult(emptyList(), false)
       } else {
         val results = service.retrieveEntities(query, limit = limit)
         val assets = results.mapNotNull { result ->
