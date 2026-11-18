@@ -192,25 +192,26 @@ class GalleryMediaLibraryOperations(
     if (!File(modelPath).isFile) {
       throw IllegalStateException("The EmbeddingGemma-2 model file is not available locally.")
     }
-    val mediaStoreCount = if (hasMediaStoreReadAccess()) {
-      runCatching { photoLibrary.fetchMediaStoreAssetCount() }.getOrDefault(0)
-    } else {
-      0
-    }
+    val mediaStoreAccess = hasMediaStoreReadAccess()
     val grantedTreeCount = resolver.persistedUriPermissions.count { permission ->
       DocumentsContract.isTreeUri(permission.uri) && permission.isReadPermission
     }
-    if (mediaStoreCount == 0 && grantedTreeCount == 0) {
+    if (!mediaStoreAccess && grantedTreeCount == 0) {
       throw SecurityException("No readable MediaStore library or persisted storage-folder grant is available.")
     }
     if (!authorizer.authorize(
         AndroidCapability.MEDIA_SCAN,
-        "Build or update Gallery's local visual media index using EmbeddingGemma-2. MediaStore currently exposes $mediaStoreCount photos/videos; Gallery also has $grantedTreeCount read-granted storage folders, from which up to $MAX_TREE_INDEX_ASSETS media files will be added. Indexing may use CPU/GPU resources and run as background work. No media is uploaded."
+        "Build or update Gallery's local visual media index using EmbeddingGemma-2. This analyzes all photos/videos currently permitted through MediaStore and up to $MAX_TREE_INDEX_ASSETS media files from each currently read-granted storage scope (grants found: $grantedTreeCount). Indexing may use CPU/GPU resources and run as background work. No media is uploaded."
       )
     ) {
       throw SecurityException("Media indexing was not approved.")
     }
 
+    val mediaStoreCount = if (mediaStoreAccess) {
+      runCatching { photoLibrary.fetchMediaStoreAssetCount() }.getOrDefault(0)
+    } else {
+      0
+    }
     val treeScan = scanGrantedTrees(query = null, mediaKind = "ANY", maxMatches = MAX_TREE_INDEX_ASSETS)
     if (treeScan.assets.isEmpty() && !hasMediaStoreReadAccess()) {
       throw SecurityException("Gallery has no Android photo/video permission and no media files were found in persisted storage grants. Open Smart Album to grant photo/video access or grant a storage folder through document_tree request_access.")
@@ -232,6 +233,7 @@ class GalleryMediaLibraryOperations(
     return buildString {
       append("Visual media indexing was queued using EmbeddingGemma-2. ")
       append("Gallery will reuse its existing Smart Album worker and vector database. ")
+      append("MediaStore photos/videos visible: $mediaStoreCount. ")
       append("User-granted storage files discovered: ${treeScan.assets.size}.")
       if (treeScan.truncated) append(" The storage scan reached its safety limit; some files were not added.")
       append(" Indexing runs in the background; search can use completed records as they become available. ")
