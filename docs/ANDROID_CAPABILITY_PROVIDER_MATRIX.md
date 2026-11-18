@@ -63,7 +63,7 @@ The capability catalog assigns exactly one owner to every declared capability. T
 - Provider discovery reports permission/global-notification state without prompting. Blocked channels and globally disabled notifications are explicit failures. Active notification and channel listings are bounded; at most 50 reminders are persisted. Schedule persistence and alarm updates are serialized, and boot recovery reads authoritative DataStore state.
 - Reading notifications from other apps remains unsupported and separate; it requires NotificationListenerService special access and is not silently enabled by this phase.
 
-## Accessibility provider — Wave 5A semantic inspection (PR #38 draft)
+## Accessibility provider — Wave 5A semantic inspection (PR #39 draft)
 
 - `screen_inspect status` reports the AccessibilityService lifecycle without reading screen content. `PERMISSION_REQUIRED` is returned until the user manually enables Gallery in Android Accessibility settings; an enabled but disconnected service reports `SERVICE_STOPPED`.
 - `screen_inspect inspect` requires one-time approval and reads only the active visible application window on demand. The service subscribes only to window-state changes and ignores the event payload; it stores no event history or screen tree. Inspection reads only the active window at invocation. Since Agent Chat is normally foreground, this usually means Gallery's own window unless the user has arranged another active window (for example, split-screen); app switching is not automated.
