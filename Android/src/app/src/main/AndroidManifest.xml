@@ -110,7 +110,7 @@
 
         <service
             android:name=".agent.capability.GalleryMediaSessionListenerService"
-            android:label="Edge Gallery media session access"
+            android:label="Edge Gallery media sessions and notification access"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
             <intent-filter>
