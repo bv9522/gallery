@@ -274,7 +274,7 @@ class ShizukuShellBinaryArtifactTransport(
       )
     } catch (error: Throwable) {
       runCatching { output.close() }
-      remote.cancel()
+      withContext(NonCancellable) { runCatching { remote.await() } }
       throw error
     } finally {
       runCatching { readEnd.close() }
