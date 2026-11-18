@@ -269,7 +269,6 @@ internal object AgentChatTaskModule {
     agentTools: AgentTools,
     llmSessionManager: LlmSessionManager,
     downloadRepository: DownloadRepository,
-    customTasks: Set<@JvmSuppressWildcards CustomTask>,
   ): AgentRuntimeExecutor {
     val fallbackExecutor =
       DefaultAgentRuntimeExecutor(
@@ -282,7 +281,6 @@ internal object AgentChatTaskModule {
       agentTools = agentTools,
       fallbackExecutor = fallbackExecutor,
       downloadRepository = downloadRepository,
-      customTasks = customTasks,
     )
   }
 
