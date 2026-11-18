@@ -132,7 +132,7 @@ class GalleryMediaLibraryOperations(
     visualIndex?.results.orEmpty().forEach { result ->
       combined[result.first.contentUri.toString()] = result
     }
-    (mediaStoreMatches + treeScan.assets).forEach { asset ->
+    (mediaStoreMatches + treeScan.assets.filter { isReadableMedia(it.contentUri) }).forEach { asset ->
       combined.putIfAbsent(asset.contentUri.toString(), asset to null)
     }
 
@@ -345,6 +345,7 @@ class GalleryMediaLibraryOperations(
         val results = service.retrieveEntities(query, limit = limit)
         val assets = results.mapNotNull { result ->
           val asset = photoLibrary.fetchAsset(result.id) ?: return@mapNotNull null
+          if (!isReadableMedia(asset.contentUri)) return@mapNotNull null
           if (!matchesKind(asset, mediaKind)) return@mapNotNull null
           asset to result.similarityScore
         }
@@ -354,6 +355,14 @@ class GalleryMediaLibraryOperations(
       provider.close()
     }
   }
+
+  private fun isReadableMedia(uri: Uri): Boolean =
+    try {
+      resolver.openFileDescriptor(uri, "r")?.use { true } ?: false
+    } catch (error: Exception) {
+      Log.i(TAG, "Skipping media that is no longer readable: ${error.message}")
+      false
+    }
 
   private fun hasMediaStoreReadAccess(): Boolean {
     val permissions = when {
