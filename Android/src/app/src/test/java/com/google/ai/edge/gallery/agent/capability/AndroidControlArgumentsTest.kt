@@ -298,6 +298,23 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun usbReadDescriptorsRequiresFreshOpaqueHandle() {
+    val missing = JsonObject().apply { addProperty("operation", "usb_read_descriptors") }
+    val malformed = JsonObject().apply {
+      addProperty("operation", "usb_read_descriptors")
+      addProperty("usb_handle", "123")
+    }
+    val valid = JsonObject().apply {
+      addProperty("operation", "usb_read_descriptors")
+      addProperty("usb_handle", "usb_" + "c".repeat(32))
+    }
+
+    assertTrue(AndroidControlArguments.validate(missing).orEmpty().contains("usb_handle"))
+    assertTrue(AndroidControlArguments.validate(malformed).orEmpty().contains("usb_handle"))
+    assertNull(AndroidControlArguments.validate(valid))
+  }
+
+  @Test
   fun readSmsInboxTakesNoArguments() {
     val valid = JsonObject().apply { addProperty("operation", "read_sms_inbox") }
     val unexpected = JsonObject().apply {

@@ -32,6 +32,21 @@ import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
   @Test
+  fun usbDescriptorReadRequiresExplicitOperationAndFreshHandle() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+    val handle = "usb_" + "c".repeat(32)
+
+    val result = tool.execute(arguments("usb_read_descriptors").apply {
+      addProperty("usb_handle", handle)
+    })
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("vendorId"))
+    assertTrue(adapter.discoveryCalls.contains("usb_read_descriptors:$handle"))
+  }
+
+  @Test
   fun readSmsInboxDelegatesToTheNativeAdapterForTheExplicitOperation() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter = adapter)
@@ -1016,6 +1031,17 @@ class AndroidNativeCapabilityToolTest {
     override suspend fun getUsbDevices(): List<NativeUsbDevice> {
       discoveryCalls += "usb_devices"
       return emptyList()
+    }
+
+    override suspend fun readUsbDescriptors(handle: String): NativeUsbDescriptorSnapshot {
+      discoveryCalls += "usb_read_descriptors:$handle"
+      return NativeUsbDescriptorSnapshot(
+        vendorId = 0x1234,
+        productId = 0x5678,
+        descriptorBytes = 16,
+        descriptors = listOf(NativeUsbDescriptor(9, 4, interfaceNumber = 1)),
+        truncated = false,
+      )
     }
 
     override suspend fun postNotification(

@@ -87,7 +87,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
-      "device enumeration. Use record_audio for a local AAC recording of 1–30 seconds saved to Music/EdgeGallery; " +
+      "device enumeration. Use android_control usb_devices to enumerate attached USB host devices and copy a fresh deviceHandle. Use usb_read_descriptors only with a handle from the latest usb_devices result; each read requires one-time USB_DEVICE_IO approval and Android's per-device USB permission prompt if not already granted. It returns standard device/configuration/interface/endpoint descriptor metadata only. Handles expire after 30 seconds and are consumed on use. No arbitrary control, bulk, interrupt, or isochronous endpoint transfers or writes are exposed. USB mass-storage files must be accessed through the user-granted SAF document_tree provider, never UsbManager raw I/O. Use record_audio for a local AAC recording of 1–30 seconds saved to Music/EdgeGallery; " +
       "it requires one-time approval and RECORD_AUDIO permission and returns a local content URI. " +
       "Use capture_photo for a user-mediated camera capture saved to Pictures/EdgeGallery; it requires " +
       "one-time approval. Use set_wallpaper only with a Gallery-readable image content URI and SYSTEM, " +
@@ -151,8 +151,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "Use bluetooth_bonded_devices to list paired devices (one-time approval plus BLUETOOTH_CONNECT) " +
       "and bluetooth_le_scan to discover nearby BLE devices (one-time approval plus BLUETOOTH_SCAN " +
       "and CONNECT). BLE scans " +
-      "last 1–10 seconds and must stop on cancellation. Use usb_devices to inspect attached USB host " +
-      "device/interface descriptors; this does not grant USB device access or perform storage I/O. " +
+      "last 1–10 seconds and must stop on cancellation. " +
       "Never invent Termux:API commands or use this tool as arbitrary shell access. Its mutations " +
       "require the same one-time approval boundary.\n\n" +
       "DEVICE SHELL TOOL RULES: For any request that requires a device shell command, call the " +

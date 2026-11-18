@@ -28,10 +28,12 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.app.AlarmManager
 import android.app.Notification
+import android.app.PendingIntent
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ComponentName
 import android.content.ClipboardManager
@@ -54,6 +56,7 @@ import android.os.BatteryManager
 import android.os.Environment
 import android.os.Build
 import android.os.PowerManager
+import android.os.SystemClock
 import android.os.ParcelFileDescriptor
 import android.os.VibrationEffect
 import android.os.VibratorManager
@@ -81,6 +84,8 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import dagger.hilt.android.EntryPointAccessors
 import com.google.ai.edge.gallery.notifications.NotificationScheduleManagerEntryPoint
 import com.google.ai.edge.gallery.proto.ScheduledNotification
@@ -93,8 +98,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.UUID
+import kotlin.coroutines.resume
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 /** Small, privacy-conscious device facts suitable for a local agent. */
 data class NativeDeviceInfo(
   val manufacturer: String,
@@ -186,6 +193,7 @@ data class NativeUsbDevice(
   val subclassCode: Int,
   val protocolCode: Int,
   val interfaces: List<NativeUsbInterface>,
+  val deviceHandle: String? = null,
 )
 
 fun interface NativeRuntimePermissionRequester {
@@ -259,6 +267,14 @@ private data class BluetoothGattSession(
   val events: Channel<BluetoothGattEvent>,
 )
 
+private data class UsbDeviceHandleEntry(
+  val deviceName: String,
+  val deviceId: Int,
+  val vendorId: Int,
+  val productId: Int,
+  val expiresAtMs: Long,
+)
+
 fun interface NativeBiometricAuthenticator {
   suspend fun authenticate(
     title: String,
@@ -283,6 +299,8 @@ class AndroidNativeCapabilityAdapter(
 ) : NativeCapabilityOperations {
   private val appContext = context.applicationContext
   private val wakeLockGuard = Any()
+  private val usbHandleLock = Any()
+  private val usbDeviceHandles = mutableMapOf<String, UsbDeviceHandleEntry>()
   private var agentWakeLock: PowerManager.WakeLock? = null
 
   override val descriptor: CapabilityProviderDescriptor =
@@ -421,9 +439,11 @@ class AndroidNativeCapabilityAdapter(
         details[AndroidCapability.USB_DEVICE_DISCOVERY] = "USB host mode is unavailable."
         ProviderAvailability.UNSUPPORTED
       }
-    capabilities[AndroidCapability.USB_DEVICE_IO] = ProviderAvailability.UNSUPPORTED
-    details[AndroidCapability.USB_DEVICE_IO] =
-      "USB permission, connection, and I/O sessions are not implemented in this onboarding phase."
+    capabilities[AndroidCapability.USB_DEVICE_IO] =
+      if (usbManager != null && usbHostSupported) ProviderAvailability.AVAILABLE else {
+        details[AndroidCapability.USB_DEVICE_IO] = "USB host descriptor access is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
 
     capabilities[AndroidCapability.FLASHLIGHT_CONTROL] = flashlightAvailability()
       .also { availability ->
@@ -1059,10 +1079,131 @@ class AndroidNativeCapabilityAdapter(
     }
     val manager = appContext.getSystemService(UsbManager::class.java)
       ?: throw IllegalStateException("USB manager is unavailable.")
-    return manager.deviceList.values.take(MAX_USB_DEVICES).map { device ->
-      device.toNativeUsbDevice()
-    }.sortedWith(compareBy<NativeUsbDevice> { it.vendorId }.thenBy { it.productId }.thenBy { it.deviceId })
+    val devices = manager.deviceList.values.take(MAX_USB_DEVICES)
+      .sortedWith(compareBy<UsbDevice> { it.vendorId }.thenBy { it.productId }.thenBy { it.deviceId })
+    return synchronized(usbHandleLock) {
+      usbDeviceHandles.clear()
+      devices.map { device ->
+        val handle = "usb_${UUID.randomUUID().toString().replace("-", "")}"
+        usbDeviceHandles[handle] = UsbDeviceHandleEntry(
+          deviceName = device.deviceName,
+          deviceId = device.deviceId,
+          vendorId = device.vendorId,
+          productId = device.productId,
+          expiresAtMs = SystemClock.elapsedRealtime() + USB_HANDLE_TTL_MS,
+        )
+        device.toNativeUsbDevice(handle)
+      }
+    }
   }
+
+  @SuppressLint("MissingPermission")
+  override suspend fun readUsbDescriptors(handle: String): NativeUsbDescriptorSnapshot {
+    require(handle.matches(Regex("^usb_[0-9a-f]{32}$"))) {
+      "usb_handle must be copied exactly from the latest usb_devices result."
+    }
+    val entry = synchronized(usbHandleLock) { usbDeviceHandles.remove(handle) }
+      ?: throw IllegalArgumentException("usb_handle is missing, expired, or already used; run usb_devices again.")
+    if (SystemClock.elapsedRealtime() > entry.expiresAtMs) {
+      throw IllegalArgumentException("usb_handle has expired; run usb_devices again.")
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.USB_DEVICE_IO,
+        "Read standard USB device/configuration/interface/endpoint descriptor metadata for the selected USB device (VID ${entry.vendorId}, PID ${entry.productId}). This is descriptor-only access; no endpoint data transfer or write is performed.",
+      )
+    ) {
+      throw SecurityException("USB descriptor inspection was not approved.")
+    }
+    if (!appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)) {
+      throw IllegalStateException("This device does not support USB host mode.")
+    }
+    val manager = appContext.getSystemService(UsbManager::class.java)
+      ?: throw IllegalStateException("USB manager is unavailable.")
+    val device = manager.deviceList[entry.deviceName]
+      ?: throw IllegalStateException("The selected USB device is no longer attached.")
+    if (device.deviceId != entry.deviceId || device.vendorId != entry.vendorId ||
+      device.productId != entry.productId
+    ) {
+      throw IllegalStateException("The selected USB device changed; run usb_devices again.")
+    }
+    if (!manager.hasPermission(device) && !requestUsbPermission(manager, device)) {
+      throw SecurityException("Android USB device permission was denied or timed out.")
+    }
+    val connection = manager.openDevice(device)
+      ?: throw IllegalStateException("Android could not open the selected USB device.")
+    val raw = try {
+      connection.rawDescriptors
+        ?: throw IllegalStateException("The USB device returned no raw descriptors.")
+    } finally {
+      connection.close()
+    }
+    return try {
+      parseUsbDescriptors(raw, entry.vendorId, entry.productId)
+    } finally {
+      raw.fill(0)
+    }
+  }
+
+  private suspend fun requestUsbPermission(manager: UsbManager, device: UsbDevice): Boolean {
+    if (manager.hasPermission(device)) return true
+    val action = "${appContext.packageName}.USB_PERMISSION.${UUID.randomUUID()}"
+    val permissionIntent = Intent(action).setPackage(appContext.packageName)
+    val pendingIntent = PendingIntent.getBroadcast(
+      appContext,
+      UUID.randomUUID().hashCode(),
+      permissionIntent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+    )
+    val continuationRef = AtomicReference<kotlinx.coroutines.CancellableContinuation<Boolean>?>(null)
+    val receiver = object : BroadcastReceiver() {
+      override fun onReceive(context: Context?, intent: Intent?) {
+        val receivedIntent = intent ?: return
+        if (receivedIntent.action != action) return
+        @Suppress("DEPRECATION")
+        val returnedDevice = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+          receivedIntent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+        } else {
+          receivedIntent.getParcelableExtra(UsbManager.EXTRA_DEVICE) as? UsbDevice
+        }
+        if (returnedDevice?.deviceName != device.deviceName) return
+        val granted = receivedIntent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+        continuationRef.getAndSet(null)?.let { continuation ->
+          if (continuation.isActive) continuation.resume(granted)
+        }
+      }
+    }
+    var registered = false
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        appContext.registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
+      } else {
+        @Suppress("DEPRECATION")
+        appContext.registerReceiver(receiver, IntentFilter(action))
+      }
+      registered = true
+      return withTimeoutOrNull(USB_PERMISSION_TIMEOUT_MS) {
+        suspendCancellableCoroutine { continuation ->
+          continuationRef.set(continuation)
+          continuation.invokeOnCancellation { continuationRef.compareAndSet(continuation, null) }
+          manager.requestPermission(device, pendingIntent)
+        }
+      } ?: false
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+      throw cancelled
+    } catch (_: Exception) {
+      false
+    } finally {
+      continuationRef.set(null)
+      if (registered) runCatching { appContext.unregisterReceiver(receiver) }
+      pendingIntent.cancel()
+    }
+  }
+
+  private fun parseUsbDescriptors(
+    raw: ByteArray,
+    vendorId: Int,
+    productId: Int,
+  ): NativeUsbDescriptorSnapshot = UsbDescriptorParser.parse(raw, vendorId, productId)
 
   override suspend fun searchContacts(query: String, limit: Int): List<NativeContactSummary> {
     val normalizedQuery = query.trim()
@@ -1713,13 +1854,14 @@ class AndroidNativeCapabilityAdapter(
     serviceUuids = serviceUuids,
   )
 
-  private fun UsbDevice.toNativeUsbDevice() = NativeUsbDevice(
+  private fun UsbDevice.toNativeUsbDevice(handle: String) = NativeUsbDevice(
     deviceId = deviceId,
     vendorId = vendorId,
     productId = productId,
     classCode = deviceClass,
     subclassCode = deviceSubclass,
     protocolCode = deviceProtocol,
+    deviceHandle = handle,
     interfaces = (0 until interfaceCount).take(MAX_USB_INTERFACES).map { index ->
       val usbInterface = getInterface(index)
       NativeUsbInterface(
@@ -2514,6 +2656,8 @@ class AndroidNativeCapabilityAdapter(
   }
 
   private companion object {
+    const val USB_HANDLE_TTL_MS = 30_000L
+    const val USB_PERMISSION_TIMEOUT_MS = 45_000L
     const val MAX_VIBRATION_DURATION_MS = 1_000L
     const val MIN_AUDIO_RECORD_MS = 1_000L
     const val MAX_AUDIO_RECORD_MS = 30_000L

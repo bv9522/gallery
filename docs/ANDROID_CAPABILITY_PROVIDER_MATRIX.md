@@ -6,14 +6,15 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 
 ## Current progress snapshot (2026-11-17)
 
-- Active branch: `wave-6c-sms-inbox-read`, stacked on `wave-6b-call-log-read`.
-- Active PR: [#45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), draft/open/unmerged, stacked on [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), and [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33).
+- Active branch: `wave-6d-usb-descriptor-io`, stacked on `wave-6c-sms-inbox-read`.
+- Active PR: [#46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), draft/open/unmerged, stacked on [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then [PR #37 — Wave 3E active media-session discovery and control](https://github.com/bv9522/gallery/pull/37), [PR #36 — user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), and [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33).
 - PR #42 adds separately approved entry into empty ordinary single-line plain-text fields and bounded text selection. Current field contents are never returned. Tests are added but not run; no build or device acceptance is performed.
 - Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
 - PR #34 reuses `DefaultDownloadRepository` / `DownloadWorker` / WorkManager and adds bounded snapshots, allowlist-backed labels, opaque handles, exact-worker cancellation, scoped approval, and unit tests. The user confirmed its local tests and Shizuku debug build passed; device acceptance remains pending.
 - PR #35 adds bounded filename/visual search, EmbeddingGemma-2 / Smart Album index reuse, SAF-granted storage discovery/indexing, and Gallery-owned Media3 video playback. Tests are added but have not been executed.
 - PR #36 adds `share_content.share_text` (exact approved text, 1–4,000 characters) and `share_content.share_file` (a document ID from a Gallery-granted SAF tree, known file size up to 25 MiB). Both launch Android's ACTION_SEND chooser; the user selects the receiver and completes or cancels. File sharing grants temporary read access only; no arbitrary URI/path, direct receiver targeting, or silent send is exposed. Tests are added but have not been executed.
 - PR #37 adds `media_sessions.list`, `control`, and explicit `open_settings`. Listing requires the user-enabled notification-listener special access and one-time approval; it returns at most 10 cross-app sessions with bounded metadata and 2-minute opaque handles. Controls are limited to advertised PLAY/PAUSE/NEXT/PREVIOUS/SEEK actions, revalidate the current active session, require one-time approval, and consume the handle after dispatch. SEEK is bounded to the known track duration. Settings launch never grants access automatically. Tests are added but have not been executed.
+- PR #46 adds `android_control.usb_read_descriptors` using a fresh one-shot handle from `usb_devices`. It requires one-time `USB_DEVICE_IO` approval and Android's per-device USB permission prompt when needed, then returns only standard device/configuration/interface/endpoint descriptor metadata. Handles expire after 30 seconds and are consumed on use. Arbitrary control/bulk/interrupt/isochronous transfers and writes remain unsupported; USB mass-storage files continue through SAF. Tests are added but not run.
 - PR #45 adds `android_control.read_sms_inbox`, a one-shot snapshot of at most 20 recent received SMS entries with sender address, bounded message preview, timestamp, and read/unread state. Each read requires explicit user intent, one-time `SMS_READ` approval, and `READ_SMS` permission requested only after approval. Android/installer/default-SMS-role eligibility restrictions fail closed; Gallery does not change the default SMS role. Tests are added but not run.
 - PR #44 adds `android_control.read_call_log`, a one-shot snapshot of at most 20 recent call-log entries with caller name/number, call type, timestamp, and duration. Each read requires explicit user intent, one-time `CALL_LOG_READ` approval, and `READ_CALL_LOG` permission requested only after approval. Android/installer eligibility restrictions fail closed; Gallery does not change the default dialer role. Tests are added but not run.
 - PR #43 adds `android_control.read_notifications`, an explicit one-shot snapshot of up to 20 currently active notifications from other apps. It requires manually enabled notification-listener special access plus separate one-time approval for each read; it returns only app labels and bounded title/body text, does not read history or process callbacks, and stores no notification content. The shared listener does not collect callbacks or retain notification history. Tests are added but not run.
@@ -114,8 +115,7 @@ Termux:API is selected for basic sensors, location requests/updates, Wi-Fi infor
 results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Kotlin owns Bluetooth/BLE,
 USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/security-sensitive
 integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
-provider owns removable-storage files. USB host enumeration is draft code; raw USB device I/O remains
-planned. Gallery-owned notification posting/scheduling is implemented in draft PR #30 and has user-confirmed
+provider owns removable-storage files. USB host enumeration is draft code; PR #46 adds read-only standard descriptor inspection with a per-device permission prompt and one-shot approval. Arbitrary endpoint data transfers and writes remain unsupported. Gallery-owned notification posting/scheduling is implemented in draft PR #30 and has user-confirmed
 local unit-test/build validation; device acceptance remains pending. The current Wave 3 telephony slice
 adds non-identifying telephony metadata and user-mediated dialer/SMS composer actions; call-log and SMS
 inbox reads remain planned.
@@ -139,14 +139,15 @@ inbox reads remain planned.
   for paired-device reads and BLUETOOTH_SCAN plus CONNECT for BLE scans, only after explicit
   one-time approval; discovery probes remain observational. BLE scan windows are bounded to 1–10
   seconds and stop scanning in a cancellation-safe cleanup path.
-- USB host discovery uses UsbManager and reports bounded VID/PID/class/interface metadata. It does
-  not open a device, request USB device permission, or treat USB mass storage as a raw filesystem.
+- USB host discovery uses UsbManager and reports bounded VID/PID/class/interface metadata. PR #46
+  adds read-only standard descriptor retrieval after per-device Android permission and separate
+  approval; connections close immediately. USB mass storage remains on SAF, not raw UsbManager I/O.
 - Phase 8A adds generic Bluetooth GATT service inspection through a short-lived native LE
   connection. Phase 8B adds one-shot characteristic reads/writes using full UUIDs, with reads
   returned as Base64 and writes limited to 512 bytes with exact payload approval. Each operation
   requires scoped approval and BLUETOOTH_CONNECT, uses a 5–20 second overall timeout, and closes
   the GATT client on success/failure/timeout/cancellation. No subscriptions or retained sessions
-  are exposed. USB device I/O remains planned.
+  are exposed. PR #46 adds descriptor-only USB inspection; arbitrary endpoint data transfers/writes remain unsupported.
 
 
 ## Native speech services (existing Gallery ownership)
@@ -215,7 +216,8 @@ inbox reads remain planned.
   500 visited entries, depth 4, and 50 results; it never searches file contents. General metadata
   writes remain unsupported.
 - Attached USB mass storage is accessed through SAF, not through UsbManager bulk transfers. UsbManager
-  is only used for peripheral enumeration and future non-storage USB protocols.
+  is used for peripheral enumeration and read-only descriptor inspection; arbitrary non-storage endpoint
+  transfers and writes remain unsupported until a safe protocol-specific contract exists.
 
 ## Native telephony onboarding — Wave 3 draft
 

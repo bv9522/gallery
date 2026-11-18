@@ -177,7 +177,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "values: speak_text, status, device_info, telephony_info, dial_phone, compose_sms, biometric_auth, keystore_create, keystore_list, keystore_delete, keystore_encrypt, keystore_decrypt, battery_status, volume_status, list_apps, set_volume, " +
       "set_flashlight, launch_app, open_url, audio_devices, display_brightness, " +
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
-      "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
+      "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, usb_read_descriptors, " +
       "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
       "cancel_scheduled_notification, list_notification_channels, create_notification_channel, read_notifications, read_call_log, read_sms_inbox, download_status, cancel_download, media_search, media_index, media_play. " +
       "download_status returns at most 20 active Gallery model downloads with short-lived opaque handles. " +
@@ -204,7 +204,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "the user must confirm the call or press Send. No CALL_PHONE or SEND_SMS permission is requested, " +
       "No call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers and cell-location data. " +
       "Keystore keys are non-exportable AES-256 keys and each encrypt/decrypt operation requires strong biometric authentication. " +
-      "media_search searches filenames in MediaStore and persisted user-granted storage folders, and can use the existing EmbeddingGemma-2 Smart Album visual index. media_index queues the existing bounded Smart Album indexing worker after one-time approval; it analyzes permitted media on-device and does not upload media. Search results expose short-lived opaque handles, not content URIs or filesystem paths. media_play requires a fresh search handle and one-time approval, then opens the selected video in Gallery's built-in Media3 player. USB storage is accessed only through persisted user-granted SAF trees. USB device I/O is not exposed. Agent speech uses Gallery's existing TtsServiceProvider and playback controller, preserves saved engine/voice/language, and requires one-time approval of the exact text. Speech text is limited to 1000 characters. This tool never executes shell commands."
+      "media_search searches filenames in MediaStore and persisted user-granted storage folders, and can use the existing EmbeddingGemma-2 Smart Album visual index. media_index queues the existing bounded Smart Album indexing worker after one-time approval; it analyzes permitted media on-device and does not upload media. Search results expose short-lived opaque handles, not content URIs or filesystem paths. media_play requires a fresh search handle and one-time approval, then opens the selected video in Gallery's built-in Media3 player. USB descriptor inspection is read-only and requires a fresh handle from usb_devices plus one-time approval and Android's per-device USB permission prompt. It returns standard descriptor metadata only; arbitrary endpoint/control/bulk transfers and writes are not exposed. USB mass storage must use the user-granted SAF document_tree provider. Agent speech uses Gallery's existing TtsServiceProvider and playback controller, preserves saved engine/voice/language, and requires one-time approval of the exact text. Speech text is limited to 1000 characters. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -216,9 +216,15 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "download_status", "cancel_download", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "read_notifications", "read_call_log", "read_sms_inbox", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index", "media_play",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "read_notifications", "read_call_log", "read_sms_inbox", "usb_devices", "usb_read_descriptors", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index", "media_play",
             ).forEach { add(it) }
           })
+        })
+        add("usb_handle", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Short-lived one-shot USB device handle copied exactly from the latest usb_devices result.")
+          addProperty("pattern", "^usb_[0-9a-f]{32}$")
+          addProperty("maxLength", 36)
         })
         add("media_handle", JsonObject().apply {
           addProperty("type", "string")
@@ -715,6 +721,11 @@ class AndroidNativeCapabilityTool internal constructor(
           AgentToolResult(Gson().toJson(adapter.scanBluetoothLe(duration)))
         }
         "usb_devices" -> AgentToolResult(Gson().toJson(adapter.getUsbDevices()))
+        "usb_read_descriptors" -> {
+          val handle = arguments.string("usb_handle")
+            ?: return failure("usb_read_descriptors requires usb_handle from the latest usb_devices result.")
+          AgentToolResult(Gson().toJson(adapter.readUsbDescriptors(handle)))
+        }
         "record_audio" -> {
           val duration = if (arguments.has("duration_ms")) {
             arguments.long("duration_ms") ?: return failure("duration_ms must be an integer.")
