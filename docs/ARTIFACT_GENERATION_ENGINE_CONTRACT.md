@@ -14,7 +14,7 @@ The single future model-facing operation is `artifact_create`. It accepts one st
 | `destination_type` | Exactly one of `saf` or `shell` |
 | `tree_uri` | Required for SAF; must originate from Gallery's document-tree grant flow |
 | `parent_document_id` | Optional SAF destination folder ID from the same granted tree |
-| `backend` | Required for shell: explicit `TERMUX`, `SHIZUKU`, or `TERMUX_RISH` |
+| `backend` | Required for shell: explicit `TERMUX` or `SHIZUKU`; TERMUX_RISH binary output is unavailable pending stdin-forwarding proof |
 | `path` | Required for shell: absolute path whose leaf exactly matches `file_name` |
 | `overwrite` | Optional boolean; defaults to false |
 | `payload` | Format-specific JSON object validated by the selected generator |
