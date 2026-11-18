@@ -418,7 +418,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBina
       putExtra(EXTRA_COMMAND_PATH, TERMUX_BASH_PATH)
       putExtra(EXTRA_ARGUMENTS, arrayOf("-lc", command))
       putExtra(EXTRA_WORKDIR, workingDirectory)
-      putExtra(EXTRA_BACKGROUND, true)
+      putExtra(EXTRA_RUNNER, RUNNER_APP_SHELL)
       putExtra(EXTRA_COMMAND_LABEL, "Android MCP process supervisor")
       putExtra(EXTRA_COMMAND_DESCRIPTION, "Supervised command control request.")
       putExtra(EXTRA_PENDING_INTENT, callback)
@@ -529,11 +529,12 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBina
     private const val EXTRA_COMMAND_PATH = "com.termux.RUN_COMMAND_PATH"
     private const val EXTRA_ARGUMENTS = "com.termux.RUN_COMMAND_ARGUMENTS"
     private const val EXTRA_WORKDIR = "com.termux.RUN_COMMAND_WORKDIR"
-    private const val EXTRA_BACKGROUND = "com.termux.RUN_COMMAND_BACKGROUND"
     private const val EXTRA_COMMAND_LABEL = "com.termux.RUN_COMMAND_COMMAND_LABEL"
     private const val EXTRA_COMMAND_DESCRIPTION = "com.termux.RUN_COMMAND_COMMAND_DESCRIPTION"
     private const val EXTRA_PENDING_INTENT = "com.termux.RUN_COMMAND_PENDING_INTENT"
     private const val EXTRA_STDIN = "com.termux.RUN_COMMAND_STDIN"
+    private const val EXTRA_RUNNER = "com.termux.RUN_COMMAND_RUNNER"
+    private const val RUNNER_APP_SHELL = "app-shell"
 
     internal const val EXTRA_PLUGIN_RESULT_BUNDLE = "result"
     private const val EXTRA_PLUGIN_RESULT_BUNDLE_STDOUT = "stdout"
