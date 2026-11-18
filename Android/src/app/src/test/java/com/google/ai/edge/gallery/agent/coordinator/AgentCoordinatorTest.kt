@@ -304,7 +304,7 @@ class AgentCoordinatorTest {
         val toolMessage = history.last()
         assertNull(toolMessage.toolImageBytes)
         assertFalse(toolMessage.toolSucceeded == true)
-        assertTrue(toolMessage.content.contains("image budget"))
+        assertTrue(toolMessage.content.contains("multimodal result budget"))
         AgentModelResponse.FinalAnswer("The image was rejected.")
       }
     }
