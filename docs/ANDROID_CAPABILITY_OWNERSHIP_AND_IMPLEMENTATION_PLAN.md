@@ -407,7 +407,7 @@ started with only three commands.
 | media-player, media-scan | Native Kotlin media APIs |
 | microphone-record | Native Kotlin MediaRecorder + MediaStore for bounded Gallery-owned file recording |
 | nfc | Termux:API for basic NDEF read/write; native for foreground reader-mode integration |
-| notification, notification-channel, notification-list, notification-remove | Native Kotlin NotificationManager for Gallery-owned posting, active notification listing/dismissal, channels, and scheduled reminders; reading other apps' notifications requires a separate future NotificationListenerService |
+| notification, notification-channel, notification-list, notification-remove | Native Kotlin NotificationManager for Gallery-owned posting, active notification listing/dismissal, channels, and scheduled reminders; other-app content uses the existing manually enabled NotificationListenerService only for explicit on-demand reads with separate one-time approval |
 | sensor | Termux:API for bounded reads/streams with explicit cleanup |
 | share | Native Kotlin Android share intents |
 | sms-inbox, sms-list, sms-send | Native Kotlin telephony/content APIs; sending remains user-mediated |
