@@ -35,6 +35,9 @@ class ShellArtifactDestinationAdapter(
     val destination = request.destination as? ArtifactDestinationSpec.ShellPath
       ?: throw IllegalArgumentException("Shell adapter received a non-shell destination.")
     require(ShellArtifactTransferPolicy.supportsBinaryOutput(destination.backend)) {
+    require(destination.absolutePath.substringAfterLast('/') == request.fileName) {
+      "Shell destination leaf must exactly match the approved filename."
+    }
       "TERMUX_RISH binary artifact output is unavailable until remote stdin forwarding is verified."
     }
     return destination.backend.name + " path " + destination.absolutePath
