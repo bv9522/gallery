@@ -30,6 +30,7 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.nio.file.Files
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -137,16 +138,18 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         "Binary write timeout must be between $MIN_TIMEOUT_MS and $MAX_TIMEOUT_MS ms."
       }
       require(mimeType in SUPPORTED_BINARY_MIME_TYPES) { "Unsupported binary artifact MIME type." }
-      target = resolveSafeBinaryTarget(targetPath)
-      require(!target.exists() && !android.system.OsConstants.S_ISLNK(android.system.Os.lstat(target.absolutePath).st_mode)) {
+      val targetFile = resolveSafeBinaryTarget(targetPath)
+      target = targetFile
+      require(!targetFile.exists() && !Files.isSymbolicLink(targetFile.toPath())) {
         "The target already exists or is a symbolic link; overwrite is not supported."
       }
-      val parent = target.parentFile ?: throw IllegalArgumentException("Target has no parent directory.")
-      temporary = File.createTempFile(".android-mcp-artifact-", ".part", parent)
+      val parent = targetFile.parentFile ?: throw IllegalArgumentException("Target has no parent directory.")
+      val temporaryFile = File.createTempFile(".android-mcp-artifact-", ".part", parent)
+      temporary = temporaryFile
       val digest = MessageDigest.getInstance("SHA-256")
       var bytesWritten = 0L
       ParcelFileDescriptor.AutoCloseInputStream(input).use { source ->
-        FileOutputStream(temporary).use { destination ->
+        FileOutputStream(temporaryFile).use { destination ->
           val buffer = ByteArray(BINARY_BUFFER_BYTES)
           while (true) {
             if (System.nanoTime() - startedAt > TimeUnit.MILLISECONDS.toNanos(timeoutMs)) {
@@ -164,22 +167,24 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         }
       }
       require(bytesWritten > 0L) { "Binary artifact is empty." }
-      require(hasExpectedSignature(temporary, mimeType)) {
+      require(hasExpectedSignature(temporaryFile, mimeType)) {
         "Binary artifact signature does not match the declared MIME type."
       }
-      require(!target.exists()) { "The target appeared during transfer; refusing to overwrite it." }
+      require(!targetFile.exists() && !Files.isSymbolicLink(targetFile.toPath())) {
+        "The target appeared during transfer; refusing to overwrite it."
+      }
       // link(2) is atomic and fails with EEXIST instead of replacing a concurrently-created target.
       // Some document filesystems do not support hard links; those paths fail closed.
-      Os.link(temporary.absolutePath, target.absolutePath)
+      Os.link(temporaryFile.absolutePath, targetFile.absolutePath)
       targetLinked = true
-      Os.unlink(temporary.absolutePath)
+      Os.unlink(temporaryFile.absolutePath)
       temporary = null
       return Bundle().apply {
         putBoolean(KEY_BINARY_SUCCESS, true)
         putLong(KEY_BINARY_BYTES, bytesWritten)
         putString(KEY_BINARY_SHA256, digest.digest().toHexString())
         putString(KEY_BINARY_MIME_TYPE, mimeType)
-        putString(KEY_BINARY_PATH, target.absolutePath)
+        putString(KEY_BINARY_PATH, targetFile.absolutePath)
       }
     } catch (error: Exception) {
       if (targetLinked) target?.let { runCatching { Os.unlink(it.absolutePath) } }
@@ -195,11 +200,14 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
       "Binary target must be a bounded absolute path."
     }
     val segments = path.split('/')
-    require(segments.drop(1).all { it.isNotBlank() && it != "." && it != ".." && it.none(Char::isISOControl) }) {
+    require(segments.drop(1).all { segment ->
+      segment.isNotBlank() && segment != "." && segment != ".." && segment.none { it.isISOControl() }
+    }) {
       "Binary target contains an unsafe path segment."
     }
     val raw = File(path)
-    require(raw.name.isNotBlank() && raw.name != "." && raw.name != "..") {
+    require(raw.name.isNotBlank() && raw.name != "." && raw.name != ".." &&
+      raw.name.length <= MAX_BINARY_FILE_NAME_CHARS && raw.name.none { it.isISOControl() }) {
       "Binary target filename is invalid."
     }
     val parent = raw.parentFile?.canonicalFile
