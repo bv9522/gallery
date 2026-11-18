@@ -12,7 +12,7 @@ internal object AccessibilityScreenInspectionPolicy {
   fun supportsWindowScreenshot(apiLevel: Int): Boolean =
     apiLevel >= MIN_WINDOW_SCREENSHOT_API
   private val sensitiveWords = Regex(
-    """\b(sign[ -]?in|sign[ -]?up|log[ -]?in|password|passcode|pin|one[ -]?time code|verification code|otp|2fa|mfa|account|profile|personal information|beneficiary|routing number|iban|sort code|crypto|cvv|cvc|credit card|debit card|card number|bank|payment|checkout|transfer|wallet|billing|account number|social security|ssn|recovery phrase|seed phrase|private key|security code|tax return|medical record|patient portal|prescription|diagnosis|email address|phone number|date of birth|passport|driver.?s license|government id|address)\b""",
+    """\b(sign[ -]?in|sign[ -]?up|log[ -]?in|password|passcode|pin|one[ -]?time code|verification code|otp|2fa|mfa|account|profile|personal information|beneficiary|routing number|iban|sort code|crypto|cvv|cvc|credit card|debit card|card number|bank|payment|checkout|transfer|wallet|billing|account number|social security|ssn|recovery phrase|seed phrase|private key|security code|tax return|medical record|patient portal|prescription|diagnosis|email address|email|phone number|phone|mobile|username|user name|date of birth|passport|driver.?s license|government id|address)\b""",
     RegexOption.IGNORE_CASE,
   )
   private val emailPattern = Regex("""\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b""", RegexOption.IGNORE_CASE)
