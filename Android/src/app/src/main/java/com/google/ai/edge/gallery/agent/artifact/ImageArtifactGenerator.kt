@@ -427,6 +427,10 @@ internal object ImageTransformArguments {
     val quality = optionalInt(payload, "quality", 1..100) ?: DEFAULT_QUALITY
     val additionalSources = ArtifactEmbeddedImageArguments.parse(payload.get("additional_sources"))
     require(additionalSources.size <= 3) { "Image composition supports at most four total source images." }
+    require(additionalSources.isEmpty() ||
+      (resizeWidth == null && cropWidth == null && rotation == 0)) {
+      "Image composition cannot be combined with resize, crop, or rotation; annotate the composed result instead."
+    }
     val annotationText = if (!payload.has("annotation_text")) null else {
       val value = payload.get("annotation_text")
       require(value.isJsonPrimitive && value.asJsonPrimitive.isString &&
