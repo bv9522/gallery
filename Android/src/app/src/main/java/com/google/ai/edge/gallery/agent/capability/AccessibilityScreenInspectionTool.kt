@@ -414,26 +414,51 @@ internal object AccessibilityScreenInspectionArguments {
   fun validate(arguments: JsonObject): String? {
     val operation = arguments.get("operation")
       ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-      ?: return "operation must be status, inspect, inspect_external, act, capture, or open_settings."
+      ?: return "operation must be status, inspect, inspect_external, act, inspect_inputs, enter_text, select_text, capture, or open_settings."
     val accepted = when (operation) {
-      "status", "inspect", "inspect_external", "capture", "open_settings" -> setOf("operation")
+      "status", "inspect", "inspect_external", "inspect_inputs", "capture", "open_settings" -> setOf("operation")
       "act" -> setOf("operation", "element_handle", "action")
+      "enter_text" -> setOf("operation", "element_handle", "input_text")
+      "select_text" -> setOf("operation", "element_handle", "selection_start", "selection_end")
       else -> return "Unsupported operation."
     }
     val unexpected = arguments.keySet() - accepted
     if (unexpected.isNotEmpty()) return "Unexpected argument(s): " + unexpected.sorted().joinToString(", ") + "."
-    if (operation == "act") {
+    if (operation in setOf("act", "enter_text", "select_text")) {
       val handle = arguments.get("element_handle")
         ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-        ?: return "act requires element_handle from the latest inspect_external result."
+        ?: return "$operation requires element_handle from the latest matching inspection result."
       if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) {
-        return "element_handle is malformed; run inspect_external again."
+        return "element_handle is malformed; inspect the target again."
       }
+    }
+    if (operation == "act") {
       val action = arguments.get("action")
         ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
         ?: return "act requires action CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD."
       if (action !in AccessibilitySemanticAction.values().map { it.name }) {
         return "Unsupported action. Choose CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD."
+      }
+    }
+    if (operation == "enter_text") {
+      val value = arguments.get("input_text")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+        ?: return "enter_text requires input_text as a string."
+      if (!AccessibilityScreenInspectionPolicy.isSafeInputText(value)) {
+        return "input_text must contain 1–256 ordinary, non-sensitive, single-line characters."
+      }
+    }
+    if (operation == "select_text") {
+      val startValue = arguments.get("selection_start")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+        ?: return "select_text requires integer selection_start."
+      val endValue = arguments.get("selection_end")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt
+        ?: return "select_text requires integer selection_end."
+      if (!AccessibilityScreenInspectionPolicy.isValidSelection(
+          startValue, endValue, AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS
+        ) && (startValue < 0 || endValue <= startValue || endValue > AccessibilityScreenInspectionPolicy.MAX_INPUT_TEXT_CHARS)) {
+        return "Selection offsets must be a valid non-empty range within 0–256."
       }
     }
     return null
