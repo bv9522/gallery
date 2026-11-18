@@ -57,6 +57,7 @@ import android.os.PowerManager
 import android.os.ParcelFileDescriptor
 import android.os.VibrationEffect
 import android.os.VibratorManager
+import android.provider.CallLog
 import android.provider.ContactsContract
 import android.provider.MediaStore
 import android.speech.SpeechRecognizer
@@ -527,9 +528,18 @@ class AndroidNativeCapabilityAdapter(
         ProviderAvailability.UNSUPPORTED
       }
 
-    capabilities[AndroidCapability.CALL_LOG_READ] = ProviderAvailability.UNSUPPORTED
-    details[AndroidCapability.CALL_LOG_READ] =
-      "Call-log access is not implemented; it requires separate sensitive-permission and policy review."
+    capabilities[AndroidCapability.CALL_LOG_READ] = when {
+      !hasTelephony -> {
+        details[AndroidCapability.CALL_LOG_READ] = "This device does not expose telephony call history."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !hasRuntimePermission(Manifest.permission.READ_CALL_LOG) -> {
+        details[AndroidCapability.CALL_LOG_READ] =
+          "READ_CALL_LOG permission is required; discovery did not request it. Android or the installer may restrict eligibility."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
     capabilities[AndroidCapability.SMS_READ] = ProviderAvailability.UNSUPPORTED
     details[AndroidCapability.SMS_READ] =
       "SMS inbox access is not implemented; Android restricts READ_SMS to qualifying/default SMS roles."
@@ -1263,6 +1273,75 @@ class AndroidNativeCapabilityAdapter(
     val notificationId = UUID.randomUUID().toString().hashCode()
     manager.notify(notificationId, notification)
     return NativeCapabilityActionResult(true, "Notification posted with ID $notificationId.")
+  }
+
+  override suspend fun readCallLog(): NativeCallLogSnapshot {
+    if (!authorizer.authorize(
+        AndroidCapability.CALL_LOG_READ,
+        "Read up to $MAX_CALL_LOG_ITEMS recent call-log entries, including caller name/number, call type, date/time, and duration. Call history is sensitive. Android may deny READ_CALL_LOG to apps that are not eligible for this restricted permission.",
+      )
+    ) {
+      throw SecurityException("Call-log reading was not approved.")
+    }
+    ensureRuntimePermission(Manifest.permission.READ_CALL_LOG)
+    return withContext(Dispatchers.IO) {
+      val projection = arrayOf(
+        CallLog.Calls.CACHED_NAME,
+        CallLog.Calls.NUMBER,
+        CallLog.Calls.TYPE,
+        CallLog.Calls.DATE,
+        CallLog.Calls.DURATION,
+      )
+      val cursor = appContext.contentResolver.query(
+        CallLog.Calls.CONTENT_URI,
+        projection,
+        null,
+        null,
+        "${CallLog.Calls.DATE} DESC LIMIT ${MAX_CALL_LOG_ITEMS + 1}",
+      ) ?: throw IllegalStateException("Android could not read the call log.")
+      cursor.use { rows ->
+        val entries = mutableListOf<NativeCallLogEntry>()
+        var truncated = false
+        val nameIndex = rows.getColumnIndexOrThrow(CallLog.Calls.CACHED_NAME)
+        val numberIndex = rows.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
+        val typeIndex = rows.getColumnIndexOrThrow(CallLog.Calls.TYPE)
+        val dateIndex = rows.getColumnIndexOrThrow(CallLog.Calls.DATE)
+        val durationIndex = rows.getColumnIndexOrThrow(CallLog.Calls.DURATION)
+        while (rows.moveToNext()) {
+          if (entries.size >= MAX_CALL_LOG_ITEMS) {
+            truncated = true
+            break
+          }
+          val date = rows.getLong(dateIndex)
+          if (date <= 0L) continue
+          val cachedName = NotificationContentPolicy.sanitize(
+            rows.getString(nameIndex),
+            MAX_CALL_LOG_NAME_CHARS,
+          )
+          val number = NotificationContentPolicy.sanitize(
+            rows.getString(numberIndex),
+            MAX_CALL_LOG_NUMBER_CHARS,
+          )
+          val callType = when (rows.getInt(typeIndex)) {
+            CallLog.Calls.INCOMING_TYPE -> "INCOMING"
+            CallLog.Calls.OUTGOING_TYPE -> "OUTGOING"
+            CallLog.Calls.MISSED_TYPE -> "MISSED"
+            CallLog.Calls.REJECTED_TYPE -> "REJECTED"
+            CallLog.Calls.BLOCKED_TYPE -> "BLOCKED"
+            CallLog.Calls.VOICEMAIL_TYPE -> "VOICEMAIL"
+            else -> "UNKNOWN"
+          }
+          entries += NativeCallLogEntry(
+            cachedName = cachedName,
+            number = number,
+            callType = callType,
+            dateMs = date,
+            durationSeconds = rows.getLong(durationIndex).coerceAtLeast(0L),
+          )
+        }
+        NativeCallLogSnapshot(entries = entries, truncated = truncated)
+      }
+    }
   }
 
   override suspend fun readOtherNotifications(): NativeOtherNotificationList {
@@ -2412,6 +2491,9 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
     const val MAX_NOTIFICATION_CHANNELS = 20
     const val MAX_ACTIVE_NOTIFICATIONS = 50
+    const val MAX_CALL_LOG_ITEMS = 20
+    const val MAX_CALL_LOG_NAME_CHARS = 80
+    const val MAX_CALL_LOG_NUMBER_CHARS = 32
     const val MAX_OTHER_NOTIFICATION_ITEMS = 20
     const val MAX_OTHER_NOTIFICATION_APP_CHARS = 60
     const val MAX_OTHER_NOTIFICATION_TITLE_CHARS = 120
