@@ -71,6 +71,10 @@ class GuardedImageGenerationDispatcher(
     val provider = providers.find(providerId)
       ?: throw IllegalArgumentException("Image generation provider '$providerId' is not configured.")
     if (provider.dataBoundary == ImageGenerationDataBoundary.REMOTE) {
+      require(request.sourceImages.isEmpty() ||
+        (request.sourceImageLabels.size == request.sourceImages.size && request.sourceImageLabels.all { it.isNotBlank() })) {
+        "Remote image generation requires a visible label for every source image before consent can be requested."
+      }
       val approved = remoteConsent.requestConsent(
         RemoteImageGenerationConsentDetails(
           providerId = provider.id,
