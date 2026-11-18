@@ -33,6 +33,7 @@ enum class ToolActionName() {
   CAPTURE_PHOTO,
   OPEN_DOCUMENT_TREE,
   SPEAK_TEXT,
+  PLAY_MEDIA,
 }
 
 /**
@@ -204,6 +205,13 @@ class OpenDocumentTreeToolAction(
   val result: CompletableDeferred<String?> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.OPEN_DOCUMENT_TREE)
 
+
+/** Requests Gallery-owned playback of a user-authorized media content URI. */
+class PlayMediaToolAction(
+  val contentUri: String,
+  val displayName: String,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.PLAY_MEDIA)
 
 /** Requests Gallery-owned TTS playback for exact, bounded text. */
 class SpeakTextToolAction(

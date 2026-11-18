@@ -32,6 +32,8 @@ import com.google.ai.edge.gallery.agent.coordinator.TermuxRishShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.TermuxShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
+import com.google.ai.edge.gallery.agent.capability.ChannelNativeCapabilityAuthorizer
+import com.google.ai.edge.gallery.agent.capability.GalleryMediaLibraryOperations
 import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
@@ -75,6 +77,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "Cancellation always requires one-time user approval for the selected model and phase. Never invent, reuse, or alter a handle; " +
       "if it is stale, run download_status again. Never request model-wide cancellation or expose WorkManager IDs, tags, URLs, " +
       "access tokens, or filesystem paths. " +
+      "Use android_control media_search for natural-language photo/video discovery. AUTO combines filename matches with the existing EmbeddingGemma-2 visual index; VISUAL requests semantic visual search; NAME searches filenames only. Search covers MediaStore-visible internal/removable media and files inside persisted user-granted SAF trees. If the user requests USB/OTG storage and no matching grant exists, use document_tree grants/request_access so the user can select the drive or folder; never bypass the picker. Results contain short-lived opaque handles only; never invent handles or expose content URIs or paths. Use media_play only with a fresh media_handle from the latest media_search result; playback requires one-time approval and opens Gallery's built-in player. Never pass arbitrary URIs or filesystem paths to media_play. If visual indexing is unavailable or incomplete, explain that and use media_index only when the user asks to build/update the index; media_index requires one-time approval and reuses the Smart Album background worker and database. Visual indexing is on-device and does not upload media. " +
       "Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
@@ -377,6 +380,13 @@ class NativeAgentRuntimeExecutor(
         val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
         val actionChannel = config.actionChannel ?: agentTools.sendActionChannel
         val approval = ChannelShellExecutionApprovalPolicy(actionChannel)
+        val mediaOperations = GalleryMediaLibraryOperations(
+          context = checkNotNull(this@NativeAgentRuntimeExecutor.context),
+          modelsProvider = {
+            runCatching { agentTools.modelManagerViewModel.getAllModels() }.getOrDefault(emptyList())
+          },
+          authorizer = ChannelNativeCapabilityAuthorizer(actionChannel),
+        )
         val runtimeTools = AgentToolRegistry(
           listOf(
             UnifiedShellTool(router, approval),
@@ -384,6 +394,7 @@ class NativeAgentRuntimeExecutor(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
               downloadOperations = downloadRepository,
+              mediaOperations = mediaOperations,
             ),
             DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },

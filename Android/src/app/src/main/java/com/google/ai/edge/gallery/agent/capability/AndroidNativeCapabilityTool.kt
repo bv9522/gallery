@@ -24,6 +24,7 @@ import com.google.ai.edge.gallery.data.AgentDownloadSnapshot
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.AuthenticateBiometricToolAction
 import com.google.ai.edge.gallery.tools.SpeakTextToolAction
+import com.google.ai.edge.gallery.tools.PlayMediaToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.Gson
 import com.google.gson.JsonArray
@@ -110,6 +111,26 @@ class ChannelNativeSpeechPlaybackRequester(
   }
 }
 
+fun interface NativeMediaPlaybackRequester {
+  suspend fun play(contentUri: String, displayName: String): Boolean
+}
+
+class ChannelNativeMediaPlaybackRequester(
+  private val actionChannel: SendChannel<ToolAction>,
+  private val timeoutMs: Long = 120_000L,
+) : NativeMediaPlaybackRequester {
+  override suspend fun play(contentUri: String, displayName: String): Boolean {
+    val action = PlayMediaToolAction(contentUri, displayName)
+    return try {
+      withTimeoutOrNull(timeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
+    } finally {
+      if (!action.result.isCompleted) action.result.complete(false)
+    }
+  }
+}
 class AndroidNativeCapabilityTool internal constructor(
   private val adapter: NativeCapabilityOperations,
   private val registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
@@ -117,6 +138,9 @@ class AndroidNativeCapabilityTool internal constructor(
   private val speechAuthorizer: NativeCapabilityAuthorizer? = null,
   private val downloadOperations: AgentDownloadOperations? = null,
   private val downloadAuthorizer: NativeCapabilityAuthorizer? = null,
+  private val mediaOperations: GalleryMediaLibraryOperations? = null,
+  private val mediaPlaybackRequester: NativeMediaPlaybackRequester? = null,
+  private val mediaPlaybackAuthorizer: NativeCapabilityAuthorizer? = null,
 ) : AgentTool {
   private val issuedDownloadSnapshots = ConcurrentHashMap<String, AgentDownloadSnapshot>()
 
@@ -125,6 +149,7 @@ class AndroidNativeCapabilityTool internal constructor(
     actionChannel: SendChannel<ToolAction>,
     registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
     downloadOperations: AgentDownloadOperations? = null,
+    mediaOperations: GalleryMediaLibraryOperations? = null,
   ) : this(
     AndroidNativeCapabilityAdapter(
       context = context.applicationContext,
@@ -137,6 +162,9 @@ class AndroidNativeCapabilityTool internal constructor(
     ChannelNativeSpeechPlaybackRequester(actionChannel),
     ChannelNativeCapabilityAuthorizer(actionChannel),
     downloadOperations,
+    ChannelNativeCapabilityAuthorizer(actionChannel),
+    mediaOperations,
+    ChannelNativeMediaPlaybackRequester(actionChannel),
     ChannelNativeCapabilityAuthorizer(actionChannel),
   )
 
@@ -151,7 +179,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
       "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
-      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, download_status, cancel_download. " +
+      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, download_status, cancel_download, media_search, media_index, media_play. " +
       "download_status returns at most 20 active Gallery model downloads with short-lived opaque handles. " +
       "cancel_download requires a handle from the latest status result and one-time approval for that exact download. " +
       "No worker IDs, tags, URLs, tokens, or filesystem paths are exposed. Notifications " +
@@ -166,7 +194,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "the user must confirm the call or press Send. No CALL_PHONE or SEND_SMS permission is requested, " +
       "No call or message is placed/sent silently. Telephony metadata excludes subscriber identifiers and cell-location data. " +
       "Keystore keys are non-exportable AES-256 keys and each encrypt/decrypt operation requires strong biometric authentication. " +
-      "USB I/O is not yet exposed. Agent speech uses Gallery's existing TtsServiceProvider and playback controller, preserves saved engine/voice/language, and requires one-time approval of the exact text. Speech text is limited to 1000 characters. This tool never executes shell commands."
+      "media_search searches filenames in MediaStore and persisted user-granted storage folders, and can use the existing EmbeddingGemma-2 Smart Album visual index. media_index queues the existing bounded Smart Album indexing worker after one-time approval; it analyzes permitted media on-device and does not upload media. Search results expose short-lived opaque handles, not content URIs or filesystem paths. media_play requires a fresh search handle and one-time approval, then opens the selected video in Gallery's built-in Media3 player. USB storage is accessed only through persisted user-granted SAF trees. USB device I/O is not exposed. Agent speech uses Gallery's existing TtsServiceProvider and playback controller, preserves saved engine/voice/language, and requires one-time approval of the exact text. Speech text is limited to 1000 characters. This tool never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -178,9 +206,24 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "download_status", "cancel_download", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index", "media_play",
             ).forEach { add(it) }
           })
+        })
+        add("media_handle", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Short-lived opaque media handle copied exactly from the latest media_search result.")
+          addProperty("maxLength", 38)
+        })
+        add("media_kind", JsonObject().apply {
+          addProperty("type", "string")
+          add("enum", JsonArray().apply { listOf("ANY", "IMAGE", "VIDEO").forEach { add(it) } })
+          addProperty("description", "Optional media filter for media_search; defaults to ANY.")
+        })
+        add("search_mode", JsonObject().apply {
+          addProperty("type", "string")
+          add("enum", JsonArray().apply { listOf("AUTO", "NAME", "VISUAL").forEach { add(it) } })
+          addProperty("description", "AUTO combines visual and filename search, NAME searches filenames only, VISUAL requests semantic visual search.")
         })
         add("download_handle", JsonObject().apply {
           addProperty("type", "string")
@@ -285,13 +328,13 @@ class AndroidNativeCapabilityTool internal constructor(
         })
         add("query", JsonObject().apply {
           addProperty("type", "string")
-          addProperty("description", "Name or text query for contacts_search; 1–80 characters.")
+          addProperty("description", "Text query for contacts_search (1–80 characters) or media_search (1–120 characters).")
           addProperty("minLength", 1)
-          addProperty("maxLength", 80)
+          addProperty("maxLength", 120)
         })
         add("limit", JsonObject().apply {
           addProperty("type", "integer")
-          addProperty("description", "Maximum matching contacts to return; 1–20, defaults to 10.")
+          addProperty("description", "Maximum results for contacts_search or media_search; 1–20, defaults to 10.")
           addProperty("minimum", MIN_CONTACT_LIMIT)
           addProperty("maximum", MAX_CONTACT_LIMIT)
         })
@@ -370,6 +413,9 @@ class AndroidNativeCapabilityTool internal constructor(
         "status" -> status()
         "download_status" -> downloadStatus()
         "cancel_download" -> cancelDownload(arguments)
+        "media_search" -> mediaSearch(arguments)
+        "media_index" -> mediaIndex()
+        "media_play" -> mediaPlay(arguments)
         "device_info" -> read(AndroidCapability.DEVICE_INFO) {
           NativeCapabilityResultFormatter.deviceInfo(adapter.getDeviceInfo())
         }
@@ -682,6 +728,61 @@ class AndroidNativeCapabilityTool internal constructor(
     }
   }
 
+  private suspend fun mediaSearch(arguments: JsonObject): AgentToolResult {
+    val operations = mediaOperations ?: return failure("Gallery media search is unavailable.")
+    val unavailable = availabilityFailure(AndroidCapability.MEDIA_SCAN)
+    if (unavailable != null) return unavailable
+    val query = arguments.string("query") ?: return failure("media_search requires query.")
+    val mediaKind = arguments.string("media_kind") ?: "ANY"
+    val mode = arguments.string("search_mode") ?: "AUTO"
+    val limit = if (arguments.has("limit")) {
+      arguments.int("limit") ?: return failure("media_search limit must be an integer.")
+    } else GalleryMediaLibraryOperations.DEFAULT_RESULT_LIMIT
+    return try {
+      AgentToolResult(Gson().toJson(operations.search(query, mediaKind, mode, limit)))
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      failure(error.message ?: "Media search failed.")
+    }
+  }
+
+  private suspend fun mediaPlay(arguments: JsonObject): AgentToolResult {
+    val operations = mediaOperations ?: return failure("Gallery media playback is unavailable.")
+    val requester = mediaPlaybackRequester ?: return failure("Gallery media playback UI is unavailable.")
+    val unavailable = availabilityFailure(AndroidCapability.MEDIA_PLAYBACK)
+    if (unavailable != null) return unavailable
+    val handle = arguments.string("media_handle")
+      ?: return failure("media_play requires media_handle from the latest media_search result.")
+    val media = operations.resolvePlaybackHandle(handle)
+      ?: return failure("That media handle is unknown or expired. Run media_search again.")
+    if (!media.isVideo) return failure("Gallery playback currently supports video results only.")
+    val authorizer = mediaPlaybackAuthorizer
+      ?: return failure("Media playback approval is unavailable.")
+    if (!authorizer.authorize(AndroidCapability.MEDIA_PLAYBACK, "Play '${media.displayName}' using Gallery's built-in media player.")) {
+      return failure("Media playback was not approved.")
+    }
+    if (!operations.consumePlaybackHandle(handle)) {
+      return failure("That media handle expired while awaiting approval. Run media_search again.")
+    }
+    return if (requester.play(media.uri.toString(), media.displayName)) {
+      AgentToolResult("Gallery playback opened for '${media.displayName}'.")
+    } else {
+      failure("Gallery could not start playback for '${media.displayName}'.")
+    }
+  }
+  private suspend fun mediaIndex(): AgentToolResult {
+    val operations = mediaOperations ?: return failure("Gallery media indexing is unavailable.")
+    val unavailable = availabilityFailure(AndroidCapability.MEDIA_SCAN)
+    if (unavailable != null) return unavailable
+    return try {
+      AgentToolResult(operations.startIndexing())
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } catch (error: Exception) {
+      failure(error.message ?: "Media indexing could not be started.")
+    }
+  }
   private suspend fun downloadStatus(): AgentToolResult {
     val operations = downloadOperations
       ?: return failure("Gallery download management is unavailable.")
@@ -766,7 +867,9 @@ class AndroidNativeCapabilityTool internal constructor(
         observation.copy(
           capabilityAvailability =
             observation.capabilityAvailability +
-              (AndroidCapability.DOWNLOAD_MANAGEMENT to downloadAvailability),
+              (AndroidCapability.DOWNLOAD_MANAGEMENT to downloadAvailability) +
+              (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED) +
+              (AndroidCapability.MEDIA_PLAYBACK to if (mediaOperations != null && mediaPlaybackRequester != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED),
         )
       )
     )
@@ -792,7 +895,11 @@ class AndroidNativeCapabilityTool internal constructor(
 
   private suspend fun availabilityFailure(capability: AndroidCapability): AgentToolResult? {
     val observation = adapter.inspect()
-    val resolution = registry.resolve(capability, listOf(observation))
+    val capabilityAvailability = observation.capabilityAvailability +
+      (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED) +
+      (AndroidCapability.MEDIA_PLAYBACK to if (mediaOperations != null && mediaPlaybackRequester != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED)
+    val routedObservation = observation.copy(capabilityAvailability = capabilityAvailability)
+    val resolution = registry.resolve(capability, listOf(routedObservation))
     if (resolution.selectedProviderId == CapabilityProviderId.ANDROID_NATIVE) return null
     val detail = resolution.candidates.firstOrNull()?.detail
     return failure(

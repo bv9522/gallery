@@ -18,6 +18,7 @@ package com.google.ai.edge.gallery.customtasks.agentchat
 
 import android.content.Context
 import com.google.ai.edge.gallery.data.DataStoreRepository
+import com.google.ai.edge.gallery.ui.modelmanager.ModelManagerViewModel
 import com.google.ai.edge.gallery.skills.SkillsProvider
 import com.google.ai.edge.gallery.tools.CallJsSkillResultImage
 import com.google.ai.edge.gallery.tools.CallJsSkillResultWebview
@@ -39,6 +40,7 @@ interface AgentTools : ToolsProvider {
   var skillsProvider: SkillsProvider
   var dataStoreRepository: DataStoreRepository
   var mcpManagerViewModel: McpManagerViewModel
+  var modelManagerViewModel: ModelManagerViewModel
   var taskId: String
   val receiveActionChannel: ReceiveChannel<ToolAction>
   val sendActionChannel: SendChannel<ToolAction>
@@ -53,6 +55,7 @@ open class AgentToolsImpl : AgentTools {
   override lateinit var skillsProvider: SkillsProvider
   override lateinit var dataStoreRepository: DataStoreRepository
   override lateinit var mcpManagerViewModel: McpManagerViewModel
+  override lateinit var modelManagerViewModel: ModelManagerViewModel
   override lateinit var taskId: String
 
   private val _actionChannel = Channel<ToolAction>(Channel.UNLIMITED)

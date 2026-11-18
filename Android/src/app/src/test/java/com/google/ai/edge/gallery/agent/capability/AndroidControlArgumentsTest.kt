@@ -150,6 +150,58 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun mediaSearchAcceptsBoundedVisualQueryAndDefaults() {
+    val valid = JsonObject().apply {
+      addProperty("operation", "media_search")
+      addProperty("query", "Pitching At Field")
+    }
+    val invalidMode = JsonObject().apply {
+      addProperty("operation", "media_search")
+      addProperty("query", "Pitching At Field")
+      addProperty("search_mode", "filesystem")
+    }
+    val oversizedLimit = JsonObject().apply {
+      addProperty("operation", "media_search")
+      addProperty("query", "Pitching At Field")
+      addProperty("limit", 21)
+    }
+    val invalidType = JsonObject().apply {
+      addProperty("operation", "media_search")
+      addProperty("query", "Pitching At Field")
+      addProperty("media_kind", 4)
+    }
+    val controlCharacterQuery = JsonObject().apply {
+      addProperty("operation", "media_search")
+      addProperty("query", "Pitching\\nAt Field")
+    }
+
+    assertNull(AndroidControlArguments.validate(valid))
+    assertTrue(AndroidControlArguments.validate(invalidMode).orEmpty().contains("search_mode"))
+    assertTrue(AndroidControlArguments.validate(oversizedLimit).orEmpty().contains("limit"))
+    assertTrue(AndroidControlArguments.validate(invalidType).orEmpty().contains("media_kind"))
+    assertTrue(AndroidControlArguments.validate(controlCharacterQuery).orEmpty().contains("query"))
+  }
+
+  @Test
+  fun mediaIndexTakesNoArgumentsAndPlaybackRequiresFreshOpaqueHandle() {
+    val index = JsonObject().apply { addProperty("operation", "media_index") }
+    val missingHandle = JsonObject().apply { addProperty("operation", "media_play") }
+    val malformedHandle = JsonObject().apply {
+      addProperty("operation", "media_play")
+      addProperty("media_handle", "content://media/external/video/media/123")
+    }
+    val validHandle = JsonObject().apply {
+      addProperty("operation", "media_play")
+      addProperty("media_handle", "media_" + "b".repeat(32))
+    }
+
+    assertNull(AndroidControlArguments.validate(index))
+    assertTrue(AndroidControlArguments.validate(missingHandle).orEmpty().contains("media_handle"))
+    assertTrue(AndroidControlArguments.validate(malformedHandle).orEmpty().contains("media_handle"))
+    assertNull(AndroidControlArguments.validate(validHandle))
+  }
+
+  @Test
   fun statusWithStreamIsRejectedByTheGenericOperationSchema() {
     val arguments = JsonObject().apply {
       addProperty("operation", "status")

@@ -27,6 +27,7 @@ import android.location.Geocoder
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
@@ -744,6 +745,66 @@ class DefaultPhotoLibraryService(
         )
       assetCache[id] = asset
       asset
+    }
+
+  override suspend fun createAssetFromUri(uri: Uri): PhotoAsset =
+    withContext(ioDispatcher) {
+      val mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+      var displayName = uri.lastPathSegment ?: if (mimeType?.startsWith("video/") == true) "Video" else "Media"
+      var sizeBytes = 0L
+      var modifiedMs = 0L
+      try {
+        context.contentResolver.query(
+          uri,
+          arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+          null,
+          null,
+          null,
+        )?.use { cursor ->
+          if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && !cursor.isNull(nameIndex)) {
+              displayName = cursor.getString(nameIndex)
+            }
+            val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+              sizeBytes = cursor.getLong(sizeIndex).coerceAtLeast(0L)
+            }
+          }
+        }
+      } catch (e: Exception) {
+        Log.w(TAG, "Unable to read display metadata for selected media URI.", e)
+      }
+      if (runCatching { DocumentsContract.isDocumentUri(context, uri) }.getOrDefault(false)) {
+        runCatching {
+          context.contentResolver.query(
+            uri,
+            arrayOf(DocumentsContract.Document.COLUMN_LAST_MODIFIED),
+            null,
+            null,
+            null,
+          )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+              val index = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
+              if (index >= 0 && !cursor.isNull(index)) modifiedMs = cursor.getLong(index)
+            }
+          }
+        }.onFailure { Log.w(TAG, "Unable to read modification time for selected document URI.", it) }
+      }
+      val uriString = uri.toString()
+      val extensionSuggestsVideo =
+        listOf(".mp4", ".mov", ".mkv", ".webm", ".3gp", ".m4v").any {
+          displayName.endsWith(it, ignoreCase = true) || uriString.endsWith(it, ignoreCase = true)
+        }
+      val isVideo = mimeType?.startsWith("video/") == true || extensionSuggestsVideo
+      PhotoAsset(
+        id = uriString,
+        contentUri = uri,
+        dateTaken = modifiedMs.takeIf { it > 0L } ?: System.currentTimeMillis(),
+        sizeBytes = sizeBytes,
+        displayName = displayName,
+        isVideo = isVideo,
+      )
     }
 
   override suspend fun fetchAssets(ids: List<String>): List<PhotoAsset> =
