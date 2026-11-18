@@ -38,14 +38,15 @@ class AccessibilityScreenInspectionTool internal constructor(
     get() = imageInputSupported &&
       AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT)
 
-  override val description =
-    when {
-      !imageInputSupported ->
-        "Use operation=status to check Gallery's opt-in AccessibilityService and operation=inspect for bounded semantic screen inspection after manual enablement. Visual screenshot capture is unavailable because the selected model or runtime configuration does not support image input. Use operation=open_settings only when the user explicitly asks to enable Gallery's accessibility service."
-      !windowCaptureSupported ->
-        "Use operation=status to check Gallery's opt-in AccessibilityService and operation=inspect for bounded semantic screen inspection after manual enablement. Window-specific visual capture is unavailable on this Android version; no full-display fallback is used. Use operation=open_settings only when the user explicitly asks to enable Gallery's accessibility service."
-      else ->
-        "Use operation=status to check Gallery's opt-in AccessibilityService and screen-capture availability. Use operation=inspect to read a bounded semantic summary of the active window after Gallery accessibility special access is manually enabled. Use operation=capture only when the user asks Gemma to visually inspect an app: it requires one-time SCREEN_CAPTURE approval and captures exactly one visible non-Gallery application window arranged alongside Gallery (normally split-screen). Capture requires Android API 34+, a complete safe accessibility hierarchy, and exactly one unambiguous external app window. Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. The image is resized to at most 1280 px on its longest side and 2 MiB JPEG, delivered in memory to the local multimodal model, with raw coordinator bytes erased after inference; the model conversation may retain visual context in memory until reset. No image file, full-display fallback, taps, gestures, typing, monitoring, or background capture is implemented. Sensitive-screen detection is conservative but cannot recognize every possible sensitive visual; only request capture when the user has confirmed the target screen is appropriate. Use operation=open_settings only when the user explicitly asks to enable access; the user must manually enable Gallery in Android Accessibility settings."
+  override val description: String
+    get() = buildString {
+      append("Use operation=status to check Gallery's manually enabled AccessibilityService. Use inspect for a bounded semantic summary of the active window. Use inspect_external when Gallery and exactly one target app are visible together (normally split-screen); it returns safe semantic elements with short-lived handles. Use act only after inspect_external and only for one CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD action on a fresh handle. Every action requires one-time UI_GESTURE approval and revalidates the exact app window, node identity, label, bounds, enabled state, and advertised action immediately before dispatch. Stale, ambiguous, sensitive, incomplete, or changed screens fail closed. The result confirms Android accepted dispatch only, not that the app state changed. No coordinate taps or gesture fallback is used. ")
+      if (windowCaptureSupported) {
+        append("Use capture only when the user explicitly asks for visual understanding; it requires API 34+, one-time SCREEN_CAPTURE approval, exactly one safe external app window, and sends a bounded in-memory window screenshot to the local multimodal model. ")
+      } else {
+        append("Visual capture is unavailable for this model/runtime or Android version; no full-display fallback is used. ")
+      }
+      append("Editable/password fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. Sensitive-screen detection is conservative and not guaranteed to identify every visual risk. The user must manually enable Gallery in Android Accessibility settings. No typing, background monitoring, or persistent screenshot files are implemented. Use open_settings only when the user explicitly asks to enable access.")
     }
 
   override val parametersSchema: JsonObject
@@ -57,9 +58,23 @@ class AccessibilityScreenInspectionTool internal constructor(
           add("enum", JsonArray().apply {
             add("status")
             add("inspect")
+            add("inspect_external")
+            add("act")
             if (windowCaptureSupported) add("capture")
             add("open_settings")
           })
+        })
+        add("element_handle", JsonObject().apply {
+          addProperty("type", "string")
+          addProperty("description", "Fresh opaque element_handle returned by the most recent inspect_external operation.")
+          addProperty("maxLength", 19)
+        })
+        add("action", JsonObject().apply {
+          addProperty("type", "string")
+          add("enum", JsonArray().apply {
+            AccessibilitySemanticAction.values().forEach { add(it.name) }
+          })
+          addProperty("description", "One semantic action: CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD.")
         })
       })
       add("required", JsonArray().apply { add("operation") })
@@ -67,16 +82,16 @@ class AccessibilityScreenInspectionTool internal constructor(
     }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
-    val operation = arguments.get("operation")
-      ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
-      ?: return AgentToolResult("operation must be status, inspect, capture, or open_settings.", false)
-    if (arguments.keySet() != setOf("operation")) {
-      return AgentToolResult("Unexpected arguments are not accepted.", false)
+    AccessibilityScreenInspectionArguments.validate(arguments)?.let {
+      return AgentToolResult(it, false)
     }
+    val operation = arguments.get("operation").asString
     return try {
       when (operation) {
         "status" -> status()
         "inspect" -> inspect()
+        "inspect_external" -> inspectExternal()
+        "act" -> act(arguments)
         "capture" -> capture()
         "open_settings" -> openSettings()
         else -> AgentToolResult("Unsupported operation.", false)
@@ -119,7 +134,8 @@ class AccessibilityScreenInspectionTool internal constructor(
         }
       )
       appendLine("capability=UI_GESTURE")
-      appendLine("availability=UNSUPPORTED")
+      appendLine("availability=$availability")
+      appendLine("detail=Requires inspect_external, a fresh element handle, one-time approval for each semantic action, and immediate target revalidation. Supports click, long-click, and semantic scroll only; no coordinate gesture fallback.")
       appendLine("capability=UI_TEXT_INPUT")
       appendLine("availability=UNSUPPORTED")
     }.trimEnd())
@@ -161,6 +177,69 @@ class AccessibilityScreenInspectionTool internal constructor(
       }
       appendLine("note=Handles expire after 30 seconds and are inspection references only; UI actions are not implemented in this slice.")
     }.trimEnd())
+  }
+
+  private suspend fun inspectExternal(): AgentToolResult {
+    if (adapter.enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+      return AgentToolResult("Gallery accessibility service is not enabled and connected. No external screen content was read.", false)
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.UI_TREE_READ,
+        "Inspect exactly one visible external app window alongside Gallery (normally split-screen): at most 120 nodes, depth 12, and 32 semantic elements. Sensitive, incomplete, or ambiguous windows are excluded. This issues short-lived handles for separately approved semantic actions."
+      )) {
+      return AgentToolResult("External semantic screen inspection was not approved.", false)
+    }
+    val snapshot = adapter.inspectExternal().getOrElse { error ->
+      return AgentToolResult(error.message ?: "External screen inspection was blocked.", false)
+    }
+    if (snapshot.elements.isEmpty()) {
+      return AgentToolResult("The external app window contains no safe semantic elements to report.", false)
+    }
+    return AgentToolResult(buildString {
+      appendLine("elements=" + snapshot.elements.size)
+      appendLine("limit=32")
+      appendLine("truncated=" + snapshot.truncated)
+      snapshot.elements.forEachIndexed { index, element ->
+        appendLine("element=" + (index + 1))
+        appendLine("element_handle=" + element.handle)
+        appendLine("role=" + element.role)
+        element.label?.let { appendLine("label=" + it) }
+        appendLine("clickable=" + element.clickable)
+        appendLine("long_clickable=" + element.longClickable)
+        appendLine("scrollable=" + element.scrollable)
+        appendLine("enabled=" + element.enabled)
+        if (element.selected) appendLine("selected=true")
+        element.checked?.let { appendLine("checked=" + it) }
+      }
+      appendLine("note=Handles expire after 30 seconds and can be used once for a separately approved semantic action. No coordinates or raw node IDs are exposed.")
+    }.trimEnd())
+  }
+
+  private suspend fun act(arguments: JsonObject): AgentToolResult {
+    val handle = arguments.get("element_handle").asString
+    val action = AccessibilitySemanticAction.valueOf(arguments.get("action").asString)
+    val target = adapter.describeActionTarget(handle)
+      ?: return AgentToolResult("Element handle is unknown, expired, or not an external action target. Run inspect_external again.", false)
+    val supported = when (action) {
+      AccessibilitySemanticAction.CLICK -> target.clickable
+      AccessibilitySemanticAction.LONG_CLICK -> target.longClickable
+      AccessibilitySemanticAction.SCROLL_FORWARD,
+      AccessibilitySemanticAction.SCROLL_BACKWARD -> target.scrollable
+    }
+    if (!supported) {
+      return AgentToolResult("The selected element did not advertise the requested action during inspection. No action was dispatched.", false)
+    }
+    val targetLabel = target.label?.let { "'" + it + "'" } ?: ("an unlabeled " + target.role)
+    val summary = "Perform exactly one " + action.name + " action on " + targetLabel +
+      " in the single visible external app window. The element handle is one-shot; Gallery will revalidate app/window identity, hierarchy safety, node class, label, bounds, enabled state, and action support immediately before dispatch. No coordinates or fallback gestures are used."
+    if (!authorizer.authorize(AndroidCapability.UI_GESTURE, summary)) {
+      return AgentToolResult("The semantic UI action was not approved. No action was dispatched.", false)
+    }
+    val result = adapter.performSemanticAction(handle, action)
+    return AgentToolResult(
+      result.getOrElse { error -> error.message ?: "The semantic UI action was blocked." },
+      result.isSuccess,
+    )
   }
 
   private suspend fun capture(): AgentToolResult {
@@ -224,5 +303,36 @@ class ChannelAccessibilitySettingsRequester(
     } finally {
       if (!action.result.isCompleted) action.result.complete(false)
     }
+  }
+}
+
+
+internal object AccessibilityScreenInspectionArguments {
+  fun validate(arguments: JsonObject): String? {
+    val operation = arguments.get("operation")
+      ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+      ?: return "operation must be status, inspect, inspect_external, act, capture, or open_settings."
+    val accepted = when (operation) {
+      "status", "inspect", "inspect_external", "capture", "open_settings" -> setOf("operation")
+      "act" -> setOf("operation", "element_handle", "action")
+      else -> return "Unsupported operation."
+    }
+    val unexpected = arguments.keySet() - accepted
+    if (unexpected.isNotEmpty()) return "Unexpected argument(s): " + unexpected.sorted().joinToString(", ") + "."
+    if (operation == "act") {
+      val handle = arguments.get("element_handle")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+        ?: return "act requires element_handle from the latest inspect_external result."
+      if (!AccessibilityScreenInspectionPolicy.isValidHandle(handle)) {
+        return "element_handle is malformed; run inspect_external again."
+      }
+      val action = arguments.get("action")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+        ?: return "act requires action CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD."
+      if (action !in AccessibilitySemanticAction.values().map { it.name }) {
+        return "Unsupported action. Choose CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD."
+      }
+    }
+    return null
   }
 }
