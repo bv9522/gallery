@@ -18,7 +18,7 @@
 
 - Uses the official com.termux.RUN_COMMAND_STDIN extra; no binary data is placed in command text or shell arguments.
 - Raw chunks are capped at 180 KiB. Base64 encoding remains below the 256 KiB configured stdin-string bound, with headroom below the documented approximate 500 KB combined Intent-extra ceiling.
-- Each chunk uses the background APP_SHELL runner through RUN_COMMAND, which is the Termux execution path that consumes the stdin extra and avoids opening a terminal session. The command is a fixed base64 -d redirection to a random same-directory .part path.
+- Each chunk explicitly selects Termux's APP_SHELL runner through RUN_COMMAND_RUNNER, which consumes the stdin extra and avoids opening a terminal session. The command is a fixed base64 -d redirection to a random same-directory .part path.
 - The adapter preflights the parent folder, target type, and required base64/sha256sum commands; it never creates a destination directory.
 - After all chunks, Termux reports the staged file's byte count and SHA-256. Only matching values permit same-directory mv finalization. No-overwrite mode uses no-clobber rename semantics and checks that the temporary file was consumed.
 - Failure/cancellation attempts rm -f on the temporary path through the same Termux identity.
