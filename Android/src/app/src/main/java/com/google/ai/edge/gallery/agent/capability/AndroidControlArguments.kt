@@ -75,6 +75,7 @@ internal object AndroidControlArguments {
     "list_notification_channels" to setOf("operation"),
     "create_notification_channel" to setOf("operation", "channel_id", "channel_name", "importance"),
     "usb_devices" to setOf("operation"),
+    "usb_read_descriptors" to setOf("operation", "usb_handle"),
     "record_audio" to setOf("operation", "duration_ms"),
     "capture_photo" to setOf("operation"),
     "set_wallpaper" to setOf("operation", "content_uri", "target"),
@@ -108,6 +109,7 @@ internal object AndroidControlArguments {
     "cancel_posted_notification" to setOf("notification_id"),
     "cancel_scheduled_notification" to setOf("notification_id"),
     "create_notification_channel" to setOf("channel_id", "channel_name", "importance"),
+    "usb_read_descriptors" to setOf("usb_handle"),
   )
 
   fun validate(arguments: JsonObject): String? {
@@ -141,6 +143,15 @@ internal object AndroidControlArguments {
         ?.asString.orEmpty()
       if (!handle.matches(Regex("^dl_[0-9a-f]{32}$"))) {
         return "download_handle must be copied exactly from the most recent download_status result."
+      }
+    }
+
+    if (operation == "usb_read_descriptors") {
+      val handle = arguments.get("usb_handle")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString.orEmpty()
+      if (!handle.matches(Regex("^usb_[0-9a-f]{32}$"))) {
+        return "usb_handle must be copied exactly from the latest usb_devices result."
       }
     }
 
