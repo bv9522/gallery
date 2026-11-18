@@ -170,11 +170,16 @@ class AndroidControlArgumentsTest {
       addProperty("query", "Pitching At Field")
       addProperty("media_kind", 4)
     }
+    val controlCharacterQuery = JsonObject().apply {
+      addProperty("operation", "media_search")
+      addProperty("query", "Pitching\\nAt Field")
+    }
 
     assertNull(AndroidControlArguments.validate(valid))
     assertTrue(AndroidControlArguments.validate(invalidMode).orEmpty().contains("search_mode"))
     assertTrue(AndroidControlArguments.validate(oversizedLimit).orEmpty().contains("limit"))
     assertTrue(AndroidControlArguments.validate(invalidType).orEmpty().contains("media_kind"))
+    assertTrue(AndroidControlArguments.validate(controlCharacterQuery).orEmpty().contains("query"))
   }
 
   @Test
