@@ -178,7 +178,7 @@ class PptxArtifactGenerator : ArtifactGenerator {
   ) = buildString {
     append("""<p:sp><p:nvSpPr><p:cNvPr id="$id" name="$name"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr>""")
     append("""<p:spPr><a:xfrm><a:off x="$x" y="$y"/><a:ext cx="$width" cy="$height"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/><a:ln><a:noFill/></a:ln></p:spPr>""")
-    append("""<p:txBody><a:bodyPr wrap="square"><a:spAutoFit/></a:bodyPr><a:lstStyle/>""")
+    append("""<p:txBody><a:bodyPr wrap="square"><a:normAutofit/></a:bodyPr><a:lstStyle/>""")
     paragraphs.forEach { paragraph ->
       append("<a:p>")
       when {
@@ -234,8 +234,12 @@ class PptxArtifactGenerator : ArtifactGenerator {
         require(paragraphs.size + bullets.size <= MAX_BLOCKS_PER_SLIDE) {
           "Slide ${index + 1} exceeds $MAX_BLOCKS_PER_SLIDE body text blocks."
         }
-        totalCharacters += title.length + (subtitle?.length ?: 0) +
+        val slideCharacters = title.length + (subtitle?.length ?: 0) +
           paragraphs.sumOf { it.length } + bullets.sumOf { it.length }
+        require(slideCharacters <= MAX_CHARACTERS_PER_SLIDE) {
+          "Slide ${index + 1} exceeds $MAX_CHARACTERS_PER_SLIDE characters."
+        }
+        totalCharacters += slideCharacters
         require(totalCharacters <= MAX_TOTAL_CHARACTERS) {
           "Presentation text exceeds $MAX_TOTAL_CHARACTERS characters."
         }
@@ -294,8 +298,9 @@ class PptxArtifactGenerator : ArtifactGenerator {
     const val MAX_SLIDES = 50
     const val MAX_TITLE_CHARS = 200
     const val MAX_SUBTITLE_CHARS = 500
-    const val MAX_BLOCK_CHARS = 8_000
-    const val MAX_BLOCKS_PER_SLIDE = 100
+    const val MAX_BLOCK_CHARS = 3_000
+    const val MAX_BLOCKS_PER_SLIDE = 50
+    const val MAX_CHARACTERS_PER_SLIDE = 3_000
     const val MAX_TOTAL_CHARACTERS = 100_000
     const val SLIDE_WIDTH = 12_192_000L
     const val SLIDE_HEIGHT = 6_858_000L
