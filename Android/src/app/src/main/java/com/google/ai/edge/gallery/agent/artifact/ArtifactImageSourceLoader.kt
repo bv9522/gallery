@@ -142,7 +142,13 @@ internal class ArtifactImageSourceLoader(context: Context) {
           extension = if (keepPng) "png" else "jpg",
           width = bitmapForOutput.width,
           height = bitmapForOutput.height,
-          altText = request.altText.ifBlank { metadata.first.take(MAX_ALT_TEXT_CHARS) },
+          altText = request.altText.ifBlank {
+            metadata.first.filter { char ->
+              val code = char.code
+              code == 0x9 || code == 0xA || code == 0xD ||
+                code in 0x20..0xD7FF || code in 0xE000..0xFFFD || code in 0x10000..0x10FFFF
+            }.take(MAX_ALT_TEXT_CHARS).ifBlank { "Embedded image" }
+          },
         )
       } finally {
         if (bitmapForOutput !== oriented) bitmapForOutput.recycle()
