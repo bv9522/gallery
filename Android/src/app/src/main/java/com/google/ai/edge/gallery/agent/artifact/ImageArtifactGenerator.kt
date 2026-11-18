@@ -27,7 +27,10 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 /** Bounded on-device raster transforms; source images are read only from persisted SAF grants. */
-class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
+class ImageArtifactGenerator(
+  context: Context,
+  private val imageGenerationDispatcher: GuardedImageGenerationDispatcher? = null,
+) : SuspendingArtifactGenerator {
   private val appContext = context.applicationContext
   private val resolver = appContext.contentResolver
   private val embeddedImageLoader = ArtifactImageSourceLoader(appContext)
@@ -35,14 +38,33 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
   override fun estimateBytes(request: ArtifactCreateRequest): Long? = runCatching {
+    if (request.payload.get("operation")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString == "generate") {
+      return@runCatching REMOTE_IMAGE_ESTIMATE_BYTES
+    }
     val transform = ImageTransformArguments.parse(request.payload)
     val width = transform.resizeWidth ?: transform.cropWidth ?: return@runCatching null
     val height = transform.resizeHeight ?: transform.cropHeight ?: return@runCatching null
     (width.toLong() * height.toLong() * 4L).coerceAtLeast(MIN_ESTIMATED_BYTES).coerceAtMost(maxOutputBytes)
   }.getOrNull()
 
+  override suspend fun writeSuspending(request: ArtifactCreateRequest, output: OutputStream): String {
+    require(request.format == ArtifactFormat.IMAGE) { "Image generator received a non-image request." }
+    val operation = request.payload.get("operation")
+      ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+    if (operation == "generate") {
+      val arguments = ImageGenerationArgumentParser.parse(request.payload)
+      return checkNotNull(imageGenerationDispatcher) {
+        "No image-generation provider is configured for this installation."
+      }.generate(arguments.providerId, arguments.request, output)
+    }
+    return write(request, output)
+  }
+
   override fun write(request: ArtifactCreateRequest, output: OutputStream): String {
     require(request.format == ArtifactFormat.IMAGE) { "Image generator received a non-image request." }
+    require(request.payload.get("operation") == null) {
+      "Provider-backed image generation must use the suspending artifact engine path."
+    }
     val transform = ImageTransformArguments.parse(request.payload)
     val sourceTree = requireTreeGrant(transform.sourceTreeUri)
     val rootId = DocumentsContract.getTreeDocumentId(sourceTree)
@@ -361,6 +383,7 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
   }
 
   private companion object {
+    const val REMOTE_IMAGE_ESTIMATE_BYTES = 1_000_000L
     const val MAX_OUTPUT_BYTES = 20L * 1024L * 1024L
     const val MIN_ESTIMATED_BYTES = 2_048L
     const val MAX_SOURCE_BYTES = 20L * 1024L * 1024L
