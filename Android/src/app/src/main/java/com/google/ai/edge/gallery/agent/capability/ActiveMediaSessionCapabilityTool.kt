@@ -108,6 +108,9 @@ class ActiveMediaSessionCapabilityTool internal constructor(
   }
 
   private suspend fun control(arguments: JsonObject): AgentToolResult {
+    if (!adapter.hasNotificationListenerAccess()) {
+      return AgentToolResult("Gallery's notification-listener special access is no longer enabled. No media command was sent.", false)
+    }
     val handle = arguments.get("session_handle").asString
     val action = ActiveMediaSessionAction.valueOf(arguments.get("action").asString)
     val position = arguments.get("position_ms")?.asLong
