@@ -55,6 +55,27 @@ class DocxArtifactGeneratorTest {
     }
   }
 
+  @Test fun validatesEmbeddedImageSourceReferences() {
+    val payload = request().payload.deepCopy().apply {
+      add("images", JsonArray().apply { add(imageSource("diagram-1")) })
+    }
+    generator.validatePayload(payload)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun rejectsMoreThanFourEmbeddedDocxImages() {
+    val payload = request().payload.deepCopy().apply {
+      add("images", JsonArray().apply { repeat(5) { add(imageSource("image-$it")) } })
+    }
+    generator.validatePayload(payload)
+  }
+
+  private fun imageSource(id: String) = JsonObject().apply {
+    addProperty("source_tree_uri", "content://provider/tree/root")
+    addProperty("source_document_id", id)
+    addProperty("alt_text", "Document illustration")
+  }
+
   @Test fun validatesBoundedStructuredContent() {
     generator.validatePayload(request().payload)
   }
