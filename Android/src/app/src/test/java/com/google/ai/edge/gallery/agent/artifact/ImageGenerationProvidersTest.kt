@@ -45,6 +45,25 @@ class ImageGenerationProvidersTest {
     assertTrue(generated)
   }
 
+  @Test fun remoteProviderRequiresVisibleLabelsForSourceImages() = runBlocking {
+    var generated = false
+    val provider = FakeProvider(ImageGenerationDataBoundary.REMOTE) { generated = true; "image/png" }
+    val dispatcher = GuardedImageGenerationDispatcher(
+      ImageGenerationProviderRegistry(listOf(provider)),
+      RemoteImageGenerationConsentRequester { true },
+    )
+    try {
+      dispatcher.generate(
+        "fake",
+        ImageGenerationRequest("make a diagram", "image/png", listOf(Uri.parse("content://local/image"))),
+        ByteArrayOutputStream(),
+      )
+      throw AssertionError("Expected missing source labels to be rejected.")
+    } catch (_: IllegalArgumentException) {
+      assertFalse(generated)
+    }
+  }
+
   @Test fun onDeviceProviderDoesNotRequestRemoteConsent() = runBlocking {
     var consentRequests = 0
     val provider = FakeProvider(ImageGenerationDataBoundary.ON_DEVICE) { "image/webp" }
