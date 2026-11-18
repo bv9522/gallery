@@ -232,7 +232,8 @@ class GalleryMediaLibraryOperations(
       append("Gallery will reuse its existing Smart Album worker and vector database. ")
       append("User-granted storage files discovered: ${treeScan.assets.size}.")
       if (treeScan.truncated) append(" The storage scan reached its safety limit; some files were not added.")
-      append(" Indexing runs in the background; search can use completed records as they become available.")
+      append(" Indexing runs in the background; search can use completed records as they become available. ")
+      append("If a matching index job is already active, WorkManager keeps that job instead of starting a duplicate; run media_index again after it finishes to ensure newly added storage files are included.")
     }
   }
 
