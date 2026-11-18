@@ -222,7 +222,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     ensureTermuxReady()
     val redirect = if (firstChunk) ">" else ">>"
     val result = invokeTermux(
-      "umask 077; base64 -d $redirect \${shellQuote(temporaryPath)}",
+      "umask 077; base64 -d $redirect ${shellQuote(temporaryPath)}",
       DEFAULT_TERMUX_WORKDIR,
       timeoutMs,
       MIN_OUTPUT_CHARS,
