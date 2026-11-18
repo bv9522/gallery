@@ -5,7 +5,7 @@
 
 ## ZIP creation
 
-The generic `artifact_create` tool supports `format=zip`, `operation=create` (or omitted), and a payload `entries` array of `{path, content}` UTF-8 text files. Limits: 100 entries, 1 MiB per entry, 5 MiB total uncompressed text, 240-character paths, and 20 MiB output. Absolute/drive/backslash/control/dot/traversal/reserved-Windows paths, case-insensitive duplicates, and file/directory prefix collisions are rejected.
+The generic `artifact_create` tool supports `format=zip`, `operation=create` (or omitted), and a payload `entries` array of `{path, content}` UTF-8 text files. ZIP creation can target SAF or an explicit TERMUX/SHIZUKU shell destination through the Stage 10I binary adapters. Limits: 100 entries, 1 MiB per entry, 5 MiB total uncompressed text, 240-character paths, and 20 MiB output. Absolute/drive/backslash/control/dot/traversal/reserved-Windows paths, case-insensitive duplicates, and file/directory prefix collisions are rejected.
 
 ## ZIP extraction
 
@@ -13,7 +13,7 @@ The same model-facing tool supports `format=zip`, `operation=extract`, and:
 - `source_tree_uri`: persisted Gallery SAF tree URI returned by `document_tree` grants
 - `source_document_id`: document ID for a ZIP file returned by `document_tree` list operations
 
-The common request's SAF destination identifies the separate destination tree and optional parent folder. The source must be inside the selected read-granted source tree; the destination must be inside a persisted read/write-granted destination tree.
+ZIP extraction remains SAF-only: the common request's SAF destination identifies the separate destination tree and optional parent folder. The source must be inside the selected read-granted source tree; the destination must be inside a persisted read/write-granted destination tree. Shell destinations are supported for ZIP creation only.
 
 ### Two-pass safety flow
 
