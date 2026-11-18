@@ -89,5 +89,35 @@ internal object AccessibilityScreenInspectionPolicy {
     }
   }
 
+  const val MAX_INPUT_TEXT_CHARS = 256
+
+  fun isSafeTextInputField(
+    className: String,
+    inputType: Int,
+    editable: Boolean,
+    password: Boolean,
+    currentText: String?,
+  ): Boolean {
+    if (!editable || password || !className.contains("edittext", ignoreCase = true)) return false
+    val inputClass = inputType and android.text.InputType.TYPE_MASK_CLASS
+    val variation = inputType and android.text.InputType.TYPE_MASK_VARIATION
+    if (
+      inputClass != android.text.InputType.TYPE_CLASS_TEXT ||
+      variation != android.text.InputType.TYPE_TEXT_VARIATION_NORMAL ||
+      inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
+    ) return false
+    val value = currentText.orEmpty()
+    return value.length <= MAX_INPUT_TEXT_CHARS && !containsSensitiveText(value)
+  }
+
+  fun isSafeInputText(value: String): Boolean =
+    value.isNotEmpty() &&
+      value.length <= MAX_INPUT_TEXT_CHARS &&
+      value.none { it.isISOControl() || it == '\\n' || it == '\\r' } &&
+      !containsSensitiveText(value)
+
+  fun isValidSelection(start: Int, end: Int, textLength: Int): Boolean =
+    start >= 0 && end > start && end <= textLength && textLength <= MAX_INPUT_TEXT_CHARS
+
   fun isValidHandle(value: String): Boolean = value.matches(Regex("ui_[a-f0-9]{16}"))
 }
