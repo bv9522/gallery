@@ -17,7 +17,6 @@
 package com.google.ai.edge.gallery.agent.capability
 
 import android.content.Context
-import android.net.Uri
 import com.google.ai.edge.gallery.agent.coordinator.AgentTool
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
 import com.google.ai.edge.gallery.data.AgentDownloadOperations
