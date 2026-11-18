@@ -95,6 +95,18 @@ data class NativePostedNotification(
   val postedAtMs: Long,
 )
 
+data class NativeOtherNotification(
+  val appLabel: String,
+  val title: String?,
+  val text: String?,
+  val postedAtMs: Long,
+)
+
+data class NativeOtherNotificationList(
+  val notifications: List<NativeOtherNotification>,
+  val truncated: Boolean,
+)
+
 /**
  * Typed operations consumed by [AndroidNativeCapabilityTool].
  *
@@ -151,6 +163,8 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
     channelId: String,
   ): NativeCapabilityActionResult
   fun listPostedNotifications(): List<NativePostedNotification>
+  suspend fun readOtherNotifications(): NativeOtherNotificationList =
+    throw UnsupportedOperationException("Reading other apps' notifications is unavailable.")
   suspend fun cancelPostedNotification(id: String): NativeCapabilityActionResult
   suspend fun scheduleNotification(
     title: String,
