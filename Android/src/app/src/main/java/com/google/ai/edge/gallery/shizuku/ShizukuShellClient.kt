@@ -21,12 +21,18 @@ import android.content.Context
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
+import android.os.ParcelFileDescriptor
+import java.io.File
+import java.io.FileInputStream
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
@@ -157,6 +163,85 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
     }
   }
 
+  /**
+   * Streams a staged artifact through a one-shot PFD pipe. The Binder transaction carries only a
+   * file descriptor and bounded metadata, never the artifact bytes in a Binder parcel.
+   */
+  suspend fun writeBinaryFile(
+    sourceFile: File,
+    destinationPath: String,
+    overwrite: Boolean,
+    maxBytes: Long,
+    timeoutMs: Long,
+    expectedSha256: String,
+  ): ShizukuBinaryFileResult {
+    require(sourceFile.isFile && sourceFile.length() in 1L..maxBytes) {
+      "Staged artifact is missing or exceeds its declared byte limit."
+    }
+    require(destinationPath.startsWith("/") && destinationPath.length <= 1_024 &&
+      '\u0000' !in destinationPath && destinationPath.split('/').none { it == "." || it == ".." }) {
+      "Destination must be a safe absolute path."
+    }
+    require(maxBytes in 1L..(50L * 1_024L * 1_024L))
+    require(timeoutMs in 1_000L..120_000L)
+    require(expectedSha256.matches(Regex("[0-9a-f]{64}")))
+    val remote = connect()
+    return withTimeout(timeoutMs + 10_000L) {
+      coroutineScope {
+        val pipe = ParcelFileDescriptor.createPipe()
+        val readEnd = pipe[0]
+        val writeEnd = pipe[1]
+        val receiver = async(Dispatchers.IO) {
+          try {
+            remote.writeBinaryFile(
+              destinationPath,
+              readEnd,
+              maxBytes,
+              timeoutMs,
+              overwrite,
+              expectedSha256,
+            )
+          } finally {
+            runCatching { readEnd.close() }
+          }
+        }
+        try {
+          withContext(Dispatchers.IO) {
+            ParcelFileDescriptor.AutoCloseOutputStream(writeEnd).use { output ->
+              FileInputStream(sourceFile).use { input ->
+                val buffer = ByteArray(BINARY_COPY_BUFFER_BYTES)
+                while (true) {
+                  val count = input.read(buffer)
+                  if (count < 0) break
+                  output.write(buffer, 0, count)
+                }
+                output.flush()
+              }
+            }
+          }
+          val result = receiver.await()
+          if (!result.getBoolean(ShizukuShellUserService.KEY_BINARY_SUCCESS)) {
+            throw IllegalStateException(
+              result.getString(ShizukuShellUserService.KEY_ERROR)
+                ?: "Shizuku did not confirm binary artifact finalization.",
+            )
+          }
+          ShizukuBinaryFileResult(
+            result.getLong(ShizukuShellUserService.KEY_BINARY_BYTES),
+            result.getString(ShizukuShellUserService.KEY_BINARY_SHA256).orEmpty(),
+          )
+        } catch (error: Throwable) {
+          runCatching { writeEnd.close() }
+          receiver.cancel()
+          throw error
+        } finally {
+          runCatching { readEnd.close() }
+          runCatching { writeEnd.close() }
+        }
+      }
+    }
+  }
+
   /** Close the persistent shell session and unbind this client from the UserService. */
   suspend fun close() {
     if (closed) return
@@ -241,6 +326,7 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
   }
 
   companion object {
+    private const val BINARY_COPY_BUFFER_BYTES = 32 * 1_024
     const val DEFAULT_TIMEOUT_MS = 15_000L
     const val DEFAULT_OUTPUT_LIMIT = 32 * 1_024
     private const val CONNECT_TIMEOUT_MS = 10_000L
@@ -250,6 +336,8 @@ class ShizukuShellClient(context: Context) : ShizukuShellExecutor {
     private const val MAX_OUTPUT_CHARS = 128 * 1_024
   }
 }
+
+data class ShizukuBinaryFileResult(val bytesWritten: Long, val sha256: String)
 
 /** Structured result from one Android shell command. */
 data class ShizukuShellResult(
