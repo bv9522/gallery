@@ -56,6 +56,21 @@ class ShellArtifactDestinationAdapterTest {
     }
   }
 
+  @Test fun explicitOverwriteUsesReplacementFinalization() = runBlocking {
+    val directory = Files.createTempDirectory("artifact-overwrite-test").toFile()
+    val bytes = "approved replacement".toByteArray()
+    val termux = FakeTermuxBinaryWriter()
+    val adapter = adapter(directory, termux = termux)
+
+    try {
+      adapter.write(request(ShellExecutionBackend.TERMUX, overwrite = true), producer(bytes))
+      assertTrue(termux.commands.any { it.contains("mv -f") })
+      assertFalse(termux.commands.any { it.contains("mv -n") })
+    } finally {
+      directory.deleteRecursively()
+    }
+  }
+
   @Test fun failedTermuxChunkAttemptsSameIdentityCleanupAndRemovesPrivateStage() = runBlocking {
     val directory = Files.createTempDirectory("artifact-cleanup-test").toFile()
     val bytes = ByteArray(400_000) { it.toByte() }
@@ -120,14 +135,14 @@ class ShellArtifactDestinationAdapterTest {
     shizuku: FakeShizukuBinaryWriter = FakeShizukuBinaryWriter(),
   ) = ShellArtifactDestinationAdapter(directory, termux, shizuku)
 
-  private fun request(backend: ShellExecutionBackend) = ArtifactCreateRequest(
+  private fun request(backend: ShellExecutionBackend, overwrite: Boolean = false) = ArtifactCreateRequest(
     format = ArtifactFormat.PDF,
     fileName = "report.pdf",
     destination = ArtifactDestinationSpec.ShellPath(
       backend,
       "/storage/emulated/0/Documents/report.pdf",
     ),
-    overwrite = false,
+    overwrite = overwrite,
     payload = JsonObject(),
   )
 
