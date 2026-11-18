@@ -74,9 +74,18 @@ class AccessibilityScreenInspectionTool internal constructor(
       ProviderAvailability.UNSUPPORTED -> "Android AccessibilityManager is unavailable."
       else -> "Accessibility service state is unknown."
     }
-    return AgentToolResult(
-      "provider=ANDROID_ACCESSIBILITY\\ncapability=UI_TREE_READ\\navailability=$availability\\ndetail=$detail"
-    )
+    return AgentToolResult(buildString {
+      appendLine("provider=ANDROID_ACCESSIBILITY")
+      appendLine("capability=UI_TREE_READ")
+      appendLine("availability=$availability")
+      appendLine("detail=$detail")
+      appendLine("capability=SCREEN_CAPTURE")
+      appendLine("availability=UNSUPPORTED")
+      appendLine("capability=UI_GESTURE")
+      appendLine("availability=UNSUPPORTED")
+      appendLine("capability=UI_TEXT_INPUT")
+      appendLine("availability=UNSUPPORTED")
+    }.trimEnd())
   }
 
   private suspend fun inspect(): AgentToolResult {
