@@ -123,6 +123,7 @@ import com.google.ai.edge.gallery.tools.SpeakTextToolAction
 import com.google.ai.edge.gallery.tools.PlayMediaToolAction
 import com.google.ai.edge.gallery.tools.ShareContentToolAction
 import com.google.ai.edge.gallery.tools.OpenMediaSessionSettingsToolAction
+import com.google.ai.edge.gallery.tools.OpenAccessibilitySettingsToolAction
 import com.google.ai.edge.gallery.ui.common.BaseGalleryWebViewClient
 import com.google.ai.edge.gallery.ui.common.tts.TtsPlaybackViewModel
 import com.google.ai.edge.gallery.ui.common.GalleryWebView
@@ -363,6 +364,16 @@ fun AgentChatScreen(
                 action.result.complete(true)
               }.onFailure { error ->
                 Log.w(TAG, "Notification-listener settings could not be opened.", error)
+                action.result.complete(false)
+              }
+            }
+            is OpenAccessibilitySettingsToolAction -> {
+              runCatching {
+                context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+              }.onSuccess {
+                action.result.complete(true)
+              }.onFailure { error ->
+                Log.w(TAG, "Accessibility settings could not be opened.", error)
                 action.result.complete(false)
               }
             }
