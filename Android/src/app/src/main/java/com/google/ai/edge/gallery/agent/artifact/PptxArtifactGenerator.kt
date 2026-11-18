@@ -274,6 +274,7 @@ class PptxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
         ?: throw IllegalArgumentException("PPTX payload requires a slides array.")
       require(slides.size() in 1..MAX_SLIDES) { "PPTX must contain 1–$MAX_SLIDES slides." }
       var totalCharacters = 0
+      var totalImages = 0
       val parsed = slides.mapIndexed { index, element ->
         require(element.isJsonObject) { "Slide ${index + 1} must be an object." }
         val slide = element.asJsonObject
@@ -286,6 +287,10 @@ class PptxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
         val bullets = stringArray(slide, "bullet_items")
         val images = ArtifactEmbeddedImageArguments.parse(slide.get("images"))
         require(images.size <= 1) { "Slide ${index + 1} may contain at most one embedded image." }
+        totalImages += images.size
+        require(totalImages <= MAX_TOTAL_EMBEDDED_IMAGES) {
+          "Presentation exceeds $MAX_TOTAL_EMBEDDED_IMAGES embedded images."
+        }
         require(paragraphs.size + bullets.size <= MAX_BLOCKS_PER_SLIDE) {
           "Slide ${index + 1} exceeds $MAX_BLOCKS_PER_SLIDE body text blocks."
         }
