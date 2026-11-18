@@ -21,8 +21,8 @@ class AccessibilityControlCapabilityToolTest {
     val tool = AccessibilityControlCapabilityTool(access, FakeAuthorizer(approved = false))
     val result = tool.execute(args("status"))
 
-    assertFalse(result.isError)
-    assertTrue(result.text.contains("disabled"))
+    assertFalse(!result.isSuccessful)
+    assertTrue(result.content.contains("disabled"))
     assertEquals(0, access.openCount)
   }
 
@@ -61,8 +61,8 @@ class AccessibilityControlCapabilityToolTest {
   @Test
   fun unknownArgumentsAndOperationsAreRejected() = runBlocking {
     val tool = AccessibilityControlCapabilityTool(FakeAccess(false), FakeAuthorizer(true))
-    assertTrue(tool.execute(args("status").apply { addProperty("extra", true) }).isError)
-    assertTrue(tool.execute(args("tap")).isError)
+    assertTrue(tool.execute(args("status").apply { addProperty("extra", true) }).isSuccessful)
+    assertFalse(tool.execute(args("tap")).isSuccessful)
   }
 
   private fun args(operation: String) = JsonObject().apply { addProperty("operation", operation) }
