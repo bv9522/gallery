@@ -390,6 +390,7 @@ class NativeAgentRuntimeExecutor(
     activeJob.getAndSet(null)?.cancel(CancellationException("Agent runtime cleaned up."))
     discardAgentConversation()
     shizukuClient = null
+    termuxClient = null
     shellRouter = null
     config = null
     sessionId = null
