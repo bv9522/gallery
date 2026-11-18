@@ -50,7 +50,7 @@ class ActiveMediaSessionCapabilityToolTest {
       addProperty("operation", "control")
       addProperty("session_handle", "ms_0123456789abcdef")
       addProperty("action", action)
-      position?.let { addProperty("position_ms", it) }
+      position?.let { add("position_ms", com.google.gson.JsonParser.parseString(it)) }
     }
 
     assertNull(MediaSessionArguments.validate(args("SEEK", "1200")))
