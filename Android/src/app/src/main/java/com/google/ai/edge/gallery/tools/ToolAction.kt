@@ -35,6 +35,7 @@ enum class ToolActionName() {
   SPEAK_TEXT,
   PLAY_MEDIA,
   SHARE_CONTENT,
+  OPEN_MEDIA_SESSION_SETTINGS,
 }
 
 /**
