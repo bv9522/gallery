@@ -282,7 +282,7 @@ class XlsxArtifactGenerator : ArtifactGenerator {
     private fun isValidSheetName(name: String): Boolean =
       name.isNotBlank() && name.length <= MAX_SHEET_NAME_CHARS &&
         name.first() != '\'' && name.last() != '\'' &&
-        name.none { it in "[]:*?/" || it.isISOControl() } && isXml10Text(name)
+        name.none { it in "[]:*?/" || it == '\\' || it.isISOControl() } && isXml10Text(name)
 
     private fun isXml10Text(value: String): Boolean {
       var index = 0
