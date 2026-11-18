@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-18 (Stage 10 artifact-generation onboarding moved ahead of consolidated validation; Stage 10A dependency/API preflight complete; no Stage 10 tests/builds/device checks executed)  
+> **Last reconciled:** 2026-11-18 (Stage 10A dependency/API preflight and Stage 10B shared contracts/approval boundary implemented; tests added but not executed; no builds/device checks)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `stage-10a-dependency-preflight` (stacked on `roadmap-artifact-generation-engine`, which is stacked on the Wave 6E capability branch)  
-> **Current change:** [PR #49 — Stage 10A artifact-generation dependency/API preflight](https://github.com/bv9522/gallery/pull/49), draft/open/unmerged, stacked on [PR #48 — Artifact generation engine roadmap](https://github.com/bv9522/gallery/pull/48), then [PR #47 — Wave 6E user-mediated Wi-Fi settings handoff and ownership audit](https://github.com/bv9522/gallery/pull/47), draft/open/unmerged, stacked on [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
+> **Current implementation branch:** `stage-10b-artifact-contracts` (stacked on `stage-10a-dependency-preflight`, PR #49)  
+> **Current change:** [PR #50 — Stage 10B shared artifact contracts and approval boundary](https://github.com/bv9522/gallery/pull/50), draft/open/unmerged, stacked on [PR #49 — Stage 10A artifact-generation dependency/API preflight](https://github.com/bv9522/gallery/pull/49), then [PR #48 — Artifact generation engine roadmap](https://github.com/bv9522/gallery/pull/48), then [PR #47 — Wave 6E user-mediated Wi-Fi settings handoff and ownership audit](https://github.com/bv9522/gallery/pull/47), draft/open/unmerged, stacked on [PR #46 — Wave 6D read-only USB descriptor inspection](https://github.com/bv9522/gallery/pull/46), [PR #45 — Wave 6C approved SMS inbox reading](https://github.com/bv9522/gallery/pull/45), [PR #44 — Wave 6B approved call-log reading](https://github.com/bv9522/gallery/pull/44), [PR #43 — Wave 6A on-demand notification content read](https://github.com/bv9522/gallery/pull/43), [PR #42 — Wave 5D approved semantic text entry and selection](https://github.com/bv9522/gallery/pull/42), then [PR #41 — Wave 5C approved semantic UI actions](https://github.com/bv9522/gallery/pull/41), [PR #40 — Wave 5B bounded active-window vision input](https://github.com/bv9522/gallery/pull/40), [PR #39 — Wave 5A semantic screen inspection](https://github.com/bv9522/gallery/pull/39), then PRs #37, #36, #35, #34, and #33.  
 > **Overall state:** Device-capability onboarding through Wave 6E is complete. Stage 10 artifact-generation onboarding is now the active workstream and intentionally precedes Stage 8 consolidated tests/build/S21 acceptance and Stage 9 integration/release. Tests are added with each implementation slice but remain unexecuted until all Stage 10 capabilities are onboarded.
 
 ## How to read and maintain this roadmap
@@ -201,7 +201,7 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 
 ### Stage 10 — Artifact generation engine (owner-approved capability onboarding before consolidated validation)
 
-**Status: IN PROGRESS — Stage 10A dependency/API preflight complete; implementation 10B–10J pending.** On 2026-11-18 the owner explicitly moved Stage 10 ahead of Stage 8 and Stage 9. This is now the active onboarding workstream; accumulated tests/builds/device acceptance remain deferred until every Stage 10 capability is onboarded.
+**Status: IN PROGRESS — Stage 10A dependency/API preflight and Stage 10B shared contracts/approval boundary complete; 10C–10J pending.** On 2026-11-18 the owner explicitly moved Stage 10 ahead of Stage 8 and Stage 9. Tests are added with each slice; accumulated tests/builds/device acceptance remain deferred until every Stage 10 capability is onboarded.
 
 **Approved architecture**
 - One shared Artifact Generation Engine and one model-facing artifact-generation contract, not six unrelated tools or duplicated file-management routes.
@@ -216,7 +216,7 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 
 **Implementation sequence**
 - [x] 10A — Dependency/API/license preflight complete. Baseline is minSdk 31, targetSdk 37, Java/Kotlin bytecode target 11. Use platform `android.graphics.pdf.PdfDocument` for PDF, `java.util.zip` streaming for ZIP and OOXML packages, native Android bitmap/image APIs plus the already-present ExifInterface for local image processing, and a narrowly scoped in-house OOXML writer for DOCX/XLSX/PPTX. No third-party document/image-generation dependency is selected or added; avoid Apache POI/docx4j/heavy office runtimes. AndroidX PDF dependencies already present are viewer/document-service components, not a PDF authoring engine. See `docs/ARTIFACT_GENERATION_DEPENDENCY_REVIEW.md` for API, licensing, APK, SAF, and shell-streaming findings.
-- [ ] 10B — Define shared request/result contracts, format registry, content schemas, approval integration, per-format limits, timeout/cancellation, and destination abstraction. Expose one generic artifact.create-style operation with a strict format discriminator and validated format-specific payloads.
+- [x] 10B — Define strict shared request/result contracts, format and destination registries, a generic `artifact_create` tool contract, format-specific generator interfaces, typed results, per-generator output caps, common payload size/depth/node bounds, a 120-second operation timeout, cancellation propagation, and SAF/shell destination abstractions. Add exact one-time approval with format/name/destination/estimated-size/overwrite details. Runtime registration of the generic tool is paired with 10C's first working PDF adapter so the model is never shown an empty artifact capability. Tests are added but not run.
 - [ ] 10C — PDF: bounded text, headings, paragraphs, tables, pagination, optional embedded images, and readable-output/page/resource validation.
 - [ ] 10D — DOCX: genuine editable OOXML package with paragraphs, headings, tables, page layout, headers/footers, optional images, and package/relationship validation.
 - [ ] 10E — XLSX: genuine OOXML workbook with bounded worksheets/rows/columns/cells, typed values, styles, widths, filters, and safe formula handling. CSV remains text and must never be mislabeled .xlsx.
@@ -320,7 +320,7 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
 | Wave 6 consolidated S21 acceptance | DEFERRED UNTIL STAGE 10 COMPLETE | Test inventory/preflight prepared; do not execute tests, builds, or S21 acceptance before all Stage 10 slices are onboarded |
-| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IN PROGRESS — Stage 10A complete | Dependency/API/license review recorded; next: shared contracts and format adapters; both SAF and explicit shell-router destinations; local processing plus optional generative image-provider interface |
+| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IN PROGRESS — Stage 10A–10B complete | Platform/dependency strategy, strict contracts, registries, typed results, approval UI, and test sources added; next: PDF adapter and runtime tool registration |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
@@ -351,6 +351,7 @@ All entries below are tracked as draft/open/unmerged unless explicitly stated ot
 - PR #47 — approved wifi_open_settings handoff; opens Android Wi-Fi panel or settings fallback, never toggles Wi-Fi silently (tests added; execution deferred).
 - PR #48 — Stage 10 artifact-generation architecture and roadmap (documentation-only; draft/open/unmerged).
 - PR #49 — Stage 10A dependency/API/license preflight; documents platform-native format APIs, no-new-dependency policy, and binary streaming requirements for SAF/Termux/Shizuku/Rish (tests/builds/device checks not run).
+- PR #50 — Stage 10B shared artifact request/result contracts, generator/destination registries, approval action/dialog, generic tool contract, and unexecuted unit tests.
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 

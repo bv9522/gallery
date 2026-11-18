@@ -111,6 +111,7 @@ import com.google.ai.edge.gallery.skills.formatSelectedSkills
 import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
+import com.google.ai.edge.gallery.tools.AskArtifactGenerationPermissionAction
 import com.google.ai.edge.gallery.tools.AuthenticateBiometricToolAction
 import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.OpenDocumentTreeToolAction
@@ -189,6 +190,9 @@ fun AgentChatScreen(
   }
   var currentNativeCapabilityPermissionAction by remember {
     mutableStateOf<AskNativeCapabilityPermissionAction?>(null)
+  }
+  var currentArtifactGenerationPermissionAction by remember {
+    mutableStateOf<AskArtifactGenerationPermissionAction?>(null)
   }
   var currentPhotoCaptureAction by remember { mutableStateOf<CapturePhotoToolAction?>(null) }
   var currentDocumentTreeAction by remember { mutableStateOf<OpenDocumentTreeToolAction?>(null) }
@@ -555,6 +559,9 @@ fun AgentChatScreen(
             is AskNativeCapabilityPermissionAction -> {
               currentNativeCapabilityPermissionAction = action
             }
+            is AskArtifactGenerationPermissionAction -> {
+              currentArtifactGenerationPermissionAction = action
+            }
             is AuthenticateBiometricToolAction -> {
               val activity = context.findFragmentActivity()
               if (activity == null) {
@@ -829,6 +836,21 @@ fun AgentChatScreen(
       onResult = { approved ->
         action.result.complete(approved)
         currentShellPermissionAction = null
+      },
+    )
+  }
+
+  if (currentArtifactGenerationPermissionAction != null) {
+    val action = currentArtifactGenerationPermissionAction!!
+    ArtifactGenerationPermissionDialog(
+      format = action.format,
+      fileName = action.fileName,
+      destination = action.destination,
+      estimatedBytes = action.estimatedBytes,
+      overwrite = action.overwrite,
+      onResult = { approved ->
+        action.result.complete(approved)
+        currentArtifactGenerationPermissionAction = null
       },
     )
   }
