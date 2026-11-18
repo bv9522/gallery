@@ -67,6 +67,7 @@ internal object AndroidControlArguments {
     "schedule_notification" to setOf("operation", "title", "message", "hour", "minute", "year", "month", "day", "repeat_daily"),
     "list_posted_notifications" to setOf("operation"),
     "read_notifications" to setOf("operation"),
+    "read_call_log" to setOf("operation"),
     "cancel_posted_notification" to setOf("operation", "notification_id"),
     "list_scheduled_notifications" to setOf("operation"),
     "cancel_scheduled_notification" to setOf("operation", "notification_id"),
