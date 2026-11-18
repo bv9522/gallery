@@ -1966,5 +1966,5 @@
     <item quantity="other">%d languages supported</item>
   </plurals>
 
-    <string name="accessibility_service_description">Android grants this service broad ability to view active app windows. Gallery only inspects the current visible window when you explicitly request it, excludes sensitive screens, collects no screenshots or background history, and can be disabled anytime in Android settings.</string>
+    <string name="accessibility_service_description">Android grants this service broad ability to view app windows. Gallery reads a visible app window only after your explicit request and one-time approval. It blocks sensitive or uncertain screens, and can capture one visible app window for local Gemma visual understanding only on supported Android versions. Screenshots are not saved as files; raw screenshot bytes are cleared from coordinator memory after inference, while the model conversation may retain visual context in memory until reset. There is no full-display fallback or background collection. You can disable this service anytime in Android settings.</string>
 </resources>

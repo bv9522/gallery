@@ -10,6 +10,8 @@ import android.content.Context
 import android.view.accessibility.AccessibilityManager
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 data class SemanticScreenElement(
@@ -105,6 +107,99 @@ class AndroidAccessibilityScreenAdapter(context: Context) {
         Result.failure(IllegalStateException(snapshot.reason))
       null ->
         Result.failure(IllegalStateException("Gallery accessibility service disconnected before inspection."))
+    }
+  }
+
+  /**
+   * Captures one external visible app window only after its accessibility hierarchy passes the
+   * existing sensitive-screen policy. The same package/window must still be uniquely visible after
+   * capture; otherwise the image is erased and rejected.
+   */
+  suspend fun captureExternalWindow(): Result<ByteArray> {
+    var producedBytes: ByteArray? = null
+    var handedOff = false
+    try {
+      val result = withContext(Dispatchers.Main.immediate) {
+        handles.clear()
+        if (!AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT)) {
+          return@withContext Result.failure(
+            UnsupportedOperationException(
+              "Window-specific screenshots require Android API 34 or newer. Full-display capture is not used."
+            )
+          )
+        }
+        if (enabledServiceAvailability() != ProviderAvailability.AVAILABLE) {
+          return@withContext Result.failure(
+            IllegalStateException("Gallery accessibility service is not enabled and connected.")
+          )
+        }
+        val service = AccessibilityServiceInstance.current
+          ?: return@withContext Result.failure(
+            IllegalStateException("Gallery accessibility service disconnected before capture.")
+          )
+        val before = service.inspectExternalVisibleWindow()
+        val target = before as? AccessibilityWindowSnapshot.Ready
+          ?: return@withContext Result.failure(
+            IllegalStateException(
+              when (before) {
+                is AccessibilityWindowSnapshot.Excluded -> "Screen capture blocked: ${before.reason}"
+                is AccessibilityWindowSnapshot.Unavailable -> before.reason
+                else -> "The external screen could not be safely classified."
+              }
+            )
+          )
+        if (target.elements.isEmpty() || target.truncated) {
+          return@withContext Result.failure(
+            IllegalStateException(
+              "The visible app window has no complete, safely classifiable accessibility hierarchy; capture was blocked."
+            )
+          )
+        }
+        if (target.elements.any { it.windowId != target.windowId }) {
+          return@withContext Result.failure(
+            IllegalStateException("The visible app window identity is inconsistent; capture was blocked.")
+          )
+        }
+        val windowId = target.windowId
+        val imageBytes = service.captureWindowJpeg(windowId).getOrElse { error ->
+          return@withContext Result.failure(error)
+        }
+        var keepImage = false
+        try {
+          currentCoroutineContext().ensureActive()
+          val after = service.inspectExternalVisibleWindow()
+          val stillSameWindow = after is AccessibilityWindowSnapshot.Ready &&
+            after.packageName == target.packageName &&
+            !after.truncated &&
+            after.elements.isNotEmpty() &&
+            after.windowId == windowId &&
+            after.elements.all { it.windowId == windowId }
+          if (
+            AccessibilityServiceInstance.current !== service ||
+            enabledServiceAvailability() != ProviderAvailability.AVAILABLE ||
+            !stillSameWindow ||
+            imageBytes.isEmpty() ||
+            imageBytes.size > GalleryAccessibilityService.MAX_SCREENSHOT_BYTES
+          ) {
+            return@withContext Result.failure(
+              IllegalStateException(
+                "The target window changed or could not be revalidated after capture; the screenshot was discarded."
+              )
+            )
+          }
+          currentCoroutineContext().ensureActive()
+          producedBytes = imageBytes
+          keepImage = true
+          Result.success(imageBytes)
+        } finally {
+          if (!keepImage) imageBytes.fill(0)
+        }
+      }
+      handedOff = result.isSuccess
+      return result
+    } finally {
+      // withContext may discard a successful result if cancellation wins while dispatching back.
+      if (!handedOff) producedBytes?.fill(0)
     }
   }
 

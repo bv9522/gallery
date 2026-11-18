@@ -76,7 +76,12 @@ class AgentCoordinator(
 
       try {
         while (modelTurns < maxModelTurns) {
-          val response = model.generate(conversationMessages.toList())
+          val pendingMessages = conversationMessages.toList()
+          val response = try {
+            model.generate(pendingMessages)
+          } finally {
+            clearTransientToolImages()
+          }
           modelTurns++
           when (response) {
             is AgentModelResponse.FinalAnswer -> {
@@ -105,6 +110,7 @@ class AgentCoordinator(
 
         val limitMessage =
           "Agent stopped after reaching the configured limit of " + maxModelTurns + " model turns."
+        clearTransientToolImages()
         AgentRunResult(
           AgentRunStatus.TURN_LIMIT_REACHED,
           limitMessage,
@@ -113,21 +119,20 @@ class AgentCoordinator(
           conversationMessages.toList(),
         )
       } catch (cancelled: CancellationException) {
-        while (conversationMessages.size > previousSize) {
-          conversationMessages.removeAt(conversationMessages.lastIndex)
-        }
+        rollbackTo(previousSize)
         throw cancelled
       } catch (error: Exception) {
-        while (conversationMessages.size > previousSize) {
-          conversationMessages.removeAt(conversationMessages.lastIndex)
-        }
+        rollbackTo(previousSize)
         throw error
       }
     }
 
   /** Clears model-side coordinator history when the owning conversation is reset or discarded. */
   suspend fun reset() {
-    runMutex.withLock { conversationMessages.clear() }
+    runMutex.withLock {
+      conversationMessages.forEach { it.toolImageBytes?.fill(0) }
+      conversationMessages.clear()
+    }
   }
 
   private suspend fun executeToolCalls(
@@ -152,6 +157,7 @@ class AgentCoordinator(
         toolCallId = call.callId,
         toolName = call.name,
         toolSucceeded = result.isSuccessful,
+        toolImageBytes = result.imageBytes,
       )
     }
   }
@@ -174,7 +180,35 @@ class AgentCoordinator(
         isSuccessful = false,
       )
     }
-    return result.copy(content = resultBudget.constrain(result.content))
+    val boundedImage = result.imageBytes?.let(resultBudget::constrainImage)
+    val imageRejected = result.imageBytes != null && boundedImage == null
+    if (imageRejected) result.imageBytes?.fill(0)
+    val boundedContent = resultBudget.constrain(
+      if (imageRejected) result.content + "\nImage payload omitted because the multimodal result budget was exceeded."
+      else result.content
+    )
+    return result.copy(
+      content = boundedContent,
+      isSuccessful = result.isSuccessful && !imageRejected,
+      imageBytes = boundedImage,
+    )
+  }
+
+  /** Erases image payloads from a failed/cancelled turn before rolling history back. */
+  private fun rollbackTo(previousSize: Int) {
+    while (conversationMessages.size > previousSize) {
+      conversationMessages.removeAt(conversationMessages.lastIndex).toolImageBytes?.fill(0)
+    }
+  }
+
+  /** Raw screenshot bytes must not remain in coordinator history after LiteRT-LM consumes them. */
+  private fun clearTransientToolImages() {
+    for (index in conversationMessages.indices) {
+      val message = conversationMessages[index]
+      val imageBytes = message.toolImageBytes ?: continue
+      imageBytes.fill(0)
+      conversationMessages[index] = message.copy(toolImageBytes = null)
+    }
   }
 
   companion object {

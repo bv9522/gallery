@@ -16,12 +16,39 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Role
 import com.google.ai.edge.litertlm.ToolCall
 
 class LiteRtLmResponseProtocolTest {
+  @Test
+  fun toolResponseMessageCarriesActualImageContentBesideToolResponse() {
+    val screenshot = byteArrayOf(9, 8, 7, 6)
+    val message = buildLiteRtToolResponseMessage(
+      listOf(
+        AgentMessage(
+          role = AgentMessage.Role.TOOL,
+          content = "Screenshot attached.",
+          toolName = "screen_inspect",
+          toolImageBytes = screenshot,
+        )
+      )
+    )
+
+    assertEquals(Role.TOOL, message.role)
+    assertEquals(2, message.contents.contents.size)
+    val image = message.contents.contents[0] as Content.ImageBytes
+    assertSame(screenshot, image.bytes)
+    val response = message.contents.contents[1] as Content.ToolResponse
+    assertEquals("screen_inspect", response.name)
+    assertEquals("Screenshot attached.", response.response)
+  }
+
   @Test
   fun detectsCanonicalGemmaNativeToolCallAsUnparsedContent() {
     val response =

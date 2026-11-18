@@ -82,6 +82,22 @@ internal object LiteRtLmResponseProtocol {
     value.contains("<|tool_call>") || value.contains("<tool_call|>")
 }
 
+/**
+ * Builds one LiteRT-LM tool-role message containing each tool response and any associated
+ * multimodal image parts. Image parts precede their textual tool response.
+ */
+internal fun buildLiteRtToolResponseMessage(toolMessages: List<AgentMessage>): Message {
+  require(toolMessages.isNotEmpty()) { "A tool response message must not be empty." }
+  val contents = toolMessages.flatMap { message ->
+    val name = message.toolName ?: error("Tool result is missing its tool name.")
+    buildList<Content> {
+      message.toolImageBytes?.let { add(Content.ImageBytes(it)) }
+      add(Content.ToolResponse(name, message.content))
+    }
+  }
+  return Message.tool(Contents.of(contents))
+}
+
 class LiteRtLmAgentModel(
   private val conversation: Conversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
@@ -137,12 +153,7 @@ class LiteRtLmAgentModel(
           userMessages.single().userContents?.let(Message::user)
             ?: Message.user(userMessages.single().content)
         } else {
-          val toolResponses = toolMessages.map { message ->
-            val name = message.toolName
-              ?: error("Tool result is missing its tool name.")
-            Content.ToolResponse(name, message.content)
-          }
-          Message.tool(Contents.of(toolResponses))
+          buildLiteRtToolResponseMessage(toolMessages)
         }
       val turnExtraContext = userMessages.singleOrNull()?.extraContext.orEmpty()
       val thinkingRequested = turnExtraContext["enable_thinking"]?.toString() ?: "not-provided"

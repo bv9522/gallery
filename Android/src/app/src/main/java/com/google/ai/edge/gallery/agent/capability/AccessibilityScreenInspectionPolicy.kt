@@ -7,6 +7,10 @@ package com.google.ai.edge.gallery.agent.capability
 /** Pure privacy policy shared by the Android adapter and unit tests. */
 internal object AccessibilityScreenInspectionPolicy {
   const val MAX_LABEL_CHARS = 120
+  const val MIN_WINDOW_SCREENSHOT_API = 34
+
+  fun supportsWindowScreenshot(apiLevel: Int): Boolean =
+    apiLevel >= MIN_WINDOW_SCREENSHOT_API
   private val sensitiveWords = Regex(
     """\b(sign[ -]?in|sign[ -]?up|log[ -]?in|password|passcode|pin|one[ -]?time code|verification code|otp|2fa|mfa|account|profile|personal information|beneficiary|routing number|iban|sort code|crypto|cvv|cvc|credit card|debit card|card number|bank|payment|checkout|transfer|wallet|billing|account number|social security|ssn|recovery phrase|seed phrase|private key|security code|tax return|medical record|patient portal|prescription|diagnosis|email address|phone number|date of birth|passport|driver.?s license|government id|address)\b""",
     RegexOption.IGNORE_CASE,

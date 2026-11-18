@@ -74,6 +74,13 @@ class AccessibilityScreenInspectionPolicyTest {
   }
 
   @Test
+  fun windowScreenshotRequiresApi34AndNeverFallsBackOnOlderAndroid() {
+    assertFalse(AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(33))
+    assertTrue(AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(34))
+    assertTrue(AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(35))
+  }
+
+  @Test
   fun handlesMustBeOpaqueAndWellFormed() {
     assertTrue(AccessibilityScreenInspectionPolicy.isValidHandle("ui_0123456789abcdef"))
     assertFalse(AccessibilityScreenInspectionPolicy.isValidHandle("com.example:id/button"))

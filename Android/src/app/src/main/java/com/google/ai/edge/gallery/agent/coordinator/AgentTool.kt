@@ -38,4 +38,6 @@ interface AgentTool {
 data class AgentToolResult(
   val content: String,
   val isSuccessful: Boolean = true,
+  /** Optional one-shot image payload delivered to the model as multimodal tool content. */
+  val imageBytes: ByteArray? = null,
 )
