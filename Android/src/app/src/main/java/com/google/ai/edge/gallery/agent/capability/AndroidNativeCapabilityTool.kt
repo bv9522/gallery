@@ -179,7 +179,7 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
       "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
-      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, read_notifications, read_call_log, download_status, cancel_download, media_search, media_index, media_play. " +
+      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, read_notifications, read_call_log, read_sms_inbox, download_status, cancel_download, media_search, media_index, media_play. " +
       "download_status returns at most 20 active Gallery model downloads with short-lived opaque handles. " +
       "cancel_download requires a handle from the latest status result and one-time approval for that exact download. " +
       "No worker IDs, tags, URLs, tokens, or filesystem paths are exposed. Notifications " +
@@ -192,6 +192,8 @@ class AndroidNativeCapabilityTool internal constructor(
       "each read requires one-time CALL_LOG_READ approval and Android READ_CALL_LOG permission, requested only after approval. " +
       "It returns at most 20 recent entries with cached caller name, number, call type, date/time, and duration. " +
       "Android may restrict READ_CALL_LOG eligibility by installer or role; if denied, report that limitation and never change the default dialer role. " +
+      "Use read_sms_inbox only when the user explicitly asks to inspect received SMS messages; each read requires one-time SMS_READ approval and Android READ_SMS permission requested only after approval. " +
+      "It returns at most 20 recent inbox entries with sender address, bounded message preview, timestamp, and read/unread state. Android may restrict READ_SMS by installer or default-SMS-role eligibility; if denied, report the limitation and never change the default SMS role. " +
       "Device discovery, GATT connections, GATT reads/writes, " +
       "audio recording (1–30 seconds, local MediaStore output), photo capture, and wallpaper changes " +
       "require one-time user approval. Bluetooth permissions are requested only after approval. BLE scans " +
@@ -214,7 +216,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "download_status", "cancel_download", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "read_notifications", "read_call_log", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index", "media_play",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "read_notifications", "read_call_log", "read_sms_inbox", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index", "media_play",
             ).forEach { add(it) }
           })
         })
@@ -662,6 +664,8 @@ class AndroidNativeCapabilityTool internal constructor(
         }
         "read_call_log" ->
           AgentToolResult(Gson().toJson(adapter.readCallLog()))
+        "read_sms_inbox" ->
+          AgentToolResult(Gson().toJson(adapter.readSmsInbox()))
         "list_posted_notifications" ->
           AgentToolResult(Gson().toJson(adapter.listPostedNotifications()))
         "cancel_posted_notification" -> {
