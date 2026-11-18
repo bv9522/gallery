@@ -14,6 +14,7 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.exifinterface.media.ExifInterface
 import com.google.gson.JsonObject
 import java.io.FilterInputStream
 import java.io.InputStream
@@ -63,7 +64,21 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
     require(sourcePixels <= MAX_SOURCE_PIXELS) {
       "Image exceeds the $MAX_SOURCE_PIXELS source-pixel limit."
     }
-    validateCrop(transform, bounds.outWidth, bounds.outHeight)
+    val exifOrientation = openBounded(sourceUri).use { input ->
+      ExifInterface(input).getAttributeInt(
+        ExifInterface.TAG_ORIENTATION,
+        ExifInterface.ORIENTATION_NORMAL,
+      )
+    }
+    val swapsAxes = exifOrientation in setOf(
+      ExifInterface.ORIENTATION_TRANSPOSE,
+      ExifInterface.ORIENTATION_ROTATE_90,
+      ExifInterface.ORIENTATION_TRANSVERSE,
+      ExifInterface.ORIENTATION_ROTATE_270,
+    )
+    val visualWidth = if (swapsAxes) bounds.outHeight else bounds.outWidth
+    val visualHeight = if (swapsAxes) bounds.outWidth else bounds.outHeight
+    validateCrop(transform, visualWidth, visualHeight)
     val sampleSize = calculateSampleSize(bounds.outWidth, bounds.outHeight)
     val options = BitmapFactory.Options().apply {
       inSampleSize = sampleSize
@@ -76,9 +91,12 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
       throw IllegalStateException("Insufficient memory to decode the bounded source image.", memory)
     }
     try {
+      val oriented = applyExifOrientation(current, exifOrientation)
+      if (oriented !== current) current.recycle()
+      current = oriented
       if (transform.cropWidth != null) {
-        val scaleX = bounds.outWidth.toDouble() / current.width
-        val scaleY = bounds.outHeight.toDouble() / current.height
+        val scaleX = visualWidth.toDouble() / current.width
+        val scaleY = visualHeight.toDouble() / current.height
         val left = floor(transform.cropX!! / scaleX).toInt().coerceAtLeast(0)
         val top = floor(transform.cropY!! / scaleY).toInt().coerceAtLeast(0)
         val right = ceil((transform.cropX!! + transform.cropWidth) / scaleX).toInt().coerceAtMost(current.width)
@@ -133,6 +151,33 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
     } finally {
       current.recycle()
     }
+  }
+
+  /** Applies all eight EXIF orientation states to pixels; output carries normal orientation. */
+  private fun applyExifOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
+    val width = bitmap.width.toFloat()
+    val height = bitmap.height.toFloat()
+    val matrix = Matrix().apply {
+      val values = when (orientation) {
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL ->
+          floatArrayOf(-1f, 0f, width, 0f, 1f, 0f, 0f, 0f, 1f)
+        ExifInterface.ORIENTATION_ROTATE_180 ->
+          floatArrayOf(-1f, 0f, width, 0f, -1f, height, 0f, 0f, 1f)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL ->
+          floatArrayOf(1f, 0f, 0f, 0f, -1f, height, 0f, 0f, 1f)
+        ExifInterface.ORIENTATION_TRANSPOSE ->
+          floatArrayOf(0f, 1f, 0f, 1f, 0f, 0f, 0f, 0f, 1f)
+        ExifInterface.ORIENTATION_ROTATE_90 ->
+          floatArrayOf(0f, -1f, height, 1f, 0f, 0f, 0f, 0f, 1f)
+        ExifInterface.ORIENTATION_TRANSVERSE ->
+          floatArrayOf(0f, -1f, height, -1f, 0f, width, 0f, 0f, 1f)
+        ExifInterface.ORIENTATION_ROTATE_270 ->
+          floatArrayOf(0f, 1f, 0f, -1f, 0f, width, 0f, 0f, 1f)
+        else -> return bitmap
+      }
+      setValues(values)
+    }
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
   }
 
   private fun replaceBitmap(previous: Bitmap, next: Bitmap): Bitmap {
