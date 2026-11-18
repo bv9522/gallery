@@ -202,6 +202,9 @@ class TermuxShellBinaryArtifactTransport(
             (finalized.error ?: finalized.stderr).ifBlank { verify.stderr }
         }
       }
+      require(cleanupTemporary(executor, temporary)) {
+        "The artifact was published, but Termux could not confirm removal of its temporary transfer file."
+      }
       temporaryCreated = false
       ArtifactDestinationWriteResult(
         "${destination.backend.name} shell path '$target'",
