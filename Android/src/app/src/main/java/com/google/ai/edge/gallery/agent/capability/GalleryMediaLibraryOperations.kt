@@ -378,7 +378,9 @@ class GalleryMediaLibraryOperations(
       audioAccelerator = model.backendSpec.audioAccelerator,
     )
     return try {
-      provider.service(SmartAlbumSource.USER_PHOTOS).fetchRecordIdentifiers().toSet()
+      provider.service(SmartAlbumSource.USER_PHOTOS)
+        .fetchRecordIdentifiers()
+        .filterTo(hashSetOf()) { it.startsWith("content://") }
     } finally {
       provider.close()
     }
