@@ -56,7 +56,10 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
       ?: throw IllegalArgumentException("SAF adapter received a non-SAF destination.")
     val tree = requireTreeGrant(destination.treeUri)
     val parentId = destination.parentDocumentId ?: DocumentsContract.getTreeDocumentId(tree)
-    val parent = withContext(Dispatchers.IO) { queryDocument(tree, parentId) }
+    val parent = withContext(Dispatchers.IO) {
+      requireParentWithinTree(tree, parentId)
+      queryDocument(tree, parentId)
+    }
     require(parent.mimeType == DocumentsContract.Document.MIME_TYPE_DIR) {
       "The selected SAF destination is not a folder."
     }
