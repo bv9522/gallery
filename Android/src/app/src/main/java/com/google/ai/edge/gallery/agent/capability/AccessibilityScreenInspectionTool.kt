@@ -108,17 +108,17 @@ class AccessibilityScreenInspectionTool internal constructor(
       return AgentToolResult("The current visible window contains no safe semantic elements to report.")
     }
     return AgentToolResult(buildString {
-      appendLine("elements=\${snapshot.elements.size}")
+      appendLine("elements=${snapshot.elements.size}")
       appendLine("limit=32")
-      appendLine("truncated=\${snapshot.truncated}")
+      appendLine("truncated=${snapshot.truncated}")
       snapshot.elements.forEachIndexed { index, element ->
-        appendLine("element=\${index + 1}")
-        appendLine("element_handle=\${element.handle}")
-        appendLine("role=\${element.role}")
+        appendLine("element=${index + 1}")
+        appendLine("element_handle=${element.handle}")
+        appendLine("role=${element.role}")
         element.label?.let { appendLine("label=$it") }
-        appendLine("clickable=\${element.clickable}")
-        appendLine("scrollable=\${element.scrollable}")
-        appendLine("enabled=\${element.enabled}")
+        appendLine("clickable=${element.clickable}")
+        appendLine("scrollable=${element.scrollable}")
+        appendLine("enabled=${element.enabled}")
         if (element.selected) appendLine("selected=true")
         element.checked?.let { appendLine("checked=$it") }
       }
