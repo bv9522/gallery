@@ -298,6 +298,18 @@ class AndroidControlArgumentsTest {
   }
 
   @Test
+  fun readNotificationsTakesNoArguments() {
+    val valid = JsonObject().apply { addProperty("operation", "read_notifications") }
+    val unexpected = JsonObject().apply {
+      addProperty("operation", "read_notifications")
+      addProperty("package_name", "com.example.app")
+    }
+
+    assertNull(AndroidControlArguments.validate(valid))
+    assertTrue(AndroidControlArguments.validate(unexpected).orEmpty().contains("Accepted arguments: operation"))
+  }
+
+  @Test
   fun unknownArgumentIsRejected() {
     val arguments = JsonObject().apply {
       addProperty("operation", "device_info")

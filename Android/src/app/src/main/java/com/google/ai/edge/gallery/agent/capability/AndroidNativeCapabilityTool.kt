@@ -179,12 +179,16 @@ class AndroidNativeCapabilityTool internal constructor(
       "set_display_brightness, vibrate, wake_lock_status, set_wake_lock, bluetooth_bonded_devices, " +
       "bluetooth_le_scan, bluetooth_gatt_services, bluetooth_gatt_read, bluetooth_gatt_write, usb_devices, " +
       "record_audio, capture_photo, set_wallpaper, post_notification, list_posted_notifications, cancel_posted_notification, schedule_notification, list_scheduled_notifications, " +
-      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, download_status, cancel_download, media_search, media_index, media_play. " +
+      "cancel_scheduled_notification, list_notification_channels, create_notification_channel, read_notifications, download_status, cancel_download, media_search, media_index, media_play. " +
       "download_status returns at most 20 active Gallery model downloads with short-lived opaque handles. " +
       "cancel_download requires a handle from the latest status result and one-time approval for that exact download. " +
       "No worker IDs, tags, URLs, tokens, or filesystem paths are exposed. Notifications " +
-      "are posted/scheduled only after scoped approval and POST_NOTIFICATIONS permission; reading other apps' " +
-      "notifications is not supported. Device discovery, GATT connections, GATT reads/writes, " +
+      "are posted/scheduled only after scoped approval and POST_NOTIFICATIONS permission. Use read_notifications only " +
+      "when the user explicitly asks to inspect notifications; it requires manually enabled notification-listener " +
+      "special access and a separate one-time approval for every read. It returns at most 20 currently active " +
+      "notifications with app labels and bounded title/body text; it does not read history, process notification " +
+      "callbacks, monitor in the background, or persist notification content. Notification text may be private; " +
+      "never read it without an explicit request. Device discovery, GATT connections, GATT reads/writes, " +
       "audio recording (1–30 seconds, local MediaStore output), photo capture, and wallpaper changes " +
       "require one-time user approval. Bluetooth permissions are requested only after approval. BLE scans " +
       "are limited to 1–10 seconds; each GATT operation connects to one address for at most 20 seconds, " +
@@ -206,7 +210,7 @@ class AndroidNativeCapabilityTool internal constructor(
             listOf(
               "status", "download_status", "cancel_download", "device_info", "telephony_info", "dial_phone", "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
               "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status",
-              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index", "media_play",
+              "set_wake_lock", "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "read_notifications", "usb_devices", "record_audio", "capture_photo", "set_wallpaper", "speak_text", "media_search", "media_index", "media_play",
             ).forEach { add(it) }
           })
         })
@@ -646,6 +650,11 @@ class AndroidNativeCapabilityTool internal constructor(
           val channelId = arguments.string("channel_id") ?: DEFAULT_NOTIFICATION_CHANNEL_ID
           val result = adapter.postNotification(title, message, channelId)
           AgentToolResult(result.message, result.success)
+        }
+        "read_notifications" -> {
+          val unavailable = availabilityFailure(AndroidCapability.NOTIFICATION_READ)
+          if (unavailable != null) return unavailable
+          AgentToolResult(Gson().toJson(adapter.readOtherNotifications()))
         }
         "list_posted_notifications" ->
           AgentToolResult(Gson().toJson(adapter.listPostedNotifications()))
