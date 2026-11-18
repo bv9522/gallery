@@ -70,6 +70,18 @@ data class NativeCallLogSnapshot(
   val truncated: Boolean,
 )
 
+data class NativeSmsInboxEntry(
+  val sender: String?,
+  val bodyPreview: String?,
+  val dateMs: Long,
+  val isRead: Boolean,
+)
+
+data class NativeSmsInboxSnapshot(
+  val entries: List<NativeSmsInboxEntry>,
+  val truncated: Boolean,
+)
+
 data class NativeKeystoreCiphertext(
   val alias: String,
   val ivBase64: String,
@@ -133,6 +145,8 @@ interface NativeCapabilityOperations : CapabilityProviderProbe {
   fun getTelephonyInfo(): NativeTelephonyInfo
   suspend fun readCallLog(): NativeCallLogSnapshot =
     throw UnsupportedOperationException("Call-log reading is unavailable.")
+  suspend fun readSmsInbox(): NativeSmsInboxSnapshot =
+    throw UnsupportedOperationException("SMS inbox reading is unavailable.")
   fun getVolumeStatus(stream: NativeAudioStream): NativeVolumeStatus
   fun getAudioDevices(): List<NativeAudioDevice>
   fun getDisplayBrightness(): NativeDisplayBrightness
