@@ -8,7 +8,7 @@
 > **Last reconciled:** 2026-11-18 (Stage 10C–10H implemented; Stage 10I Termux stdin-chunk and Shizuku PFD binary transfer adapters implemented in code; Rish remains unavailable pending stdin proof; tests added but not executed; no builds/device checks)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `stage-10i-binary-artifact-output` (stacked on `stage-10h-image-processing`, PR #57)  
-> **Current change:** Stage 10I — binary artifact output (implementation branch; PR to be opened), stacked on [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), and [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
+> **Current change:** [PR #58 — Stage 10I binary artifact output for Termux and Shizuku](https://github.com/bv9522/gallery/pull/58), draft/open/unmerged, stacked on [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), and [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
 > **Overall state:** Device-capability onboarding through Wave 6E is complete. Stage 10 artifact-generation onboarding is now the active workstream and intentionally precedes Stage 8 consolidated tests/build/S21 acceptance and Stage 9 integration/release. Tests are added with each implementation slice but remain unexecuted until all Stage 10 capabilities are onboarded.
 
 ## How to read and maintain this roadmap
