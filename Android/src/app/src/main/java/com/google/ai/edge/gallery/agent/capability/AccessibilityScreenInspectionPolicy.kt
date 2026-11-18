@@ -13,6 +13,7 @@ internal object AccessibilityScreenInspectionPolicy {
   )
   private val emailPattern = Regex("""\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b""", RegexOption.IGNORE_CASE)
   private val longNumberPattern = Regex("""(?<!\w)\d{6,}(?!\w)""")
+  private val phonePattern = Regex("""(?<!\w)\+?\d(?:[\d\s().-]{7,}\d)(?!\w)""")
   private val protectedPackageFragments = listOf(
     "bank", "wallet", "payment", "pay.", ".pay", "finance", "broker", "trading",
     "password", "credential", "authenticator", "identity", "vault", "health",
@@ -36,7 +37,8 @@ internal object AccessibilityScreenInspectionPolicy {
     if (value.isNullOrBlank()) return false
     return sensitiveWords.containsMatchIn(value) ||
       emailPattern.containsMatchIn(value) ||
-      longNumberPattern.containsMatchIn(value)
+      longNumberPattern.containsMatchIn(value) ||
+      phonePattern.containsMatchIn(value)
   }
 
   fun sanitizeLabel(value: String?): String? {
