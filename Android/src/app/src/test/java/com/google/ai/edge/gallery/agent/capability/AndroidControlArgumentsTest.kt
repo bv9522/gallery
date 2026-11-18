@@ -165,10 +165,16 @@ class AndroidControlArgumentsTest {
       addProperty("query", "Pitching At Field")
       addProperty("limit", 21)
     }
+    val invalidType = JsonObject().apply {
+      addProperty("operation", "media_search")
+      addProperty("query", "Pitching At Field")
+      addProperty("media_kind", 4)
+    }
 
     assertNull(AndroidControlArguments.validate(valid))
     assertTrue(AndroidControlArguments.validate(invalidMode).orEmpty().contains("search_mode"))
     assertTrue(AndroidControlArguments.validate(oversizedLimit).orEmpty().contains("limit"))
+    assertTrue(AndroidControlArguments.validate(invalidType).orEmpty().contains("media_kind"))
   }
 
   @Test
