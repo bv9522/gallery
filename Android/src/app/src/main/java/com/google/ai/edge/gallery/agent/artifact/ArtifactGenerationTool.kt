@@ -33,7 +33,7 @@ class ArtifactGenerationTool(
       "Supported destinations: " + supportedDestinations.joinToString { it.name.lowercase() } + ". " +
       "SAF requires a persisted Gallery document-tree grant and a tree URI/document ID returned by document_tree grants/list operations. " +
       "Shell destinations, when enabled, require an explicit backend from: " +
-      supportedShellBackends.joinToString { it.name } + ", and an absolute path accessible to that identity. " +
+      supportedShellBackends.joinToString { it.name } + ", and an absolute path accessible to that identity. ZIP extraction is SAF-only. " +
       "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
       "Generated content remains local. The image format currently means bounded on-device resize/crop/rotate/convert only; no generative-image provider is registered."
 
@@ -89,6 +89,10 @@ class ArtifactGenerationTool(
         }
         val operation = request.payload.get("operation")
           ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: "create"
+        if (request.format == ArtifactFormat.ZIP && operation == "extract" &&
+          request.destination !is ArtifactDestinationSpec.SafTree) {
+          return AgentToolResult("ZIP extraction requires a persisted SAF destination tree; shell extraction is not enabled.", false)
+        }
         val result = if (request.format == ArtifactFormat.ZIP && operation == "extract") {
           zipExtractionHandler?.execute(request)
             ?: return AgentToolResult("ZIP extraction is not available in this runtime.", false)
