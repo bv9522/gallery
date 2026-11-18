@@ -168,7 +168,7 @@ object ArtifactCreateArguments {
 
   private fun isSafeAbsolutePath(value: String): Boolean =
     value.startsWith("/") && value.length <= MAX_DESTINATION_CHARS &&
-      !value.contains('\\u0000') &&
+      !value.contains('\\u0000') && '\\\\' !in value &&
       value.split('/').drop(1).all { segment ->
         segment.isNotBlank() && segment != "." && segment != ".." &&
           segment.none { it.code < 0x20 || it.code == 0x7f }
