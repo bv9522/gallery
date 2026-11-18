@@ -57,7 +57,9 @@ class GalleryAccessibilityService : AccessibilityService() {
    * Selects exactly one visible, non-Gallery application window. This supports a user-arranged
    * split-screen target while Gallery chat remains available. Ambiguous or unreadable windows fail closed.
    */
-  internal fun inspectExternalVisibleWindow(): AccessibilityWindowSnapshot {
+  internal fun inspectExternalVisibleWindow(
+    allowSafeTextInputs: Boolean = false,
+  ): AccessibilityWindowSnapshot {
     val windowInfos = windows
     if (windowInfos.isEmpty()) {
       return AccessibilityWindowSnapshot.Unavailable("Android did not expose any interactive application windows.")
@@ -106,7 +108,7 @@ class GalleryAccessibilityService : AccessibilityService() {
       }
       val selected = candidateRoots.removeAt(0)
       selectedRoot = selected.first
-      return inspectRoot(selected.first, selected.second).also { selectedRoot = null }
+      return inspectRoot(selected.first, selected.second, allowSafeTextInputs).also { selectedRoot = null }
     } finally {
       selectedRoot?.recycle()
       candidateRoots.forEach { runCatching { it.first.recycle() } }
@@ -259,6 +261,189 @@ class GalleryAccessibilityService : AccessibilityService() {
     }
   }
 
+  /**
+   * Applies one approved text operation to a freshly revalidated ordinary single-line text field.
+   * The field must be a normal text EditText; passwords, numeric/email/URI inputs, multiline fields,
+   * sensitive screens, and unsupported accessibility actions are rejected.
+   */
+  internal fun performSemanticTextAction(
+    fingerprint: AccessibilityElementFingerprint,
+    action: AccessibilityTextAction,
+    inputText: String? = null,
+    selectionStart: Int? = null,
+    selectionEnd: Int? = null,
+  ): Result<String> {
+    if (AccessibilityServiceInstance.current !== this) {
+      return Result.failure(IllegalStateException("Gallery accessibility service changed before text action dispatch."))
+    }
+    if (!fingerprint.textInputCapable || fingerprint.bounds.isEmpty) {
+      return Result.failure(IllegalStateException("The handle is not a safe text-input target. Run inspect_inputs again."))
+    }
+    val current = inspectExternalVisibleWindow(allowSafeTextInputs = true) as? AccessibilityWindowSnapshot.Ready
+      ?: return Result.failure(IllegalStateException("The external app window is unavailable, ambiguous, or sensitive; no text action was dispatched."))
+    if (
+      current.packageName != fingerprint.packageName ||
+      current.windowId != fingerprint.windowId ||
+      current.truncated
+    ) {
+      return Result.failure(IllegalStateException("The target app or screen changed after input inspection; no text action was dispatched."))
+    }
+
+    val windowInfos = windows
+    val visited = ArrayList<Pair<AccessibilityNodeInfo, Int>>(MAX_NODES)
+    val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+    try {
+      val window = windowInfos.singleOrNull {
+        it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.id == fingerprint.windowId
+      } ?: return Result.failure(IllegalStateException("The inspected application window is no longer uniquely available."))
+      val visibleBounds = Rect()
+      window.getBoundsInScreen(visibleBounds)
+      if (visibleBounds.isEmpty) {
+        return Result.failure(IllegalStateException("The inspected application window is no longer visible; no text action was dispatched."))
+      }
+      val initialRoot = window.root
+        ?: return Result.failure(IllegalStateException("The inspected application window no longer exposes a root node."))
+      if (initialRoot.packageName?.toString() != fingerprint.packageName) {
+        initialRoot.recycle()
+        return Result.failure(IllegalStateException("The target application identity changed; no text action was dispatched."))
+      }
+      when (val safe = inspectRoot(initialRoot, fingerprint.windowId, allowSafeTextInputs = true)) {
+        is AccessibilityWindowSnapshot.Ready -> {
+          if (safe.packageName != fingerprint.packageName || safe.windowId != fingerprint.windowId || safe.truncated) {
+            return Result.failure(IllegalStateException("The target hierarchy is no longer complete and safe; no text action was dispatched."))
+          }
+        }
+        else -> return Result.failure(IllegalStateException("The target hierarchy is no longer safe; no text action was dispatched."))
+      }
+      val root = window.root
+        ?: return Result.failure(IllegalStateException("The target window changed during text-input revalidation."))
+      queue.add(root to 0)
+      val matches = ArrayList<AccessibilityNodeInfo>(1)
+      var incomplete = false
+      while (queue.isNotEmpty()) {
+        if (visited.size >= MAX_NODES) {
+          incomplete = true
+          break
+        }
+        val (node, depth) = queue.removeFirst()
+        visited += node to depth
+        if (node.windowId != fingerprint.windowId ||
+          node.packageName?.toString() != fingerprint.packageName) {
+          incomplete = true
+          break
+        }
+        if (node.isVisibleToUser) {
+          if (depth >= MAX_DEPTH && node.childCount > 0) {
+            incomplete = true
+            break
+          }
+          if (depth < MAX_DEPTH) {
+            for (index in 0 until node.childCount) {
+              if (visited.size + queue.size >= MAX_NODES) {
+                incomplete = true
+                break
+              }
+              val child = runCatching { node.getChild(index) }.getOrNull()
+              if (child == null) {
+                incomplete = true
+                break
+              }
+              queue.add(child to depth + 1)
+            }
+          }
+          if (incomplete) break
+          val rawText = node.text?.toString().orEmpty()
+          val rawDescription = node.contentDescription?.toString().orEmpty()
+          val rawHint = if (Build.VERSION.SDK_INT >= 26) node.hintText?.toString().orEmpty() else ""
+          val label = AccessibilityScreenInspectionPolicy.sanitizeLabel(
+            if (node.isEditable) listOf(rawHint, rawDescription).firstOrNull { it.isNotBlank() }
+            else listOf(rawText, rawDescription, rawHint).firstOrNull { it.isNotBlank() }
+          )
+          val bounds = Rect()
+          node.getBoundsInScreen(bounds)
+          if (
+            node.className?.toString().orEmpty().take(120) == fingerprint.className &&
+            label == fingerprint.label &&
+            bounds == fingerprint.bounds
+          ) {
+            matches += node
+          }
+        }
+      }
+      if (incomplete || queue.isNotEmpty()) {
+        return Result.failure(IllegalStateException("The target hierarchy changed or exceeded its inspection bounds; no text action was dispatched."))
+      }
+      val target = matches.singleOrNull()
+        ?: return Result.failure(IllegalStateException("The inspected text field is stale or ambiguous; inspect inputs again."))
+      val currentText = target.text?.toString().orEmpty()
+      if (
+        !target.isVisibleToUser ||
+        !target.isEnabled ||
+        !AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+          target.className?.toString().orEmpty(),
+          target.inputType,
+          target.isEditable,
+          target.isPassword,
+          currentText,
+        ) ||
+        target.inputType != fingerprint.inputType ||
+        currentText.length != fingerprint.textLength
+      ) {
+        return Result.failure(IllegalStateException("The text field changed, is disabled, or is no longer safe; no text action was dispatched."))
+      }
+      when (action) {
+        AccessibilityTextAction.ENTER_TEXT -> {
+          if (fingerprint.textLength != 0 || currentText.isNotEmpty()) {
+            return Result.failure(IllegalStateException("Text entry is limited to an empty field; existing text is never overwritten."))
+          }
+          val value = inputText
+            ?: return Result.failure(IllegalArgumentException("Text entry value is missing."))
+          if (!AccessibilityScreenInspectionPolicy.isSafeInputText(value)) {
+            return Result.failure(IllegalArgumentException("Text entry must be 1–256 ordinary non-sensitive single-line characters."))
+          }
+          val frameworkAction = AccessibilityNodeInfo.ACTION_SET_TEXT
+          if (target.actionList.none { it.id == frameworkAction }) {
+            return Result.failure(IllegalStateException("The field does not currently advertise the set-text action."))
+          }
+          val arguments = android.os.Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
+          }
+          if (!target.performAction(frameworkAction, arguments)) {
+            return Result.failure(IllegalStateException("Android rejected text entry; no success is claimed."))
+          }
+          Result.success("Android accepted text entry into the revalidated empty field. The resulting app state has not been verified.")
+        }
+        AccessibilityTextAction.SELECT_TEXT -> {
+          val start = selectionStart
+            ?: return Result.failure(IllegalArgumentException("Selection start is missing."))
+          val end = selectionEnd
+            ?: return Result.failure(IllegalArgumentException("Selection end is missing."))
+          if (!AccessibilityScreenInspectionPolicy.isValidSelection(start, end, currentText.length)) {
+            return Result.failure(IllegalArgumentException("Selection range is outside the current safe text field."))
+          }
+          val frameworkAction = AccessibilityNodeInfo.ACTION_SET_SELECTION
+          if (target.actionList.none { it.id == frameworkAction }) {
+            return Result.failure(IllegalStateException("The field does not currently advertise text selection."))
+          }
+          val arguments = android.os.Bundle().apply {
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, start)
+            putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, end)
+          }
+          if (!target.performAction(frameworkAction, arguments)) {
+            return Result.failure(IllegalStateException("Android rejected text selection; no success is claimed."))
+          }
+          Result.success("Android accepted selection of character range $start–$end. The resulting app state has not been verified.")
+        }
+      }
+    } catch (error: Exception) {
+      Result.failure(error)
+    } finally {
+      visited.forEach { (node, _) -> runCatching { node.recycle() } }
+      while (queue.isNotEmpty()) runCatching { queue.removeFirst().first.recycle() }
+      windowInfos.forEach { runCatching { it.recycle() } }
+    }
+  }
+
   /** Captures only the supplied AccessibilityWindowInfo ID; there is deliberately no display fallback. */
   internal suspend fun captureWindowJpeg(windowId: Int): Result<ByteArray> {
     if (!AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(Build.VERSION.SDK_INT)) {
@@ -368,6 +553,7 @@ class GalleryAccessibilityService : AccessibilityService() {
   private fun inspectRoot(
     root: AccessibilityNodeInfo,
     expectedWindowId: Int = root.windowId,
+    allowSafeTextInputs: Boolean = false,
   ): AccessibilityWindowSnapshot {
     val visited = ArrayList<Pair<AccessibilityNodeInfo, Int>>(MAX_NODES)
     val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
@@ -437,16 +623,29 @@ class GalleryAccessibilityService : AccessibilityService() {
         val rawText = node.text?.toString().orEmpty()
         val rawDescription = node.contentDescription?.toString().orEmpty()
         val rawHint = if (Build.VERSION.SDK_INT >= 26) node.hintText?.toString().orEmpty() else ""
-        textTruncated = textTruncated || rawText.length > AccessibilityScreenInspectionPolicy.MAX_LABEL_CHARS ||
+        textTruncated = textTruncated ||
+          (if (node.isEditable && allowSafeTextInputs) false else rawText.length > AccessibilityScreenInspectionPolicy.MAX_LABEL_CHARS) ||
           rawDescription.length > AccessibilityScreenInspectionPolicy.MAX_LABEL_CHARS ||
           rawHint.length > AccessibilityScreenInspectionPolicy.MAX_LABEL_CHARS
         if (rawText.length > MAX_SOURCE_TEXT_CHARS ||
           rawDescription.length > MAX_SOURCE_TEXT_CHARS || rawHint.length > MAX_SOURCE_TEXT_CHARS) {
           return AccessibilityWindowSnapshot.Excluded("A visible element exceeds the safe text-inspection limit; no screen content was returned.")
         }
-        if (node.isPassword || node.isEditable) {
+        val safeInputLabel = AccessibilityScreenInspectionPolicy.sanitizeLabel(
+          listOf(rawHint, rawDescription).firstOrNull { it.isNotBlank() }
+        )
+        val safeTextInput = node.isEditable && allowSafeTextInputs &&
+          safeInputLabel != null &&
+          AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+            className = node.className?.toString().orEmpty(),
+            inputType = node.inputType,
+            editable = node.isEditable,
+            password = node.isPassword,
+            currentText = rawText,
+          )
+        if (node.isPassword || (node.isEditable && !safeTextInput)) {
           return AccessibilityWindowSnapshot.Excluded(
-            "This screen contains an editable or password field and is excluded from inspection."
+            "This screen contains a password or unsupported editable field; text inspection and input were blocked."
           )
         }
         if (AccessibilityScreenInspectionPolicy.containsSensitiveText(rawText) ||
@@ -456,11 +655,12 @@ class GalleryAccessibilityService : AccessibilityService() {
             "This screen contains sign-in, financial, identity, health, or other sensitive content and is excluded."
           )
         }
-        val label = AccessibilityScreenInspectionPolicy.sanitizeLabel(
-          listOf(rawText, rawDescription, rawHint).firstOrNull { it.isNotBlank() }
-        )
+        val label = if (node.isEditable) safeInputLabel else
+          AccessibilityScreenInspectionPolicy.sanitizeLabel(
+            listOf(rawText, rawDescription, rawHint).firstOrNull { it.isNotBlank() }
+          )
         val useful = !label.isNullOrBlank() || node.isClickable || node.isLongClickable ||
-          node.isScrollable || node.isCheckable || node.isFocusable
+          node.isScrollable || node.isCheckable || node.isFocusable || safeTextInput
         if (!useful) continue
         meaningfulCount++
         if (elements.size < MAX_ELEMENTS) {
@@ -478,6 +678,9 @@ class GalleryAccessibilityService : AccessibilityService() {
             enabled = node.isEnabled,
             selected = node.isSelected,
             checked = if (node.isCheckable) node.isChecked else null,
+            editable = safeTextInput,
+            inputType = if (safeTextInput) node.inputType else null,
+            textLength = if (safeTextInput) rawText.length else null,
           )
         }
       }
@@ -536,4 +739,7 @@ internal data class AccessibilityElementSnapshot(
   val enabled: Boolean,
   val selected: Boolean,
   val checked: Boolean?,
+  val editable: Boolean = false,
+  val inputType: Int? = null,
+  val textLength: Int? = null,
 )

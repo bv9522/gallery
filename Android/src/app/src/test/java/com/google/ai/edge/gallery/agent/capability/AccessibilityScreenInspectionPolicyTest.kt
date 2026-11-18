@@ -24,6 +24,9 @@ class AccessibilityScreenInspectionPolicyTest {
       "Verification code",
       "Patient portal",
       "Recovery phrase",
+      "Email",
+      "Phone",
+      "Username",
     ).forEach { label ->
       assertTrue("Expected sensitive marker in: $label",
         AccessibilityScreenInspectionPolicy.containsSensitiveText(label))
@@ -118,5 +121,68 @@ class AccessibilityScreenInspectionPolicyTest {
       AccessibilitySemanticAction.SCROLL_FORWARD, true, clickable = false,
       longClickable = false, scrollable = false,
     ))
+  }
+
+  @Test
+  fun onlyOrdinarySingleLinePlainTextEditTextFieldsAreEligible() {
+    val plainText = android.text.InputType.TYPE_CLASS_TEXT or
+      android.text.InputType.TYPE_TEXT_VARIATION_NORMAL
+    assertTrue(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText", plainText, editable = true, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText", plainText, editable = false, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText", plainText, editable = true, password = true, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText", android.text.InputType.TYPE_CLASS_NUMBER,
+      editable = true, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText",
+      android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+      editable = true, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText",
+      plainText or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE,
+      editable = true, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText",
+      plainText or android.text.InputType.TYPE_TEXT_FLAG_IME_MULTI_LINE,
+      editable = true, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.TextView", plainText, editable = true, password = false, currentText = "",
+    ))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeTextInputField(
+      "android.widget.EditText", plainText, editable = true, password = false, currentText = "password123",
+    ))
+  }
+
+  @Test
+  fun textEntryRejectsSensitiveAndUnboundedValues() {
+    assertTrue(AccessibilityScreenInspectionPolicy.isSafeInputText("search for blue cars"))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText(""))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("   "))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("password123"))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("zero" + 0x200B.toChar() + "width"))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("my bank account"))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("user@example.com"))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText(listOf("line one", "line two").joinToString(System.lineSeparator())))
+    assertFalse(AccessibilityScreenInspectionPolicy.isSafeInputText("x".repeat(257)))
+  }
+
+  @Test
+  fun selectionRangesMustBeNonEmptyAndInsideCurrentText() {
+    assertTrue(AccessibilityScreenInspectionPolicy.isValidSelection(0, 4, 4))
+    assertTrue(AccessibilityScreenInspectionPolicy.isValidSelection(2, 5, 8))
+    assertFalse(AccessibilityScreenInspectionPolicy.isValidSelection(0, 0, 8))
+    assertFalse(AccessibilityScreenInspectionPolicy.isValidSelection(-1, 2, 8))
+    assertFalse(AccessibilityScreenInspectionPolicy.isValidSelection(2, 9, 8))
+    assertFalse(AccessibilityScreenInspectionPolicy.isValidSelection(0, 2, 257))
   }
 }

@@ -12,7 +12,7 @@ internal object AccessibilityScreenInspectionPolicy {
   fun supportsWindowScreenshot(apiLevel: Int): Boolean =
     apiLevel >= MIN_WINDOW_SCREENSHOT_API
   private val sensitiveWords = Regex(
-    """\b(sign[ -]?in|sign[ -]?up|log[ -]?in|password|passcode|pin|one[ -]?time code|verification code|otp|2fa|mfa|account|profile|personal information|beneficiary|routing number|iban|sort code|crypto|cvv|cvc|credit card|debit card|card number|bank|payment|checkout|transfer|wallet|billing|account number|social security|ssn|recovery phrase|seed phrase|private key|security code|tax return|medical record|patient portal|prescription|diagnosis|email address|phone number|date of birth|passport|driver.?s license|government id|address)\b""",
+    """\b(sign[ -]?in|sign[ -]?up|log[ -]?in|password|passcode|pin|one[ -]?time code|verification code|otp|2fa|mfa|account|profile|personal information|beneficiary|routing number|iban|sort code|crypto|cvv|cvc|credit card|debit card|card number|bank|payment|checkout|transfer|wallet|billing|account number|social security|ssn|recovery phrase|seed phrase|private key|security code|tax return|medical record|patient portal|prescription|diagnosis|email address|email|phone number|phone|mobile|username|user name|date of birth|passport|driver.?s license|government id|address)\b""",
     RegexOption.IGNORE_CASE,
   )
   private val emailPattern = Regex("""\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b""", RegexOption.IGNORE_CASE)
@@ -88,6 +88,54 @@ internal object AccessibilityScreenInspectionPolicy {
       AccessibilitySemanticAction.SCROLL_BACKWARD -> scrollable
     }
   }
+
+  const val MAX_INPUT_TEXT_CHARS = 256
+  private val sensitiveInputMarkers = listOf(
+    "password", "passcode", "pin", "otp", "secret", "token", "credential",
+    "private key", "recovery phrase", "seed phrase", "account", "bank",
+    "payment", "credit card", "debit card", "ssn", "email", "phone", "address",
+  )
+
+  private fun containsSensitiveInputMarker(value: String): Boolean =
+    containsSensitiveText(value) ||
+      sensitiveInputMarkers.any { marker -> value.contains(marker, ignoreCase = true) }
+
+  fun isSafeTextInputField(
+    className: String,
+    inputType: Int,
+    editable: Boolean,
+    password: Boolean,
+    currentText: String?,
+  ): Boolean {
+    if (!editable || password || !className.contains("edittext", ignoreCase = true)) return false
+    val inputClass = inputType and android.text.InputType.TYPE_MASK_CLASS
+    val variation = inputType and android.text.InputType.TYPE_MASK_VARIATION
+    if (
+      inputClass != android.text.InputType.TYPE_CLASS_TEXT ||
+      variation != android.text.InputType.TYPE_TEXT_VARIATION_NORMAL ||
+      (inputType and (
+        android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+          android.text.InputType.TYPE_TEXT_FLAG_IME_MULTI_LINE
+        )) != 0
+    ) return false
+    val value = currentText.orEmpty()
+    return value.length <= MAX_INPUT_TEXT_CHARS && !containsSensitiveInputMarker(value)
+  }
+
+  fun isSafeInputText(value: String): Boolean =
+    value.isNotBlank() &&
+      value.length <= MAX_INPUT_TEXT_CHARS &&
+      value.none {
+        val category = Character.getType(it)
+        it.isISOControl() ||
+          category == Character.FORMAT.toInt() ||
+          category == Character.LINE_SEPARATOR.toInt() ||
+          category == Character.PARAGRAPH_SEPARATOR.toInt()
+      } &&
+      !containsSensitiveInputMarker(value)
+
+  fun isValidSelection(start: Int, end: Int, textLength: Int): Boolean =
+    start >= 0 && end > start && end <= textLength && textLength <= MAX_INPUT_TEXT_CHARS
 
   fun isValidHandle(value: String): Boolean = value.matches(Regex("ui_[a-f0-9]{16}"))
 }

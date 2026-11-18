@@ -69,4 +69,75 @@ class AccessibilityScreenInspectionArgumentsTest {
     assertNotNull(AccessibilityScreenInspectionArguments.validate(unknown))
     assertNotNull(AccessibilityScreenInspectionArguments.validate(extra))
   }
+
+  @Test
+  fun safeTextEntryArgumentsAreAccepted() {
+    val arguments = JsonObject().apply {
+      addProperty("operation", "enter_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("input_text", "search for cats")
+    }
+    assertNull(AccessibilityScreenInspectionArguments.validate(arguments))
+  }
+
+  @Test
+  fun textEntryRejectsSensitiveMalformedAndUnexpectedArguments() {
+    val sensitive = JsonObject().apply {
+      addProperty("operation", "enter_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("input_text", "password123")
+    }
+    val malformedHandle = JsonObject().apply {
+      addProperty("operation", "enter_text")
+      addProperty("element_handle", "com.example:id/search")
+      addProperty("input_text", "cats")
+    }
+    val unexpected = JsonObject().apply {
+      addProperty("operation", "enter_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("input_text", "cats")
+      addProperty("package_name", "com.example.app")
+    }
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(sensitive))
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(malformedHandle))
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(unexpected))
+  }
+
+  @Test
+  fun selectionRequiresIntegerNonEmptyBoundedRangeAndFreshHandle() {
+    val valid = JsonObject().apply {
+      addProperty("operation", "select_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("selection_start", 0)
+      addProperty("selection_end", 4)
+    }
+    val empty = JsonObject().apply {
+      addProperty("operation", "select_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("selection_start", 4)
+      addProperty("selection_end", 4)
+    }
+    val tooLarge = JsonObject().apply {
+      addProperty("operation", "select_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("selection_start", 0)
+      addProperty("selection_end", 257)
+    }
+    val missingEnd = JsonObject().apply {
+      addProperty("operation", "select_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("selection_start", 0)
+    }
+    val fractional = JsonObject().apply {
+      addProperty("operation", "select_text")
+      addProperty("element_handle", "ui_0123456789abcdef")
+      addProperty("selection_start", 0.5)
+      addProperty("selection_end", 2)
+    }
+    assertNull(AccessibilityScreenInspectionArguments.validate(valid))
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(empty))
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(tooLarge))
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(missingEnd))
+    assertNotNull(AccessibilityScreenInspectionArguments.validate(fractional))
+  }
 }
