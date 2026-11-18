@@ -433,7 +433,7 @@ class NativeAgentRuntimeExecutor(
         val artifactApprovalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel)
         val artifactEngine = DefaultArtifactGenerationEngine(
           generators = ArtifactGeneratorRegistry(
-            listOf(PdfArtifactGenerator(), DocxArtifactGenerator(), XlsxArtifactGenerator(), PptxArtifactGenerator(), ZipArtifactGenerator(), ImageArtifactGenerator(artifactContext)),
+            listOf(PdfArtifactGenerator(artifactContext), DocxArtifactGenerator(artifactContext), XlsxArtifactGenerator(), PptxArtifactGenerator(artifactContext), ZipArtifactGenerator(), ImageArtifactGenerator(artifactContext)),
           ),
           destinations = ArtifactDestinationRegistry(
             listOf(
