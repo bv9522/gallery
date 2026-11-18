@@ -5,7 +5,12 @@
 package com.google.ai.edge.gallery.agent.artifact
 
 import android.net.Uri
+import com.google.ai.edge.gallery.tools.AskRemoteImageGenerationPermissionAction
+import com.google.ai.edge.gallery.tools.ToolAction
 import java.io.OutputStream
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Whether image generation keeps all source data on-device or transmits it to a remote provider. */
 enum class ImageGenerationDataBoundary { ON_DEVICE, REMOTE }
@@ -28,6 +33,33 @@ data class RemoteImageGenerationConsentDetails(
 fun interface RemoteImageGenerationConsentRequester {
   /** Must show provider identity and disclose that prompt/source images leave the device. */
   suspend fun requestConsent(details: RemoteImageGenerationConsentDetails): Boolean
+}
+
+/** Bridges the remote data-disclosure request to the chat UI; every request is one-time. */
+class ChannelRemoteImageGenerationConsentRequester(
+  private val actionChannel: SendChannel<ToolAction>,
+  private val timeoutMs: Long = DEFAULT_CONSENT_TIMEOUT_MS,
+) : RemoteImageGenerationConsentRequester {
+  override suspend fun requestConsent(details: RemoteImageGenerationConsentDetails): Boolean {
+    val action = AskRemoteImageGenerationPermissionAction(
+      providerId = details.providerId,
+      prompt = details.prompt,
+      outputMimeType = details.outputMimeType,
+      sourceImageLabels = details.sourceImageLabels,
+    )
+    return try {
+      actionChannel.send(action)
+      withTimeoutOrNull(timeoutMs) { action.result.await() } ?: false
+    } catch (cancelled: CancellationException) {
+      throw cancelled
+    } finally {
+      if (!action.result.isCompleted) action.result.complete(false)
+    }
+  }
+
+  private companion object {
+    const val DEFAULT_CONSENT_TIMEOUT_MS = 120_000L
+  }
 }
 
 /** Optional provider contract. No provider is registered by the local-only baseline. */
