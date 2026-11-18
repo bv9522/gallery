@@ -217,7 +217,13 @@ class GalleryMediaLibraryOperations(
     } else {
       0
     }
-    val treeScan = scanGrantedTrees(query = null, mediaKind = "ANY", maxMatches = MAX_TREE_INDEX_ASSETS)
+    val indexedRecordIds = getIndexedMediaRecordIds(model)
+    val treeScan = scanGrantedTrees(
+      query = null,
+      mediaKind = "ANY",
+      maxMatches = MAX_TREE_INDEX_ASSETS,
+      excludedIds = indexedRecordIds,
+    )
     if (treeScan.assets.isNotEmpty()) {
       photoLibrary.addCustomAssets(treeScan.assets)
     }
@@ -355,6 +361,29 @@ class GalleryMediaLibraryOperations(
     }
   }
 
+  private suspend fun getIndexedMediaRecordIds(model: Model): Set<String> {
+    val modelPath = model.getPath(appContext)
+    val databasePath = GemmaEmbeddingModelStore.getDatabasePath(
+      modelPath,
+      DefaultSemanticRetrievalServiceProvider.USER_DATABASE_NAME,
+      appContext,
+    )
+    if (!File(databasePath).isFile) return emptySet()
+    val provider = DefaultSemanticRetrievalServiceProvider.create(
+      context = appContext,
+      model = model,
+      maxInputSequenceLength = SmartAlbumViewModel.DEFAULT_MAX_INPUT_SEQUENCE_LENGTH,
+      visionTokenBudget = SmartAlbumViewModel.DEFAULT_VISION_TOKEN_BUDGET,
+      visionAccelerator = model.backendSpec.visionAccelerator,
+      audioAccelerator = model.backendSpec.audioAccelerator,
+    )
+    return try {
+      provider.service(SmartAlbumSource.USER_PHOTOS).fetchRecordIdentifiers().toSet()
+    } finally {
+      provider.close()
+    }
+  }
+
   private fun isReadableMedia(uri: Uri): Boolean =
     try {
       resolver.openFileDescriptor(uri, "r")?.use { true } ?: false
@@ -391,6 +420,7 @@ class GalleryMediaLibraryOperations(
     query: String?,
     mediaKind: String,
     maxMatches: Int,
+    excludedIds: Set<String> = emptySet(),
   ): TreeScanResult = withContext(Dispatchers.IO) {
     val grants = resolver.persistedUriPermissions.filter { permission ->
       DocumentsContract.isTreeUri(permission.uri) && permission.isReadPermission
@@ -449,6 +479,7 @@ class GalleryMediaLibraryOperations(
             if (!isSupportedMediaMime(mimeType) || !matchesKind(mimeType, mediaKind)) continue
             if (query != null && !displayName.contains(query, ignoreCase = true)) continue
             val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
+            if (uri.toString() in excludedIds) continue
             val size = it.longColumn(DocumentsContract.Document.COLUMN_SIZE) ?: 0L
             val modified = it.longColumn(DocumentsContract.Document.COLUMN_LAST_MODIFIED) ?: 0L
             assets += PhotoAsset(
