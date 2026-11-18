@@ -26,6 +26,10 @@ The artifact approval dialog shows the exact filename, destination identity/path
 - On error, the service attempts to remove the reservation and temporary file and reports uncertain cleanup.
 - The service does not pass artifact bytes through shell command text or Binder Bundle payloads.
 
+## Process-death caveat
+
+Normal failures and cancellation attempt cleanup and report uncertainty. Abrupt process/service death cannot run that cleanup: Termux may leave a hidden .android-mcp-*.part file; Shizuku may leave a hidden temporary file or, in the narrow interval after no-clobber reservation and before rename, a zero-byte target placeholder. Stage 10J must exercise these windows and add safe recovery/cleanup without deleting another active transfer or user file. Until then, do not claim process-death cleanup is guaranteed.
+
 ## Backend identity policy
 
 The model-facing schema currently exposes only TERMUX and SHIZUKU for shell binary output. TERMUX_RISH is intentionally not registered: the existing Rish execution path uses a command-only Shizuku AIDL method, and stdin forwarding to its remote shell has not been proven. It remains unavailable until Stage 10J performs an end-to-end device test; no fallback to direct Shizuku is permitted.
