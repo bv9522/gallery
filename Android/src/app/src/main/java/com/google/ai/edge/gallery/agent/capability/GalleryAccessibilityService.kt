@@ -24,7 +24,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-/** Opt-in, read-only endpoint. Accessibility events are ignored; reads occur only on approved requests. */
+/** Opt-in endpoint. Accessibility events are ignored; reads and one-shot actions require explicit requests. */
 class GalleryAccessibilityService : AccessibilityService() {
   override fun onServiceConnected() {
     super.onServiceConnected()
@@ -32,7 +32,7 @@ class GalleryAccessibilityService : AccessibilityService() {
   }
 
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-    // No event data is read or retained. Inspection/capture is explicit and request-scoped.
+    // No event data is read or retained. Inspection, capture, and actions are explicit and request-scoped.
   }
 
   override fun onInterrupt() = Unit
@@ -124,6 +124,9 @@ class GalleryAccessibilityService : AccessibilityService() {
   ): Result<String> {
     if (AccessibilityServiceInstance.current !== this) {
       return Result.failure(IllegalStateException("Gallery accessibility service changed before action dispatch."))
+    }
+    if (fingerprint.bounds.isEmpty) {
+      return Result.failure(IllegalStateException("The inspected element has no verifiable visible bounds; no action was dispatched."))
     }
     val current = inspectExternalVisibleWindow() as? AccessibilityWindowSnapshot.Ready
       ?: return Result.failure(IllegalStateException("The external app window is unavailable, ambiguous, or sensitive; no action was dispatched."))
