@@ -34,6 +34,7 @@ import com.google.ai.edge.gallery.agent.coordinator.UnifiedShellTool
 import com.google.ai.edge.gallery.agent.capability.AndroidNativeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.ChannelNativeCapabilityAuthorizer
 import com.google.ai.edge.gallery.agent.capability.GalleryMediaLibraryOperations
+import com.google.ai.edge.gallery.agent.capability.ShareContentCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.DocumentTreeCapabilityTool
 import com.google.ai.edge.gallery.agent.capability.TermuxApiCapabilityTool
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
@@ -78,6 +79,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "if it is stale, run download_status again. Never request model-wide cancellation or expose WorkManager IDs, tags, URLs, " +
       "access tokens, or filesystem paths. " +
       "Use android_control media_search for natural-language photo/video discovery. AUTO combines filename matches with the existing EmbeddingGemma-2 visual index; VISUAL requests semantic visual search; NAME searches filenames only. Search covers MediaStore-visible internal/removable media and files inside persisted user-granted SAF trees. If the user requests USB/OTG storage and no matching grant exists, use document_tree grants/request_access so the user can select the drive or folder; never bypass the picker. Results contain short-lived opaque handles only; never invent handles or expose content URIs or paths. Use media_play only with a fresh media_handle from the latest media_search result; playback requires one-time approval and opens Gallery's built-in player. Never pass arbitrary URIs or filesystem paths to media_play. If visual indexing is unavailable or incomplete, explain that and use media_index only when the user asks to build/update the index; media_index requires one-time approval and reuses the Smart Album background worker and database. Visual indexing is on-device and does not upload media. " +
+      "Use share_content share_text to prepare exact text for the Android share chooser, or share_file with a tree_uri and document_id returned by document_tree. Both require one-time approval. File sharing is restricted to files inside a persisted Gallery SAF read grant and files up to 25 MiB. Android's chooser lets the user select the receiving app; never claim delivery or sending is complete just because the chooser opened. Never target a receiver directly or bypass the chooser. " +
       "Use android_control for native device information, battery, " +
       "volume, connected audio input/output endpoints, display brightness, vibration, bounded CPU wake locks, " +
       "launcher-visible apps, flashlight, HTTP(S) URL actions, Bluetooth discovery, and USB host " +
@@ -395,6 +397,10 @@ class NativeAgentRuntimeExecutor(
               actionChannel = actionChannel,
               downloadOperations = downloadRepository,
               mediaOperations = mediaOperations,
+            ),
+            ShareContentCapabilityTool(
+              context = checkNotNull(context) { "Agent application context is unavailable." },
+              actionChannel = actionChannel,
             ),
             DocumentTreeCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },

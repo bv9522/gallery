@@ -18,6 +18,8 @@ package com.google.ai.edge.gallery.customtasks.agentchat
 
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.ClipData
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -118,6 +120,7 @@ import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.SkillProgressToolAction
 import com.google.ai.edge.gallery.tools.SpeakTextToolAction
 import com.google.ai.edge.gallery.tools.PlayMediaToolAction
+import com.google.ai.edge.gallery.tools.ShareContentToolAction
 import com.google.ai.edge.gallery.ui.common.BaseGalleryWebViewClient
 import com.google.ai.edge.gallery.ui.common.tts.TtsPlaybackViewModel
 import com.google.ai.edge.gallery.ui.common.GalleryWebView
@@ -350,6 +353,26 @@ fun AgentChatScreen(
           when (action) {
             is PlayMediaToolAction -> {
               currentMediaPlaybackAction = action
+            }
+            is ShareContentToolAction -> {
+              runCatching {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                  type = action.mimeType
+                  action.text?.let { putExtra(Intent.EXTRA_TEXT, it) }
+                  action.contentUri?.let { value ->
+                    val uri = Uri.parse(value)
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    clipData = ClipData.newUri(context.contentResolver, action.displayName ?: "Shared file", uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                  }
+                }
+                context.startActivity(Intent.createChooser(sendIntent, action.chooserTitle))
+              }.onSuccess {
+                action.result.complete(true)
+              }.onFailure { error ->
+                Log.w(TAG, "Android share chooser could not be opened.", error)
+                action.result.complete(false)
+              }
             }
             is SpeakTextToolAction -> {
               try {

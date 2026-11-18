@@ -34,6 +34,7 @@ enum class ToolActionName() {
   OPEN_DOCUMENT_TREE,
   SPEAK_TEXT,
   PLAY_MEDIA,
+  SHARE_CONTENT,
 }
 
 /**

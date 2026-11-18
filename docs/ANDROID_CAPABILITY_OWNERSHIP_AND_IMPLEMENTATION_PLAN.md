@@ -5,10 +5,10 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-17 (PR #35 opened; per-slice test/build execution deferred by owner instruction)  
+> **Last reconciled:** 2026-11-17 (PR #36 opened; user-mediated sharing onboarded; per-slice test/build execution deferred by owner instruction)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
-> **Current implementation branch:** `wave-3e-media-library-playback` (stacked on `wave-3e-gallery-download-management`)  
-> **Current change:** [PR #35 — Wave 3E media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), draft/open/unmerged, stacked on [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34). PRs #33–#35 remain draft/open/unmerged.  
+> **Current implementation branch:** `wave-3e-user-mediated-sharing` (stacked on `wave-3e-media-library-playback`)  
+> **Current change:** [PR #36 — Wave 3E user-mediated text and file sharing](https://github.com/bv9522/gallery/pull/36), draft/open/unmerged, stacked on [PR #35 — media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35). PRs #33–#36 remain draft/open/unmerged.  
 > **Overall state:** Capability onboarding is in progress. Do not begin consolidated S21 acceptance until
 > Waves 1–5 implementation and the final ownership audit are complete.
 
@@ -152,8 +152,8 @@ reconciles readiness and ownership. Ownership documentation is maintained in thi
 - [CODE / VALIDATION DEFERRED — PR #35] `media_index` reuses the existing SmartAlbumIndexingWorker and EmbeddingGemma-2 vector database. It indexes permitted MediaStore photos/videos, media previously selected through Gallery's photo picker, and up to 1,000 media files discovered per pass in already-granted SAF trees; indexing requires one-time approval and remains on-device. SAF discovery is bounded to depth 8 / 10,000 visited nodes; subsequent runs skip already indexed SAF document URIs and advance through the bounded scan.
 - [CODE / VALIDATION DEFERRED — PR #35] `media_play` requires a fresh search handle and one-time approval, then opens the selected video in Gallery's own Media3 player. It does not launch an external ACTION_VIEW intent and does not expose cross-app media-session controls.
 - [ ] Active media-session discovery/control remains distinct from Gallery-initiated playback; do not expose it unless the user explicitly grants any required notification-listener special access.
-- [ ] User-mediated text/file sharing through ACTION_SEND/chooser; user selects target app and completes share.
-- [ ] Add/maintain tests and documentation for each operation. Per-slice test/build execution is deferred until all capability onboarding is complete; consolidated S21 acceptance remains later.
+- [CODE / VALIDATION DEFERRED — PR #36] `share_content.share_text` approves the exact bounded text (1–4,000 characters) and opens Android's ACTION_SEND chooser. `share_file` accepts only a document ID plus a persisted SAF tree URI already granted to Gallery; it verifies the file metadata, requires a known size up to 25 MiB, and grants temporary read access through ACTION_SEND/ClipData. The user chooses the receiving app and completes or cancels; opening the chooser is not evidence of delivery.
+- [x] Add bounded argument-validation tests and document the exact chooser, approval, SAF-grant, temporary-read, and non-delivery semantics. Tests/builds/device checks for PR #36 remain unexecuted under the owner-directed deferral; consolidated validation remains later.
 
 **Wave 3 exit gate:** all Gallery-owned capabilities have a single owner, scoped approval/permission contract, bounded lifecycle, local validation,
 and documented device-acceptance plan. Sensitive capabilities not meeting the gate remain unavailable rather than being silently broadened.
@@ -227,8 +227,8 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3B notifications/scheduling | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #30 |
 | Wave 3C telephony/user-mediated actions | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #31 |
 | Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
-| Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build; downloads/media/sharing remain |
-| Wave 3E Gallery downloads | IMPLEMENTATION ADDED; local validation pending | PR #34 adds bounded repository snapshots, allowlist-backed labels, opaque handles, exact cancellation, agent operations, approval, and unit tests; no Gradle/device validation claimed |
+| Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
+| Wave 3E downloads/media/sharing | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media and PR #36 user-mediated sharing (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | PLANNED | No implementation PR in current chain |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
@@ -251,7 +251,9 @@ All entries below were observed open and unmerged on 2026-11-17. Draft status is
 - PR #31 — telephony metadata and user-mediated dialer/SMS (**local tests/build user-confirmed**).
 - PR #32 — strong biometric and Android Keystore (**local tests/build user-confirmed**).
 - PR #33 — agent speech through Gallery TTS (**local tests and Shizuku debug build user-confirmed**).
-- PR #34 — Gallery-owned download status and exact cancellation (**Kotlin implementation and unit tests added; local validation pending**).
+- PR #34 — Gallery-owned download status and exact cancellation (**local tests/build user-confirmed; device acceptance pending**).
+- PR #35 — media discovery, visual indexing, and Gallery-owned video playback (**tests added; execution deferred by owner instruction**).
+- PR #36 — user-mediated text and SAF file sharing through Android's ACTION_SEND chooser (**tests added; execution deferred by owner instruction**).
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
