@@ -194,7 +194,7 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         // not report the already-committed artifact as a failed transfer (which could prompt a
         // misleading retry); the finally block makes a second best-effort cleanup attempt.
         Os.link(staging.absolutePath, target.absolutePath)
-        runCatching { Os.unlink(staging.absolutePath) }
+        runCatching { staging.delete() }
         if (staging.exists()) runCatching { staging.delete() }
       }
       temporary = null
