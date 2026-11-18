@@ -178,9 +178,20 @@ class GalleryMediaLibraryOperations(
     if (!File(modelPath).isFile) {
       throw IllegalStateException("The EmbeddingGemma-2 model file is not available locally.")
     }
+    val mediaStoreCount = if (hasMediaStoreReadAccess()) {
+      runCatching { photoLibrary.fetchMediaStoreAssetCount() }.getOrDefault(0)
+    } else {
+      0
+    }
+    val grantedTreeCount = resolver.persistedUriPermissions.count { permission ->
+      DocumentsContract.isTreeUri(permission.uri) && permission.isReadPermission
+    }
+    if (mediaStoreCount == 0 && grantedTreeCount == 0) {
+      throw SecurityException("No readable MediaStore library or persisted storage-folder grant is available.")
+    }
     if (!authorizer.authorize(
         AndroidCapability.MEDIA_SCAN,
-        "Build or update Gallery's local visual media index using EmbeddingGemma-2. This analyzes permitted photos and videos on this device and files in your already-granted storage folders. It may use CPU/GPU resources and run as background work. No media is uploaded."
+        "Build or update Gallery's local visual media index using EmbeddingGemma-2. MediaStore currently exposes $mediaStoreCount photos/videos; Gallery also has $grantedTreeCount read-granted storage folders, from which up to $MAX_TREE_INDEX_ASSETS media files will be added. Indexing may use CPU/GPU resources and run as background work. No media is uploaded."
       )
     ) {
       throw SecurityException("Media indexing was not approved.")
