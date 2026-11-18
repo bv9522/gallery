@@ -4,6 +4,7 @@
  */
 package com.google.ai.edge.gallery.agent.artifact
 
+import android.content.Context
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import java.io.OutputStream
@@ -11,7 +12,8 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /** Minimal editable PowerPoint OOXML writer with a real presentation/slide/master/layout/theme graph. */
-class PptxArtifactGenerator : ArtifactGenerator {
+class PptxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
+  private val imageLoader = context?.let(::ArtifactImageSourceLoader)
   override val format = ArtifactFormat.PPTX
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
@@ -24,8 +26,24 @@ class PptxArtifactGenerator : ArtifactGenerator {
   override fun write(request: ArtifactCreateRequest, output: OutputStream): String {
     require(request.format == ArtifactFormat.PPTX) { "PPTX generator received a non-PPTX request." }
     val presentation = PptxPayload.parse(request.payload)
+    val imageAssetsBySlide = presentation.slides.map { slide ->
+      slide.images.map { image ->
+        checkNotNull(imageLoader) { "Embedded PPTX images require the Gallery application context." }.load(image)
+      }
+    }
+    val allImages = imageAssetsBySlide.flatten()
+    require(allImages.size <= MAX_TOTAL_EMBEDDED_IMAGES) {
+      "Presentation exceeds the $MAX_TOTAL_EMBEDDED_IMAGES embedded image limit."
+    }
+    require(allImages.sumOf { it.bytes.size } <= MAX_TOTAL_EMBEDDED_IMAGE_BYTES) {
+      "Embedded PPTX images exceed the $MAX_TOTAL_EMBEDDED_IMAGE_BYTES byte combined limit."
+    }
+    var mediaIndex = 0
+    val indexedImagesBySlide = imageAssetsBySlide.map { slideImages ->
+      slideImages.map { image -> PptxEmbeddedImage(++mediaIndex, image) }
+    }
     val zip = ZipOutputStream(output).apply { setLevel(COMPRESSION_LEVEL) }
-    addEntry(zip, "[Content_Types].xml", contentTypes(presentation.slides.size))
+    addEntry(zip, "[Content_Types].xml", contentTypes(presentation.slides.size, allImages))
     addEntry(zip, "_rels/.rels", rootRelationships())
     addEntry(zip, "ppt/presentation.xml", presentationXml(presentation.slides.size))
     addEntry(zip, "ppt/_rels/presentation.xml.rels", presentationRelationships(presentation.slides.size))
@@ -35,8 +53,12 @@ class PptxArtifactGenerator : ArtifactGenerator {
     addEntry(zip, "ppt/slideLayouts/_rels/slideLayout1.xml.rels", slideLayoutRelationships())
     addEntry(zip, "ppt/theme/theme1.xml", themeXml())
     presentation.slides.forEachIndexed { index, slide ->
-      addEntry(zip, "ppt/slides/slide${index + 1}.xml", slideXml(slide))
-      addEntry(zip, "ppt/slides/_rels/slide${index + 1}.xml.rels", slideRelationships())
+      val images = indexedImagesBySlide[index]
+      addEntry(zip, "ppt/slides/slide${index + 1}.xml", slideXml(slide, images.firstOrNull()))
+      addEntry(zip, "ppt/slides/_rels/slide${index + 1}.xml.rels", slideRelationships(images.firstOrNull()))
+      images.forEach { image ->
+        addBinaryEntry(zip, "ppt/media/image${image.mediaIndex}.${image.asset.extension}", image.asset.bytes)
+      }
     }
     zip.finish()
     zip.flush()
@@ -49,11 +71,19 @@ class PptxArtifactGenerator : ArtifactGenerator {
     zip.closeEntry()
   }
 
-  private fun contentTypes(slideCount: Int) = buildString {
+  private fun addBinaryEntry(zip: ZipOutputStream, name: String, value: ByteArray) {
+    zip.putNextEntry(ZipEntry(name))
+    zip.write(value)
+    zip.closeEntry()
+  }
+
+  private fun contentTypes(slideCount: Int, images: List<ArtifactEmbeddedImageAsset>) = buildString {
     append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
     append("""<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">""")
     append("""<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>""")
     append("""<Default Extension="xml" ContentType="application/xml"/>""")
+    if (images.any { it.extension == "jpg" }) append("""<Default Extension="jpg" ContentType="image/jpeg"/>""")
+    if (images.any { it.extension == "png" }) append("""<Default Extension="png" ContentType="image/png"/>""")
     append("""<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>""")
     append("""<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>""")
     append("""<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>""")
@@ -116,11 +146,15 @@ class PptxArtifactGenerator : ArtifactGenerator {
       """<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>""" +
       "</Relationships>"
 
-  private fun slideRelationships() =
-    """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""" +
-      """<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">""" +
-      """<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>""" +
-      "</Relationships>"
+  private fun slideRelationships(image: PptxEmbeddedImage?) = buildString {
+    append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
+    append("""<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">""")
+    append("""<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>""")
+    if (image != null) {
+      append("""<Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${image.mediaIndex}.${image.asset.extension}"/>""")
+    }
+    append("</Relationships>")
+  }
 
   private fun themeXml() =
     """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""" +
@@ -138,7 +172,7 @@ class PptxArtifactGenerator : ArtifactGenerator {
     """<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>""" +
       """<p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>"""
 
-  private fun slideXml(slide: PptxSlide) = buildString {
+  private fun slideXml(slide: PptxSlide, image: PptxEmbeddedImage?) = buildString {
     append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
     append("""<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree>""")
     append(groupShapeTree())
@@ -149,9 +183,26 @@ class PptxArtifactGenerator : ArtifactGenerator {
       slide.bullets.forEach { add(SlideParagraph(it, true, false)) }
     }
     if (body.isNotEmpty()) {
-      append(textShape(3, "Body", BODY_X, BODY_Y, BODY_CX, BODY_CY, body, BODY_FONT_SIZE))
+      append(textShape(3, "Body", BODY_X, BODY_Y, if (image == null) BODY_CX else BODY_CX_WITH_IMAGE, BODY_CY, body, BODY_FONT_SIZE))
     }
+    image?.let { append(pictureShape(it)) }
     append("</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>")
+  }
+
+  private fun pictureShape(image: PptxEmbeddedImage): String {
+    val maxWidth = IMAGE_CX
+    val maxHeight = IMAGE_CY
+    val scale = minOf(
+      maxWidth.toDouble() / image.asset.width,
+      maxHeight.toDouble() / image.asset.height,
+      1.0,
+    )
+    val width = (image.asset.width * scale).toLong().coerceAtLeast(1L)
+    val height = (image.asset.height * scale).toLong().coerceAtLeast(1L)
+    val x = IMAGE_X + (maxWidth - width) / 2
+    val y = IMAGE_Y + (maxHeight - height) / 2
+    val alt = xmlEscape(image.asset.altText)
+    return """<p:pic><p:nvPicPr><p:cNvPr id="4" name="Gallery image ${image.mediaIndex}" descr="$alt"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rIdImage"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="$x" y="$y"/><a:ext cx="$width" cy="$height"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>"""
   }
 
   private fun textShape(
@@ -205,11 +256,13 @@ class PptxArtifactGenerator : ArtifactGenerator {
   }
 
   private data class SlideParagraph(val text: String, val bullet: Boolean, val bold: Boolean)
+  private data class PptxEmbeddedImage(val mediaIndex: Int, val asset: ArtifactEmbeddedImageAsset)
   private data class PptxSlide(
     val title: String,
     val subtitle: String?,
     val paragraphs: List<String>,
     val bullets: List<String>,
+    val images: List<ArtifactEmbeddedImageRequest>,
   )
   private data class PptxPresentation(val slides: List<PptxSlide>)
 
@@ -224,13 +277,15 @@ class PptxArtifactGenerator : ArtifactGenerator {
       val parsed = slides.mapIndexed { index, element ->
         require(element.isJsonObject) { "Slide ${index + 1} must be an object." }
         val slide = element.asJsonObject
-        val unexpected = slide.keySet() - setOf("title", "subtitle", "paragraphs", "bullet_items")
+        val unexpected = slide.keySet() - setOf("title", "subtitle", "paragraphs", "bullet_items", "images")
         require(unexpected.isEmpty()) { "Unsupported slide field(s): ${unexpected.sorted().joinToString()}." }
         val title = string(slide, "title", MAX_TITLE_CHARS)
         require(title.isNotBlank()) { "Slide ${index + 1} requires a non-empty title." }
         val subtitle = optionalString(slide, "subtitle", MAX_SUBTITLE_CHARS)
         val paragraphs = stringArray(slide, "paragraphs")
         val bullets = stringArray(slide, "bullet_items")
+        val images = ArtifactEmbeddedImageArguments.parse(slide.get("images"))
+        require(images.size <= 1) { "Slide ${index + 1} may contain at most one embedded image." }
         require(paragraphs.size + bullets.size <= MAX_BLOCKS_PER_SLIDE) {
           "Slide ${index + 1} exceeds $MAX_BLOCKS_PER_SLIDE body text blocks."
         }
@@ -243,7 +298,7 @@ class PptxArtifactGenerator : ArtifactGenerator {
         require(totalCharacters <= MAX_TOTAL_CHARACTERS) {
           "Presentation text exceeds $MAX_TOTAL_CHARACTERS characters."
         }
-        PptxSlide(title, subtitle, paragraphs, bullets)
+        PptxSlide(title, subtitle, paragraphs, bullets, images)
       }
       return PptxPresentation(parsed)
     }
@@ -302,6 +357,8 @@ class PptxArtifactGenerator : ArtifactGenerator {
     const val MAX_BLOCKS_PER_SLIDE = 50
     const val MAX_CHARACTERS_PER_SLIDE = 3_000
     const val MAX_TOTAL_CHARACTERS = 100_000
+    const val MAX_TOTAL_EMBEDDED_IMAGES = 4
+    const val MAX_TOTAL_EMBEDDED_IMAGE_BYTES = 8 * 1024 * 1024
     const val SLIDE_WIDTH = 12_192_000L
     const val SLIDE_HEIGHT = 6_858_000L
     const val EMU = 914_400L
@@ -312,7 +369,12 @@ class PptxArtifactGenerator : ArtifactGenerator {
     const val BODY_X = EMU * 3 / 4
     const val BODY_Y = EMU * 17 / 10
     const val BODY_CX = SLIDE_WIDTH - EMU * 3 / 2
+    const val BODY_CX_WITH_IMAGE = 5_300_000L
     const val BODY_CY = SLIDE_HEIGHT - EMU * 23 / 10
+    const val IMAGE_X = 6_650_000L
+    const val IMAGE_Y = 1_650_000L
+    const val IMAGE_CX = 5_000_000L
+    const val IMAGE_CY = 4_800_000L
     const val TITLE_FONT_SIZE = 3000
     const val BODY_FONT_SIZE = 1800
   }
