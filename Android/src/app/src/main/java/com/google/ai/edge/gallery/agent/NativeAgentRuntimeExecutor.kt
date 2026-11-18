@@ -173,6 +173,17 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
       "instead of guessing that a service is stopped. For a multi-part information request, " +
       "retrieve every requested field and clearly mark any field that could not be retrieved."
   )
+  append(
+    "ARTIFACT GENERATION RULES: Use artifact_create only when the user explicitly asks to create a file or artifact. " +
+      "The currently exposed format is PDF and the currently exposed destination is a persisted Gallery SAF document tree. " +
+      "If no suitable tree grant exists, first use document_tree grants to inspect existing grants or request_access to let the user choose a folder; never invent a content URI or filesystem path. " +
+      "Use a safe filename ending in .pdf and provide a structured payload with a title and a pages array; each section may contain a heading, paragraphs, bullet_items, and a table of string rows. " +
+      "The operation shows the exact filename and destination for one-time approval before creating the file. " +
+      "Existing files are never silently replaced; choose a new filename if one already exists. " +
+      "The generated PDF is local and its bytes are not returned to the model. " +
+      "DOCX, XLSX, PPTX, ZIP, image processing, shell destinations, and remote image generation must not be claimed as available until their adapters are registered. " +
+      "Never upload generated content or source material to a remote provider without a separate explicit disclosure and consent."
+  )
 }
 
 /**
