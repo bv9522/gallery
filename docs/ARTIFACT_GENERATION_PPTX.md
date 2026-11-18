@@ -1,6 +1,6 @@
 # Stage 10F — Editable PPTX OOXML generation
 
-**Status:** Core editable PPTX package writer implemented in PR #54. Embedded images, richer shapes/layouts, and independent office-reader validation remain follow-up work.  
+**Status:** Editable PPTX package writer with one bounded embedded SAF image per slide (four per presentation) implemented; richer shapes/layouts and independent office-reader validation remain future work.  
 **Validation:** Package and XML well-formedness tests added but not executed. No Gradle tests, build, or device acceptance run.
 
 ## Model-facing payload
@@ -12,6 +12,7 @@ PPTX payload is a strict JSON object containing `slides`:
 - Each slide requires a title (up to 200 characters)
 - Optional subtitle (up to 500 characters)
 - Optional `paragraphs` and `bullet_items` arrays
+- Optional `images`: at most one SAF image-source object per slide; four images maximum per presentation
 - Up to 50 body text blocks and 3,000 total characters per slide
 - 100,000 total presentation characters
 
@@ -23,12 +24,12 @@ The writer emits:
 - `[Content_Types].xml` and root relationships
 - `ppt/presentation.xml` and presentation relationships
 - A slide master, blank slide layout, and theme
-- `ppt/slides/slideN.xml` with per-slide layout relationships
+- `ppt/slides/slideN.xml` with per-slide layout and optional image relationships
+- `ppt/media/imageN.jpg|png` normalized raster assets
 
 The initial design is 16:9 widescreen with editable title/body text boxes, editable bullet paragraphs, automatic text fitting, and a basic Gallery theme. JDK `ZipOutputStream` streams the package; no office runtime or third-party dependency is added.
 
-## Remaining PPTX work
+## Stage 10J validation
 
-- Optional embedded images from explicitly user-granted source documents.
-- Additional editable shapes/layout variants and more polished theme defaults if required.
-- Independent PowerPoint/LibreOffice openability and relationship validation during consolidated validation.
+- Validate embedded image relationships and openability with PowerPoint/LibreOffice.
+- Additional editable shapes/layout variants and more polished theme defaults remain optional future enhancements.
