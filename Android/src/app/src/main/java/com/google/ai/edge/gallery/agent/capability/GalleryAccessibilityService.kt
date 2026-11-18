@@ -16,8 +16,10 @@ import android.view.accessibility.AccessibilityWindowInfo
 import java.io.ByteArrayOutputStream
 import java.util.ArrayDeque
 import java.util.concurrent.Executor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -124,7 +126,9 @@ class GalleryAccessibilityService : AccessibilityService() {
           try {
             takeScreenshotOfWindow(
               windowId,
-              Executor { command -> command.run() },
+              Executor { command ->
+                Dispatchers.Default.dispatch(EmptyCoroutineContext, command)
+              },
               object : TakeScreenshotCallback {
                 override fun onSuccess(screenshot: ScreenshotResult) {
                   val hardwareBuffer = screenshot.hardwareBuffer
