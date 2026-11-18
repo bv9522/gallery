@@ -279,23 +279,23 @@ class SafZipExtractionHandler(
     rootParentId: String,
     entries: List<PlannedEntry>,
   ) {
-    val checkedParents = mutableMapOf("" to rootParentId)
     val childrenCache = mutableMapOf<String, Set<String>>()
     entries.forEach { entry ->
-      var parentPath = ""
       var parentId = rootParentId
+      var parentExists = true
+      var parentPath = ""
       val segments = entry.path.split('/')
       segments.forEachIndexed { index, segment ->
-        val names = childrenCache.getOrPut(parentId) {
-          listChildNames(tree, parentId)
-        }
-        require(names.none { it.equals(segment, ignoreCase = true) }) {
-          "Extraction target '$parentPath/$segment' already exists; nothing was overwritten."
+        if (parentExists) {
+          val names = childrenCache.getOrPut(parentId) { listChildNames(tree, parentId) }
+          require(names.none { it.equals(segment, ignoreCase = true) }) {
+            "Extraction target '${if (parentPath.isEmpty()) segment else "$parentPath/$segment"}' already exists; nothing was overwritten."
+          }
         }
         if (index < segments.lastIndex) {
           parentPath = if (parentPath.isEmpty()) segment else "$parentPath/$segment"
-          // The target does not exist, so this folder is planned and will be created during extraction.
-          parentId = "planned:$parentPath"
+          // The first missing segment proves that every descendant in this path is also new.
+          parentExists = false
         }
       }
     }
