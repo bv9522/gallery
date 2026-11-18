@@ -418,7 +418,7 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor, TermuxBina
       putExtra(EXTRA_COMMAND_PATH, TERMUX_BASH_PATH)
       putExtra(EXTRA_ARGUMENTS, arrayOf("-lc", command))
       putExtra(EXTRA_WORKDIR, workingDirectory)
-      putExtra(EXTRA_BACKGROUND, stdin == null)
+      putExtra(EXTRA_BACKGROUND, true)
       putExtra(EXTRA_COMMAND_LABEL, "Android MCP process supervisor")
       putExtra(EXTRA_COMMAND_DESCRIPTION, "Supervised command control request.")
       putExtra(EXTRA_PENDING_INTENT, callback)
