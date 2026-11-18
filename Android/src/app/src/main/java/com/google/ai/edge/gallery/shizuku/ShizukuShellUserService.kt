@@ -190,9 +190,12 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
         // link() is an atomic create-if-absent operation. Unlike check-then-rename, it cannot
         // replace a file that appeared after preflight. Filesystems without hard-link support
         // fail closed rather than weakening no-overwrite semantics.
+        // The hard link is the commit point. A failure to remove the extra staging name must
+        // not report the already-committed artifact as a failed transfer (which could prompt a
+        // misleading retry); the finally block makes a second best-effort cleanup attempt.
         Os.link(staging.absolutePath, target.absolutePath)
-        val stagingRemoved = runCatching { Os.unlink(staging.absolutePath); true }.getOrDefault(false) || staging.delete()
-        check(stagingRemoved) { "Artifact was committed, but its temporary hard-link cleanup could not be confirmed." }
+        runCatching { Os.unlink(staging.absolutePath) }
+        if (staging.exists()) runCatching { staging.delete() }
       }
       temporary = null
       Bundle().apply {
