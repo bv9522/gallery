@@ -53,7 +53,12 @@ import com.google.ai.edge.gallery.agent.artifact.PptxArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.ZipArtifactGenerator
 import com.google.ai.edge.gallery.agent.artifact.SafZipExtractionHandler
 import com.google.ai.edge.gallery.agent.artifact.ImageArtifactGenerator
+import com.google.ai.edge.gallery.agent.artifact.ImageGenerationProviderRegistry
+import com.google.ai.edge.gallery.agent.artifact.GuardedImageGenerationDispatcher
+import com.google.ai.edge.gallery.agent.artifact.ChannelRemoteImageGenerationConsentRequester
+import com.google.ai.edge.gallery.agent.artifact.FirebaseAiLogicImageGenerationProvider
 import com.google.ai.edge.gallery.agent.artifact.SafArtifactDestinationAdapter
+import com.google.firebase.FirebaseApp
 import com.google.ai.edge.gallery.agent.artifact.ShellArtifactDestinationAdapter
 import com.google.ai.edge.gallery.customtasks.agentchat.AgentTools
 import com.google.ai.edge.gallery.data.Model
@@ -431,9 +436,18 @@ class NativeAgentRuntimeExecutor(
         )
         val artifactContext = checkNotNull(context) { "Agent application context is unavailable." }
         val artifactApprovalRequester = ChannelArtifactGenerationApprovalRequester(actionChannel)
+        val remoteImageProviders = if (FirebaseApp.getApps(artifactContext).isNotEmpty()) {
+          listOf(FirebaseAiLogicImageGenerationProvider(artifactContext))
+        } else {
+          emptyList()
+        }
+        val imageGenerationDispatcher = GuardedImageGenerationDispatcher(
+          providers = ImageGenerationProviderRegistry(remoteImageProviders),
+          remoteConsent = ChannelRemoteImageGenerationConsentRequester(actionChannel),
+        )
         val artifactEngine = DefaultArtifactGenerationEngine(
           generators = ArtifactGeneratorRegistry(
-            listOf(PdfArtifactGenerator(artifactContext), DocxArtifactGenerator(artifactContext), XlsxArtifactGenerator(), PptxArtifactGenerator(artifactContext), ZipArtifactGenerator(), ImageArtifactGenerator(artifactContext)),
+            listOf(PdfArtifactGenerator(artifactContext), DocxArtifactGenerator(artifactContext), XlsxArtifactGenerator(), PptxArtifactGenerator(artifactContext), ZipArtifactGenerator(), ImageArtifactGenerator(artifactContext, imageGenerationDispatcher)),
           ),
           destinations = ArtifactDestinationRegistry(
             listOf(
