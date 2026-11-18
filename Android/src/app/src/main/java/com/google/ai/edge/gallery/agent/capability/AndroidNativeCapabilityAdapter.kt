@@ -2442,36 +2442,6 @@ class AndroidNativeCapabilityAdapter(
     }
   }
 
-  override suspend fun openWifiSettings(): NativeCapabilityActionResult {
-    if (!authorizer.authorize(
-        AndroidCapability.WIFI_CONTROL,
-        "Open Android Wi-Fi settings so you can review or change Wi-Fi manually. Gallery will not toggle Wi-Fi.",
-      )
-    ) {
-      return NativeCapabilityActionResult(false, "Opening Wi-Fi settings was not approved.")
-    }
-
-    val candidates = listOf(
-      Intent(Settings.Panel.ACTION_WIFI),
-      Intent(Settings.ACTION_WIFI_SETTINGS),
-    )
-    val intent = candidates.firstOrNull { it.resolveActivity(appContext.packageManager) != null }
-      ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      ?: return NativeCapabilityActionResult(false, "Android does not provide a Wi-Fi settings activity.")
-
-    return try {
-      appContext.startActivity(intent)
-      NativeCapabilityActionResult(
-        true,
-        "Opened Android Wi-Fi controls. Review the available options and make any Wi-Fi change yourself; Gallery did not toggle Wi-Fi.",
-      )
-    } catch (error: ActivityNotFoundException) {
-      NativeCapabilityActionResult(false, "Android Wi-Fi settings could not be opened: ${error.message}")
-    } catch (error: SecurityException) {
-      NativeCapabilityActionResult(false, "Android denied opening Wi-Fi settings: ${error.message}")
-    }
-  }
-
   override suspend fun dialPhoneNumber(phoneNumber: String): NativeCapabilityActionResult {
     val normalized = normalizePhoneNumber(phoneNumber)
       ?: return NativeCapabilityActionResult(false, "phone_number must contain 3–20 digits and only common phone-number punctuation.")
