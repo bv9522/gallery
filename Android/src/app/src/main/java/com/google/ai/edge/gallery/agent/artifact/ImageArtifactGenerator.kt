@@ -81,8 +81,8 @@ class ImageArtifactGenerator(context: Context) : ArtifactGenerator {
         val scaleY = bounds.outHeight.toDouble() / current.height
         val left = floor(transform.cropX!! / scaleX).toInt().coerceAtLeast(0)
         val top = floor(transform.cropY!! / scaleY).toInt().coerceAtLeast(0)
-        val right = ceil((transform.cropX + transform.cropWidth) / scaleX).toInt().coerceAtMost(current.width)
-        val bottom = ceil((transform.cropY + transform.cropHeight!!) / scaleY).toInt().coerceAtMost(current.height)
+        val right = ceil((transform.cropX!! + transform.cropWidth) / scaleX).toInt().coerceAtMost(current.width)
+        val bottom = ceil((transform.cropY!! + transform.cropHeight!!) / scaleY).toInt().coerceAtMost(current.height)
         require(right > left && bottom > top) { "Crop rectangle is empty after safe image sampling." }
         current = replaceBitmap(current, Bitmap.createBitmap(current, left, top, right - left, bottom - top))
       }
