@@ -59,6 +59,7 @@ import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.provider.ContactsContract
 import android.provider.MediaStore
+import android.service.notification.StatusBarNotification
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.telephony.TelephonyManager
@@ -562,9 +563,27 @@ class AndroidNativeCapabilityAdapter(
     }
     capabilities[AndroidCapability.NOTIFICATION_CHANNEL_MANAGEMENT] =
       if (notificationManager != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED
-    capabilities[AndroidCapability.NOTIFICATION_READ] = ProviderAvailability.UNSUPPORTED
-    details[AndroidCapability.NOTIFICATION_READ] =
-      "Reading notifications from other apps requires a separately user-enabled NotificationListenerService; it is not implemented."
+    val notificationListenerComponent =
+      ComponentName(appContext, GalleryMediaSessionListenerService::class.java)
+    val notificationListenerGranted =
+      notificationManager?.isNotificationListenerAccessGranted(notificationListenerComponent) == true
+    capabilities[AndroidCapability.NOTIFICATION_READ] = when {
+      notificationManager == null -> {
+        details[AndroidCapability.NOTIFICATION_READ] = "Android NotificationManager is unavailable."
+        ProviderAvailability.UNSUPPORTED
+      }
+      !notificationListenerGranted -> {
+        details[AndroidCapability.NOTIFICATION_READ] =
+          "Notification-listener special access is required; provider discovery did not open settings or read notification content."
+        ProviderAvailability.PERMISSION_REQUIRED
+      }
+      !GalleryMediaSessionListenerService.isConnected() -> {
+        details[AndroidCapability.NOTIFICATION_READ] =
+          "Notification-listener access is enabled but Gallery's listener is not connected."
+        ProviderAvailability.SERVICE_STOPPED
+      }
+      else -> ProviderAvailability.AVAILABLE
+    }
 
     val textToSpeechAvailable = runCatching {
       appContext.packageManager.queryIntentServices(
@@ -1245,6 +1264,56 @@ class AndroidNativeCapabilityAdapter(
     val notificationId = UUID.randomUUID().toString().hashCode()
     manager.notify(notificationId, notification)
     return NativeCapabilityActionResult(true, "Notification posted with ID $notificationId.")
+  }
+
+  override suspend fun readOtherNotifications(): NativeOtherNotificationList {
+    val manager = appContext.getSystemService(NotificationManager::class.java)
+      ?: throw IllegalStateException("Android NotificationManager is unavailable.")
+    val component = ComponentName(appContext, GalleryMediaSessionListenerService::class.java)
+    if (manager.isNotificationListenerAccessGranted(component).not()) {
+      throw SecurityException("Gallery notification-listener special access is not enabled.")
+    }
+    if (!authorizer.authorize(
+        AndroidCapability.NOTIFICATION_READ,
+        "Read the title and visible text of up to $MAX_OTHER_NOTIFICATION_ITEMS currently active notifications from other apps. Notification content may contain private messages or sensitive information. No history is read and no notification content is stored.",
+      )
+    ) {
+      throw SecurityException("Reading other apps' notifications was not approved.")
+    }
+    val active = GalleryMediaSessionListenerService.activeNotificationsSnapshot()
+      ?: throw IllegalStateException("Gallery's notification listener is not connected.")
+    val eligible = active.asSequence()
+      .filter { it.packageName != appContext.packageName }
+      .filter { it.notification.flags and Notification.FLAG_GROUP_SUMMARY == 0 }
+      .sortedByDescending { it.postTime }
+      .toList()
+    val items = eligible.take(MAX_OTHER_NOTIFICATION_ITEMS).mapNotNull { status ->
+      val extras = status.notification.extras
+      val title = NotificationContentPolicy.sanitize(
+        extras.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
+        MAX_OTHER_NOTIFICATION_TITLE_CHARS,
+      )
+      val text = NotificationContentPolicy.sanitize(
+        (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+          ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString(),
+        MAX_OTHER_NOTIFICATION_TEXT_CHARS,
+      )
+      if (title == null && text == null) return@mapNotNull null
+      val label = runCatching {
+        val info = appContext.packageManager.getApplicationInfo(status.packageName, 0)
+        appContext.packageManager.getApplicationLabel(info).toString()
+      }.getOrNull()
+      NativeOtherNotification(
+        appLabel = NotificationContentPolicy.sanitize(label, MAX_OTHER_NOTIFICATION_APP_CHARS) ?: "App",
+        title = title,
+        text = text,
+        postedAtMs = status.postTime,
+      )
+    }
+    return NativeOtherNotificationList(
+      notifications = items,
+      truncated = eligible.size > MAX_OTHER_NOTIFICATION_ITEMS,
+    )
   }
 
   override fun listPostedNotifications(): List<NativePostedNotification> {
@@ -2344,6 +2413,10 @@ class AndroidNativeCapabilityAdapter(
     const val MAX_NOTIFICATION_CHANNEL_NAME_CHARS = 80
     const val MAX_NOTIFICATION_CHANNELS = 20
     const val MAX_ACTIVE_NOTIFICATIONS = 50
+    const val MAX_OTHER_NOTIFICATION_ITEMS = 20
+    const val MAX_OTHER_NOTIFICATION_APP_CHARS = 60
+    const val MAX_OTHER_NOTIFICATION_TITLE_CHARS = 120
+    const val MAX_OTHER_NOTIFICATION_TEXT_CHARS = 240
     const val DEFAULT_NOTIFICATION_CHANNEL_ID = "agent_skill_tasks_channel"
     const val DEFAULT_NOTIFICATION_CHANNEL_NAME = "Agent Skill Task"
     const val MAX_USB_DEVICES = 32
