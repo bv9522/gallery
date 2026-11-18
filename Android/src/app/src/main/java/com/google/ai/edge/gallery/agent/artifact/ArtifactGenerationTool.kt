@@ -100,5 +100,4 @@ class ArtifactGenerationTool(
     }
   }
 
-  private companion object
 }
