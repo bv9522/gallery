@@ -75,7 +75,7 @@ data class ArtifactGenerationResult(
 )
 
 fun interface ArtifactOutputProducer {
-  fun write(output: OutputStream): String
+  fun write(output: OutputStream): ArtifactOutputMetadata
 }
 
 interface ArtifactGenerator {
