@@ -67,11 +67,12 @@ data class AgentMediaSearchPage(
   val note: String? = null,
 )
 
-data class AgentMediaPlaybackReference(val uri: Uri, val displayName: String)
+data class AgentMediaPlaybackReference(val uri: Uri, val displayName: String, val isVideo: Boolean)
 
 private data class StoredMediaReference(
   val uri: Uri,
   val displayName: String,
+  val isVideo: Boolean,
   val expiresAtMs: Long,
 )
 
@@ -128,13 +129,14 @@ class GalleryMediaLibraryOperations(
       references[handle] = StoredMediaReference(
         uri = asset.contentUri,
         displayName = safeDisplayName(asset.displayName),
+        isVideo = asset.isVideo,
         expiresAtMs = System.currentTimeMillis() + HANDLE_TTL_MS,
       )
       AgentMediaSearchItem(
         handle = handle,
         displayName = safeDisplayName(asset.displayName),
         mimeType = if (asset.isVideo) "video/*" else "image/*",
-        source = if (asset.contentUri.authority == MediaStore.AUTHORITY) "MediaStore" else "User-granted storage",
+        source = if (asset.contentUri.authority == "media") "MediaStore" else "User-granted storage",
         dateTakenMs = asset.dateTaken,
         sizeBytes = asset.sizeBytes.coerceAtLeast(0L),
         durationMs = asset.durationMs?.coerceIn(0L, MAX_DURATION_MS),
@@ -213,7 +215,7 @@ class GalleryMediaLibraryOperations(
       references.remove(handle, stored)
       return null
     }
-    return AgentMediaPlaybackReference(stored.uri, stored.displayName)
+    return AgentMediaPlaybackReference(stored.uri, stored.displayName, stored.isVideo)
   }
 
   private suspend fun searchMediaStoreByName(
