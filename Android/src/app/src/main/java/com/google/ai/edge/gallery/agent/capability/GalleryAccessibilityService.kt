@@ -114,6 +114,143 @@ class GalleryAccessibilityService : AccessibilityService() {
     }
   }
 
+  /**
+   * Performs one semantic action on a freshly revalidated node in the single external app window.
+   * No coordinates or gesture fallback are used. The caller must obtain per-action approval first.
+   */
+  internal fun performSemanticAction(
+    fingerprint: AccessibilityElementFingerprint,
+    action: AccessibilitySemanticAction,
+  ): Result<String> {
+    if (AccessibilityServiceInstance.current !== this) {
+      return Result.failure(IllegalStateException("Gallery accessibility service changed before action dispatch."))
+    }
+    val current = inspectExternalVisibleWindow() as? AccessibilityWindowSnapshot.Ready
+      ?: return Result.failure(IllegalStateException("The external app window is unavailable, ambiguous, or sensitive; no action was dispatched."))
+    if (
+      current.packageName != fingerprint.packageName ||
+      current.windowId != fingerprint.windowId ||
+      current.truncated
+    ) {
+      return Result.failure(IllegalStateException("The target app or screen changed after inspection; no action was dispatched."))
+    }
+
+    val windowInfos = windows
+    val visited = ArrayList<Pair<AccessibilityNodeInfo, Int>>(MAX_NODES)
+    val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
+    try {
+      val window = windowInfos.singleOrNull {
+        it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.id == fingerprint.windowId
+      } ?: return Result.failure(IllegalStateException("The inspected application window is no longer uniquely available."))
+      val initialRoot = window.root
+        ?: return Result.failure(IllegalStateException("The inspected application window no longer exposes a root node."))
+      if (initialRoot.packageName?.toString() != fingerprint.packageName) {
+        initialRoot.recycle()
+        return Result.failure(IllegalStateException("The target application identity changed; no action was dispatched."))
+      }
+      when (val safe = inspectRoot(initialRoot, fingerprint.windowId)) {
+        is AccessibilityWindowSnapshot.Ready -> {
+          if (safe.packageName != fingerprint.packageName || safe.windowId != fingerprint.windowId || safe.truncated) {
+            return Result.failure(IllegalStateException("The target hierarchy is no longer complete and safe; no action was dispatched."))
+          }
+        }
+        else -> return Result.failure(IllegalStateException("The target hierarchy is no longer safe; no action was dispatched."))
+      }
+
+      val root = window.root
+        ?: return Result.failure(IllegalStateException("The target window changed during revalidation."))
+      queue.add(root to 0)
+      val matches = ArrayList<AccessibilityNodeInfo>(1)
+      var incomplete = false
+      while (queue.isNotEmpty()) {
+        if (visited.size >= MAX_NODES) {
+          incomplete = true
+          break
+        }
+        val (node, depth) = queue.removeFirst()
+        visited += node to depth
+        if (node.windowId != fingerprint.windowId ||
+          node.packageName?.toString() != fingerprint.packageName) {
+          incomplete = true
+          break
+        }
+        if (node.isVisibleToUser) {
+          if (depth >= MAX_DEPTH && node.childCount > 0) {
+            incomplete = true
+            break
+          }
+          if (depth < MAX_DEPTH) {
+            for (index in 0 until node.childCount) {
+              if (visited.size + queue.size >= MAX_NODES) {
+                incomplete = true
+                break
+              }
+              val child = runCatching { node.getChild(index) }.getOrNull()
+              if (child == null) {
+                incomplete = true
+                break
+              }
+              queue.add(child to depth + 1)
+            }
+          }
+          if (incomplete) break
+
+          val rawText = node.text?.toString().orEmpty()
+          val rawDescription = node.contentDescription?.toString().orEmpty()
+          val rawHint = if (Build.VERSION.SDK_INT >= 26) node.hintText?.toString().orEmpty() else ""
+          val label = AccessibilityScreenInspectionPolicy.sanitizeLabel(
+            listOf(rawText, rawDescription, rawHint).firstOrNull { it.isNotBlank() }
+          )
+          val bounds = Rect()
+          node.getBoundsInScreen(bounds)
+          if (
+            node.className?.toString().orEmpty().take(120) == fingerprint.className &&
+            label == fingerprint.label &&
+            bounds == fingerprint.bounds
+          ) {
+            matches += node
+          }
+        }
+      }
+      if (incomplete || queue.isNotEmpty()) {
+        return Result.failure(IllegalStateException("The target hierarchy changed or exceeded its inspection bounds; no action was dispatched."))
+      }
+      val target = matches.singleOrNull()
+        ?: return Result.failure(IllegalStateException("The inspected element is stale or ambiguous; inspect the target app again."))
+      if (
+        !target.isVisibleToUser ||
+        !target.isEnabled ||
+        target.isClickable != fingerprint.clickable ||
+        target.isLongClickable != fingerprint.longClickable ||
+        target.isScrollable != fingerprint.scrollable
+      ) {
+        return Result.failure(IllegalStateException("The inspected element changed or is disabled; no action was dispatched."))
+      }
+      val supported = when (action) {
+        AccessibilitySemanticAction.CLICK -> target.isClickable
+        AccessibilitySemanticAction.LONG_CLICK -> target.isLongClickable
+        AccessibilitySemanticAction.SCROLL_FORWARD,
+        AccessibilitySemanticAction.SCROLL_BACKWARD -> target.isScrollable
+      } && target.actionList.any { it.id == action.frameworkAction }
+      if (!supported) {
+        return Result.failure(IllegalStateException("The target does not currently advertise the requested semantic action."))
+      }
+      if (!target.performAction(action.frameworkAction)) {
+        return Result.failure(IllegalStateException("Android rejected the semantic action; no success is claimed."))
+      }
+      Result.success(
+        "Android accepted the " + action.name + " action for the revalidated semantic element. " +
+          "Dispatch was accepted; the resulting app state has not been verified."
+      )
+    } catch (error: Exception) {
+      Result.failure(error)
+    } finally {
+      visited.forEach { (node, _) -> runCatching { node.recycle() } }
+      while (queue.isNotEmpty()) runCatching { queue.removeFirst().first.recycle() }
+      windowInfos.forEach { runCatching { it.recycle() } }
+    }
+  }
+
   /** Captures only the supplied AccessibilityWindowInfo ID; there is deliberately no display fallback. */
   internal suspend fun captureWindowJpeg(windowId: Int): Result<ByteArray> {
     if (!AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(Build.VERSION.SDK_INT)) {
@@ -314,8 +451,8 @@ class GalleryAccessibilityService : AccessibilityService() {
         val label = AccessibilityScreenInspectionPolicy.sanitizeLabel(
           listOf(rawText, rawDescription, rawHint).firstOrNull { it.isNotBlank() }
         )
-        val useful = !label.isNullOrBlank() || node.isClickable || node.isScrollable ||
-          node.isCheckable || node.isFocusable
+        val useful = !label.isNullOrBlank() || node.isClickable || node.isLongClickable ||
+          node.isScrollable || node.isCheckable || node.isFocusable
         if (!useful) continue
         meaningfulCount++
         if (elements.size < MAX_ELEMENTS) {
@@ -328,6 +465,7 @@ class GalleryAccessibilityService : AccessibilityService() {
             label = label,
             bounds = Rect(bounds),
             clickable = node.isClickable,
+            longClickable = node.isLongClickable,
             scrollable = node.isScrollable,
             enabled = node.isEnabled,
             selected = node.isSelected,
@@ -385,6 +523,7 @@ internal data class AccessibilityElementSnapshot(
   val label: String?,
   val bounds: Rect,
   val clickable: Boolean,
+  val longClickable: Boolean,
   val scrollable: Boolean,
   val enabled: Boolean,
   val selected: Boolean,
