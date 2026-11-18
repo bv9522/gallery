@@ -112,7 +112,8 @@ class GalleryMediaLibraryOperations(
       throw SecurityException("Media search was not approved.")
     }
 
-    val mediaStoreMatches = searchMediaStoreByName(query, mediaKind, limit)
+    val mediaStoreSearch = searchMediaStoreByName(query, mediaKind, limit)
+    val mediaStoreMatches = mediaStoreSearch.assets
     val treeScan = scanGrantedTrees(query, mediaKind, MAX_TREE_SEARCH_MATCHES)
     val visualIndex = if (mode == "NAME") null else searchVisualIndex(query, mediaKind, limit)
     val combined = linkedMapOf<String, Pair<PhotoAsset, Float?>>()
@@ -148,6 +149,7 @@ class GalleryMediaLibraryOperations(
     val visualUsed = visualIndex?.results?.isNotEmpty() == true
     val visualAvailable = visualIndex?.indexAvailable == true
     val note = when {
+      mediaStoreSearch.permissionRequired -> "Android media permission is not granted; results include only files in persisted user-granted storage folders."
       mode == "NAME" -> "Filename search only."
       visualIndex == null || !visualIndex.indexAvailable ->
         "Visual index unavailable. Install EmbeddingGemma-2 and run media_index to build the local visual index."
@@ -159,7 +161,7 @@ class GalleryMediaLibraryOperations(
       query = query,
       returned = items.size,
       limit = limit,
-      truncated = treeScan.truncated || mediaStoreMatches.size >= limit || items.size >= limit,
+      truncated = treeScan.truncated || mediaStoreSearch.truncated || combined.size > limit,
       visualSearchUsed = visualUsed,
       visualIndexAvailable = visualAvailable,
       items = items,
@@ -222,7 +224,7 @@ class GalleryMediaLibraryOperations(
     query: String,
     mediaKind: String,
     limit: Int,
-  ): List<PhotoAsset> = withContext(Dispatchers.IO) {
+  ): MediaStoreSearchResult = withContext(Dispatchers.IO) {
     val mediaType = MediaStore.Files.FileColumns.MEDIA_TYPE
     val types = when (mediaKind) {
       "VIDEO" -> listOf(MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO)
@@ -236,6 +238,7 @@ class GalleryMediaLibraryOperations(
     val selection = "($typeSelection) AND ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ? ESCAPE '\\'"
     val args = types.map(Int::toString) + "%${escapeLike(query)}%"
     val ids = mutableListOf<String>()
+    var permissionRequired = false
     try {
       resolver.query(
         MediaStore.Files.getContentUri("external"),
@@ -245,16 +248,19 @@ class GalleryMediaLibraryOperations(
         "${MediaStore.Files.FileColumns.DATE_TAKEN} DESC",
       )?.use { cursor ->
         val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-        while (cursor.moveToNext() && ids.size < limit) {
+        while (cursor.moveToNext() && ids.size <= limit) {
           ids += cursor.getLong(idColumn).toString()
         }
       }
     } catch (cancelled: CancellationException) {
       throw cancelled
     } catch (error: SecurityException) {
+      permissionRequired = true
       Log.i(TAG, "MediaStore filename search requires media permission: ${error.message}")
     }
-    ids.mapNotNull { id -> photoLibrary.fetchAsset(id) }
+    val truncated = ids.size > limit
+    val assets = ids.take(limit).mapNotNull { id -> photoLibrary.fetchAsset(id) }
+    MediaStoreSearchResult(assets, permissionRequired, truncated)
   }
 
   private suspend fun searchVisualIndex(
@@ -423,6 +429,11 @@ class GalleryMediaLibraryOperations(
     return if (index >= 0 && !isNull(index)) getLong(index) else null
   }
 
+  private data class MediaStoreSearchResult(
+    val assets: List<PhotoAsset>,
+    val permissionRequired: Boolean,
+    val truncated: Boolean,
+  )
   private data class TreeNode(val documentId: String, val depth: Int)
   private data class TreeScanResult(val assets: List<PhotoAsset>, val visited: Int, val truncated: Boolean)
   private data class VisualSearchResult(val results: List<Pair<PhotoAsset, Float?>>, val indexAvailable: Boolean)
