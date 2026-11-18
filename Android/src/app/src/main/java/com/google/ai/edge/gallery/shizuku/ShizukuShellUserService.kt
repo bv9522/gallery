@@ -203,7 +203,8 @@ class ShizukuShellUserService : IShizukuShellService.Stub() {
   }
 
   private fun resolveSafeBinaryTarget(path: String): File {
-    require(path.startsWith('/') && path.length <= MAX_BINARY_PATH_CHARS && '\\u0000' !in path) {
+    require(path.startsWith('/') && path.length <= MAX_BINARY_PATH_CHARS &&
+      '\\u0000' !in path && '\\\\' !in path) {
       "Binary target must be a bounded absolute path."
     }
     val segments = path.split('/')
