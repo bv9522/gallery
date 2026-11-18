@@ -35,7 +35,7 @@ Every model-independent capability has exactly one selected owner in the capabil
 | Bounded Android command capabilities | Termux:API | Fixed allowlisted commands through supervised Termux RUN_COMMAND; companion permissions and process boundary |
 | Path-based file and directory operations | Unified shell router | Existing TERMUX / SHIZUKU / TERMUX_RISH execution backends; no duplicate file tool |
 | User-granted document trees and removable storage files | Android Storage Access Framework | Persisted user-granted document URI permissions |
-| Semantic UI inspection, bounded window capture, approved semantic actions, and safe text input | Android AccessibilityService | Explicitly enabled service; bounded tree reads, API 34+ window-only screenshots, per-action approved click/long-click/scroll, and UI_TEXT_INPUT-gated entry into empty plain-text fields plus bounded selection with fresh node revalidation; swipe remains planned |
+| Semantic UI inspection, bounded window capture, approved semantic actions, and safe text input | Android AccessibilityService | Explicitly enabled service; bounded tree reads, API 34+ window-only screenshots, per-action approved click/long-click/scroll, and UI_TEXT_INPUT-gated entry into empty plain-text fields plus bounded selection with fresh node revalidation; coordinate gesture fallback remains on the existing unified shell route only when explicitly requested/authorized |
 
 Termux shell, Shizuku, and Rish remain execution transports inside the unified shell router.
 Termux:API is a distinct capability owner only for the bounded command families assigned in the
@@ -59,7 +59,7 @@ The list below reflects previously integrated Gallery-native operations; it is n
 
 ## Onboarding readiness
 
-The capability onboarding chain through Wave 3D consists of open draft PRs #23–#32. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E now includes downloads/status/cancellation (PR #34), media search/indexing/Gallery-owned playback (draft PR #35), and user-mediated text/SAF file sharing (draft PR #36). PR #36 uses the Android chooser and does not claim delivery when the chooser opens. The `speak_text` operation reuses the existing TTS playback controller. Per-slice tests/builds are deferred by owner instruction until all capability onboarding is complete. Consolidated S21 device acceptance remains deferred until onboarding is complete.
+The capability onboarding chain includes draft PRs #23–#32, Wave 3E PRs #33–#37, Accessibility PRs #39–#42, optional capability PRs #43–#46, and Wi-Fi/audit PR #47. SAF document-tree and cross-tree file operations are in PRs #23–#25; Bluetooth GATT inspection/I/O is in #26–#27; contacts and clipboard plus speech ownership correction are in #28; ownership/readiness reconciliation is in #29; Gallery-owned notifications and scheduling are in #30; telephony metadata and user-mediated dialer/SMS composition are in #31. Biometric authentication and Gallery-owned Keystore are in draft PR #32; the user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both passed after the FragmentActivity host correction. Device acceptance remains pending. Wave 3E now includes downloads/status/cancellation (PR #34), media search/indexing/Gallery-owned playback (draft PR #35), and user-mediated text/SAF file sharing (draft PR #36). PR #36 uses the Android chooser and does not claim delivery when the chooser opens. The `speak_text` operation reuses the existing TTS playback controller. Per-slice tests/builds are deferred by owner instruction until all capability onboarding is complete. Consolidated S21 device acceptance remains deferred until onboarding is complete.
 
 The capability catalog assigns exactly one owner to every declared capability. This is enforced by catalog construction and registry ownership tests; it does not imply that every owner is implemented or available. PR #47's source-level audit also reconciles each current native operation with its capability ID and scoped approval path; no tests/builds have been run for this audit.
 
@@ -113,12 +113,7 @@ The capability catalog assigns exactly one owner to every declared capability. T
 
 ## Remaining capability groups
 
-Termux:API is selected for basic sensors, location requests/updates, Wi-Fi information and last-scan
-results, NFC NDEF read/write, infrared, and read-only camera metadata. Native Kotlin owns Bluetooth/BLE,
-USB host sessions, Gallery speech input/output, contacts, clipboard, app-owned/security-sensitive
-integrations, camera capture, microphone recording, wallpaper, and user-mediated controls. The SAF
-provider owns removable-storage files. USB host enumeration is draft code; PR #46 adds read-only standard descriptor inspection with a per-device permission prompt and one-shot approval. Arbitrary endpoint data transfers and writes remain unsupported. Gallery-owned notification posting/scheduling is implemented in draft PR #30 and has user-confirmed
-local unit-test/build validation; device acceptance remains pending. Wave 3 telephony includes non-identifying metadata and user-mediated dialer/SMS composition. PR #44 adds approved bounded call-log reads; PR #45 adds approved bounded received-SMS inbox reads. Both fail closed when Android/installer/default-role eligibility prevents access.
+The four optional capability families are onboarded in draft PRs #43–#46: active notification content, call-log reads, received-SMS inbox reads, and read-only USB descriptor inspection. PR #47 adds the user-mediated Wi-Fi settings handoff. These are CODE / VALIDATION PENDING only; tests/builds and S21 acceptance remain deferred. USB mass-storage files remain on SAF; arbitrary non-storage endpoint transfers and writes are deliberately unsupported. The broader capability set remains owned by Termux:API (bounded sensors, location, Wi-Fi connection/last-scan, NFC, infrared, camera metadata), native Kotlin (Bluetooth/GATT, speech, contacts, clipboard, notifications, telephony, media, biometrics, microphone/camera capture, wallpaper, USB descriptor inspection and settings handoffs), SAF (user-granted removable-storage files), AccessibilityService (bounded semantic inspection/actions/text input), and the unified shell router (general shell/path operations).
 
 ## Security and implementation rules
 
@@ -225,7 +220,7 @@ local unit-test/build validation; device acceptance remains pending. Wave 3 tele
 - Telephony metadata is deliberately limited to whether the device exposes telephony, phone type, and SIM state. No subscriber IDs, phone numbers, IMEI/MEID, carrier identifiers, cell IDs, or location are read.
 - ACTION_DIAL opens the system dialer after scoped approval. The user reviews the destination and initiates the call; no CALL_PHONE permission is requested.
 - ACTION_SENDTO with an smsto: URI opens a prefilled SMS composer after scoped approval showing the exact recipient and message. The user presses Send; no SEND_SMS permission is requested and the app does not send directly.
-- Call-log and SMS inbox reads remain unimplemented pending separate sensitive-permission, default-role, and policy review.
+- PR #44 adds bounded call-log reads and PR #45 adds bounded received-SMS inbox reads. Each requires explicit user intent, one-time approval, and the corresponding Android runtime permission requested only after approval; Android installer/default-role restrictions fail closed.
 
 
 ## Biometric and Android Keystore onboarding — Wave 3 draft
