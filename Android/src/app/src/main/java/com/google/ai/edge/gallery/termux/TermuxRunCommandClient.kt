@@ -212,8 +212,10 @@ class TermuxRunCommandClient(context: Context) : TermuxShellExecutor {
     firstChunk: Boolean,
     timeoutMs: Long = BINARY_CHUNK_TIMEOUT_MS,
   ) {
-    require(temporaryPath.startsWith("/") && temporaryPath.length <= 1_024 &&
-      temporaryPath.split('/').none { it == "." || it == ".." } && '\u0000' !in temporaryPath) {
+    require(temporaryPath.startsWith("/") && !temporaryPath.endsWith("/") &&
+      temporaryPath.length <= 1_024 &&
+      temporaryPath.none { it.code < 0x20 || it.code == 0x7f } &&
+      temporaryPath.split('/').none { it == "." || it == ".." }) {
       "Temporary artifact path must be a safe absolute path."
     }
     require(encodedChunk.isNotEmpty() && encodedChunk.length <= MAX_BINARY_STDIN_CHARS) {
