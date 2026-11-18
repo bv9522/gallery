@@ -229,7 +229,6 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 | Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
 | Wave 3E downloads/media/sharing | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media and PR #36 user-mediated sharing (tests added, not run); device acceptance pending |
-| Wave 3E Gallery downloads | IMPLEMENTATION ADDED; local validation pending | PR #34 adds bounded repository snapshots, allowlist-backed labels, opaque handles, exact cancellation, agent operations, approval, and unit tests; no Gradle/device validation claimed |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | PLANNED | No implementation PR in current chain |
 | Wave 6 consolidated S21 acceptance | NOT STARTED — intentionally gated | Begin only after onboarding and ownership audit |
