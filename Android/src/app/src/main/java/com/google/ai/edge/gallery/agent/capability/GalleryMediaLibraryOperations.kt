@@ -25,12 +25,11 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.database.Cursor
 import android.util.Log
-import com.google.ai.edge.gallery.customtasks.common.CustomTask
 import com.google.ai.edge.gallery.customtasks.smartalbum.DefaultSemanticRetrievalServiceProvider
 import com.google.ai.edge.gallery.customtasks.smartalbum.SmartAlbumIndexingWorker
 import com.google.ai.edge.gallery.customtasks.smartalbum.SmartAlbumSource
 import com.google.ai.edge.gallery.customtasks.smartalbum.SmartAlbumViewModel
-import com.google.ai.edge.gallery.data.BuiltInTaskId
+import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.services.photolibrary.DefaultPhotoLibraryService
 import com.google.ai.edge.gallery.services.photolibrary.PhotoAsset
@@ -84,7 +83,7 @@ private data class StoredMediaReference(
  */
 class GalleryMediaLibraryOperations(
   context: Context,
-  private val customTasks: Set<CustomTask>,
+  private val models: List<Model>,
   private val authorizer: NativeCapabilityAuthorizer,
   private val photoLibrary: PhotoLibraryService = DefaultPhotoLibraryService(context.applicationContext),
 ) {
@@ -333,14 +332,11 @@ class GalleryMediaLibraryOperations(
     }
   }
 
-  private fun findDownloadedEmbeddingModel(): Model? {
-    val smartAlbumTask = customTasks.firstOrNull { it.task.id == BuiltInTaskId.SMART_ALBUM }?.task
-      ?: return null
-    return smartAlbumTask.models.firstOrNull { model ->
+  private fun findDownloadedEmbeddingModel(): Model? =
+    models.firstOrNull { model ->
       model.modelId.contains("embeddinggemma-2", ignoreCase = true) &&
         File(model.getPath(appContext)).isFile
     }
-  }
 
   private suspend fun scanGrantedTrees(
     query: String?,
