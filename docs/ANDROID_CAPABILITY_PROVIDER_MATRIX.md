@@ -7,10 +7,10 @@ contracts, end-to-end roadmap, and live progress ledger are maintained in
 ## Current progress snapshot (2026-11-17)
 
 - Active branch: `wave-3e-media-library-playback`, stacked on `wave-3e-gallery-download-management`.
-- Active prior PR: [#34 — Wave 3E: define safe Gallery download controls](https://github.com/bv9522/gallery/pull/34), draft/open/unmerged. The current media slice is being prepared as PR #35; [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33) remains open beneath the stack.
+- Active PR: [#35 — Wave 3E: add media discovery, visual indexing, and Gallery playback](https://github.com/bv9522/gallery/pull/35), draft/open/unmerged, stacked on [PR #34 — safe Gallery download controls](https://github.com/bv9522/gallery/pull/34); [PR #33 — Gallery TTS](https://github.com/bv9522/gallery/pull/33) remains open beneath the stack.
 - Agent `speak_text` is implemented through Gallery's existing `TtsServiceProvider` and playback controller; user confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed with `BUILD SUCCESSFUL` on head `7ac3bdb3904ea105ee7dad6574f8b92a40230a5b`. Device acceptance remains pending.
 - PR #34 reuses `DefaultDownloadRepository` / `DownloadWorker` / WorkManager and adds bounded snapshots, allowlist-backed labels, opaque handles, exact-worker cancellation, scoped approval, and unit tests. The user confirmed its local tests and Shizuku debug build passed; device acceptance remains pending.
-- Current media slice adds bounded filename/visual search, EmbeddingGemma-2 / Smart Album index reuse, SAF-granted storage discovery/indexing, and Gallery-owned Media3 video playback. Tests are being added but have not been executed.
+- PR #35 adds bounded filename/visual search, EmbeddingGemma-2 / Smart Album index reuse, SAF-granted storage discovery/indexing, and Gallery-owned Media3 video playback. Tests are added but have not been executed.
 - PR #30, #31, and #32 have user-confirmed local unit-test and debug-build validation; device acceptance remains pending.
 - **Validation policy:** per the owner's instruction, do not run tests, Gradle builds, or device acceptance per slice. Add tests as implementation proceeds and execute the accumulated suite/build only after all capability onboarding is complete.
 - PR #23–#29 and #16–#27 still require consolidated S21 acceptance recorded in the master roadmap.
