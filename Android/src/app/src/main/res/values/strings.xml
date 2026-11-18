@@ -1966,4 +1966,5 @@
     <item quantity="other">%d languages supported</item>
   </plurals>
 
+    <string name="accessibility_service_description">Optional, read-only access to the visible app window when you explicitly request screen inspection. Sensitive screens are excluded; no screenshots or background monitoring are collected.</string>
 </resources>
