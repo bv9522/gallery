@@ -72,10 +72,8 @@ internal object ImageGenerationArgumentParser {
     return if (value != null && value.isJsonPrimitive && value.asJsonPrimitive.isString) value.asString else null
   }
 
-  private companion object {
-    const val MAX_PROMPT_CHARS = 10_000
-    const val MAX_SOURCE_IMAGES = 8
-    const val MAX_SOURCE_LABEL_CHARS = 200
-    val SUPPORTED_MIME_TYPES = setOf("image/png", "image/jpeg", "image/webp")
-  }
+  private const val MAX_PROMPT_CHARS = 10_000
+  private const val MAX_SOURCE_IMAGES = 8
+  private const val MAX_SOURCE_LABEL_CHARS = 200
+  private val SUPPORTED_MIME_TYPES = setOf("image/png", "image/jpeg", "image/webp")
 }
