@@ -172,7 +172,7 @@ class AndroidControlArgumentsTest {
     }
     val controlCharacterQuery = JsonObject().apply {
       addProperty("operation", "media_search")
-      addProperty("query", "Pitching\\nAt Field")
+      addProperty("query", "Pitching\nAt Field")
     }
 
     assertNull(AndroidControlArguments.validate(valid))
