@@ -317,10 +317,10 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 | Bluetooth GATT | CODE / VALIDATION PENDING | PR #26–#27 |
 | Wave 3A contacts/clipboard | CODE / VALIDATION PENDING | PR #28–#29 |
 | Wave 3B notifications/scheduling | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #30 |
-| Wave 3C telephony/user-mediated actions | CODE / VALIDATION PENDING; device acceptance pending | PR #31 local tests/build user-confirmed; PR #44 call-log and PR #45 SMS inbox unit tests passed in workflow #118; device acceptance remains pending |
+| Wave 3C telephony/user-mediated actions | IMPLEMENTED IN DRAFT PRs; UNIT CI PASSED; device acceptance pending | PR #31 local tests/build user-confirmed; PR #44 call-log and PR #45 SMS inbox unit tests passed in workflow #118; device acceptance remains pending |
 | Wave 3D biometric/Keystore | LOCAL VALIDATION DONE; device acceptance pending | User confirmed tests/build for PR #32 |
 | Wave 3E agent TTS | LOCAL VALIDATION DONE; device acceptance pending | PR #33 draft/open; user-confirmed unit tests and Shizuku debug build |
-| Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (unit tests passed in workflow #118; device acceptance remains pending); device acceptance pending |
+| Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; UNIT CI PASSED; device acceptance pending | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (unit tests passed in workflow #118); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
 | Wave 6 consolidated S21 acceptance | READY — CI green; device pass pending | Workflow #118 passed 308 unit tests and debug/release APK builds; execute the feature test roadmap one chunk at a time |
@@ -364,6 +364,7 @@ All entries below are tracked as draft/open/unmerged unless explicitly stated ot
 - PR #56 — Stage 10G guarded two-pass SAF ZIP extraction with archive hashing, compressed/expanded/ratio bounds, safe relative paths, duplicate/target checks, exact approval, cancellation, and partial-tree cleanup; path-policy unit tests passed in workflow #118, provider/device acceptance pending.
 - PR #57 — Stage 10H local image resize/crop/rotate/convert using bounded SAF source reads, concrete output MIME handling, optional image-generation provider contracts, and remote-consent gate with source labels; payload/consent unit tests passed in workflow #118, image/device acceptance pending.
 - PR #58 — Stage 10I binary artifact destinations: Termux bounded RUN_COMMAND stdin chunks and Shizuku PFD pipe transfer; pure policy/transport unit tests passed in workflow #118; Android instrumentation and S21 protocol acceptance remain pending; TERMUX_RISH binary output remains unavailable.
+- PR #60 — final Stage 10 embedded-image integration and documentation reconciliation; workflow #118 passed 308 unit tests plus Shizuku debug/release APK builds on its code head; external-reader openability, instrumentation, and S21 acceptance remain pending.
 
 The PR chain is intentionally stacked. A later PR may depend on earlier draft PRs. Do not treat a branch as independently merge-ready merely because its own diff is complete.
 
@@ -472,7 +473,7 @@ A catalog owner is an architecture decision, not a readiness claim. Shell comman
 | File/directory list, read, write, create, copy, move, rename, delete, search, metadata | Unified shell router (Shizuku/Rish or Termux execution identity) | General shell already supports these; no duplicate file-command tool. Mutations remain approval-gated |
 | User-selected document trees / document metadata / SAF read-write-delete | Native Kotlin SAF (DocumentsContract / DocumentFile) | CODE / VALIDATION PENDING — PRs #23–#25: persisted user grants, bounded file operations and cross-tree transfer |
 | Removable USB storage files | Native Kotlin SAF document-tree URI | Draft in PRs #23–25: user-granted SAF tree access and bounded file operations/transfers; validation/device acceptance pending; UsbManager is not a mass-storage filesystem |
-| Artifact generation orchestration and format dispatch | Native Kotlin Artifact Generation Engine | PLANNED — Stage 10; one generic artifact contract and format adapters for PDF/DOCX/XLSX/PPTX/ZIP/image processing; destinations remain SAF or explicitly selected unified shell-router backend |
+| Artifact generation orchestration and format dispatch | Native Kotlin Artifact Generation Engine | IMPLEMENTED in draft PRs #48–#60; workflow #118 unit CI and debug/release APK builds passed; S21 acceptance pending; TERMUX_RISH binary output and on-device generation remain unavailable |
 | Screen capture / visual screen understanding | Android AccessibilityService + LiteRT-LM multimodal tool result | Draft in PR #40: API 34+ window-only capture, one visible external window, explicit SCREEN_CAPTURE approval, conservative sensitive-screen gate, 1,280 px / 2 MiB bounds, in-memory Gemma image input; no display-wide fallback or persistent screenshot file |
 | Live semantic UI tree | Android AccessibilityService | Draft in PRs #39–#41: bounded read-only active-window inspection plus one external-window inspection path with short-lived opaque handles; validation deferred |
 | Semantic click / long-press / scroll | Android AccessibilityService | CODE / VALIDATION DEFERRED — PR #41: CLICK, LONG_CLICK, SCROLL_FORWARD/BACKWARD; coordinate gesture fallback remains on existing shell route |
