@@ -5,11 +5,11 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-18 (Stage 10A–10I implementation slices onboarded, including bounded embedded images and configured Firebase Gemini remote generation; TERMUX_RISH binary output remains unavailable; Stage 10J consolidated validation is now unlocked but not yet executed)  
+> **Last reconciled:** 2026-11-19 (Stage 10A–10I implementation onboarding complete; workflow #118 passed 308 unit tests plus Shizuku debug and release APK builds; chunked S21 acceptance remains pending; TERMUX_RISH binary output remains unavailable)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `stage-10h-image-followups` (final image integration, stacked on PR #58)  
 > **Current change:** [PR #60 — Stage 10 embedded image integration and final validation prep](https://github.com/bv9522/gallery/pull/60), stacked on [PR #58 — Stage 10I binary artifact output for Termux and Shizuku](https://github.com/bv9522/gallery/pull/58), then [PR #57 — Stage 10H local image processing and provider boundary](https://github.com/bv9522/gallery/pull/57), then [PR #56 — Stage 10G guarded SAF ZIP extraction](https://github.com/bv9522/gallery/pull/56), and [PR #55 — Stage 10G bounded ZIP archive creation](https://github.com/bv9522/gallery/pull/55),
-> **Overall state:** Stage 10A–10I implementation is onboarded. Stage 10J consolidated validation is unlocked and must run before Stage 8 provider validation/S21 acceptance and Stage 9 integration/release. Tests were authored throughout and are still unexecuted at this point.
+> **Overall state:** Stage 10A–10I implementation onboarding is complete. Stage 10J automated CI validation passed on commit 7bacd681 (308 unit tests, Shizuku debug APK, release APK; workflow #118). Stage 10 instrumentation/device acceptance and the feature-by-feature Stage 8 S21 matrix remain outstanding. Stage 9 integration/release follows acceptance.
 
 ## How to read and maintain this roadmap
 
@@ -25,7 +25,7 @@ A PR being open, a commit existing, or code compiling is never by itself proof o
 remain draft/open/unmerged until explicitly approved for integration. No PR is to be merged or closed without the owner's
 explicit approval.
 
-**Owner-directed validation sequencing (2026-11-18):** the owner approved moving all Stage 10 artifact-generation onboarding ahead of consolidated validation. Add focused unit/policy/format/security tests alongside each Stage 10 slice, but do not execute Gradle tests, builds, instrumentation tests, or S21/device acceptance until Stage 10A–10J implementation and documentation are onboarded. Execution order is deliberately Stage 10 → Stage 8 → Stage 9 despite the stage numbers. Previously user-confirmed test/build results remain historical evidence and must not be repeated unless requested.
+**Owner-directed validation sequencing (2026-11-18; updated 2026-11-19):** Stage 10A–10I implementation and documentation onboarding is complete. Workflow #118 on commit 7bacd681bdd8d5b35d255933e21e66c6a3780b09 passed :app:testShizukuDebugUnitTest (308 tests), :app:assembleShizukuDebug, and :app:assembleRelease. This is CI evidence, not device acceptance; the workflow did not execute the Android instrumentation task. Proceed with Stage 8 in small owner-reviewed chunks using [ANDROID_MCP_FEATURE_TEST_ROADMAP.md](ANDROID_MCP_FEATURE_TEST_ROADMAP.md). Do not wipe app data or uninstall as routine setup. Execution order remains Stage 10 → Stage 8 → Stage 9.
 
 **Progress-update rule:** after every implementation slice, update (1) this ledger, (2) the capability row/status in the
 ownership matrix, (3) the provider matrix if ownership/readiness changed, and (4) the relevant PR description. Record the
@@ -224,7 +224,8 @@ and documented device-acceptance plan. Sensitive capabilities not meeting the ga
 - [x] 10G — ZIP create/extract implemented across PRs #55–#56. Creation streams up to 100 UTF-8 text entries (1 MiB each, 5 MiB total uncompressed) with 240-character relative paths, case-insensitive duplicate and file/directory collision checks, traversal/absolute/drive/backslash/control-character and reserved-Windows-name rejection, and 20 MiB output cap. Extraction uses a two-pass SAF flow: preflight the user-selected ZIP within a persisted source-tree grant; validate every entry/path, duplicates/collisions, 500-entry, 50 MiB compressed/expanded total, 10 MiB per-file, and known 100:1 compression-ratio limits; hash the archive and verify it is unchanged after approval; then stream regular files/directories into a separate persisted SAF destination tree. It rejects existing targets, never creates/follows symlinks, requests separate exact approval, propagates cancellation, and attempts reverse-order partial-tree cleanup with explicit cleanup-failure reporting. Path-policy tests added but not run; provider behavior and extraction acceptance remain Stage 10J validation.
 - [x] 10H — Local image processing and optional provider boundary implemented in PR #57. Native Android BitmapFactory/Bitmap processing reads only a persisted SAF source document; supports resize, crop, right-angle rotation, and PNG/JPEG/WebP conversion. Bounds: 20 MiB source, 8,192 px/source side, 20 MP source area, 8 MP decode sampling, 4,096 px output side, 16 MP output area, 20 MiB output, quality 1–100. Added `ImageGenerationProvider` interface, provider registry, and guarded dispatcher. Firebase Gemini image generation is conditionally registered when Firebase is configured and always requires one-time consent showing provider ID, exact prompt, output MIME, and visible labels for every source image before any upload. Source count/bytes and output bytes are bounded. Local resize/crop/rotate/convert/compose/annotate remains on-device. Embedded SAF images are supported in PDF (up to eight/document), DOCX (up to four/document), and PPTX (one/slide, four/presentation), with EXIF orientation normalized before embedding. No on-device generative provider is registered; Gemma 4 E2B image input is not image generation. Tests added but not run.
 - [x] 10I — SAF binary output already streams through document-provider output streams independently of the 256 KiB UTF-8 text-operation cap. Added Termux binary delivery through `RUN_COMMAND_STDIN` in bounded 96 KiB raw chunks (base64 payload stays at or below 128 KiB characters, about 256 KiB in the UTF-16 Intent string); each chunk explicitly selects the APP_SHELL runner through RUN_COMMAND_RUNNER, which consumes the stdin extra without opening a terminal session, then destination-side byte-count/SHA-256 verification precedes same-directory `mv` finalization. Added Shizuku `writeBinaryFile` over a one-shot `ParcelFileDescriptor` pipe; the shell-UID UserService streams into a same-directory temporary file, enforces a 50 MiB ceiling and deadline, verifies SHA-256, and renames only after verification. Both shell paths use the shared exact destination/backend/overwrite approval, private staging, cancellation cleanup, and no identity fallback. `TERMUX_RISH` is explicitly rejected for binary output until stdin forwarding is independently proven. Pure policy/fake-transport tests cover chunk bounds, multi-chunk delivery, Shizuku identity/metadata, failure/cancellation cleanup, overwrite behavior, and Rish rejection. Android instrumentation tests now exercise real Termux APP_SHELL stdin and Shizuku PFD transfer; all tests remain unexecuted. Protocol verification and S21 acceptance remain Stage 10J; no builds/device checks run. The 100 MiB SAF cross-tree transfer cap is not a universal generation limit.
-- [ ] 10J — Consolidated tests/builds and S21 acceptance: valid-format/openability, malformed content, size boundaries, low storage, provider errors, revoked SAF grants, inaccessible shell paths, backend identity, overwrite confirmation, cancellation, partial-write cleanup, process death, ZIP traversal/bomb cases, image decode limits, and optional-provider unavailable/offline behavior. Measure APK/dependency growth, RAM, CPU, storage, latency, battery, and thermals. **Preparation:** unit/policy/format tests and device-gated Termux APP_SHELL / Shizuku PFD instrumentation tests are authored but remain unexecuted. Run the full Gradle suite and debug build now that implementation is complete, then perform the Galaxy S21 acceptance pass. Record device-only checks as unavailable until a connected S21 run is actually performed.
+- [x] 10J automated CI gate — workflow #118 passed :app:testShizukuDebugUnitTest (308 tests), :app:assembleShizukuDebug, and :app:assembleRelease on commit 7bacd681bdd8d5b35d255933e21e66c6a3780b09. Run: [Build Android APK #118](https://github.com/bv9522/gallery/actions/runs/44436706557). This validates the JVM unit suite and both APK builds; it does not execute instrumentation or device tests.
+- [ ] 10J instrumentation and S21 acceptance — execute the Termux APP_SHELL stdin and Shizuku PFD instrumentation tests on a supported Android test target, then perform the feature-by-feature Galaxy S21 pass in [ANDROID_MCP_FEATURE_TEST_ROADMAP.md](ANDROID_MCP_FEATURE_TEST_ROADMAP.md). Cover format openability, malformed content, size boundaries, low storage, provider errors, revoked SAF grants, inaccessible shell paths, backend identity, overwrite, cancellation, cleanup, process death, ZIP traversal/bombs, image decode limits, and optional-provider unavailable/offline behavior. Measure APK/dependency growth, RAM, CPU, storage, latency, battery, and thermals.
 
 **Shared safety and lifecycle requirements**
 - Use app-private temporary staging only when required; enforce a staging quota, stream large content, clean partial outputs on failure/cancellation, and avoid holding entire artifacts in memory.
@@ -241,7 +242,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 
 
 ### Stage 8 — Consolidated provider verification and S21 acceptance (Wave 6)
-**Status: DEFERRED UNTIL STAGE 10 ONBOARDING IS COMPLETE — test planning prepared; execution not started.** Device-capability onboarding and the final source-level ownership audit are complete in PRs #39–#47. The owner has directed that Stage 10 artifact generation be fully onboarded before any consolidated test/build/S21 execution. Stage 8 begins only after Stage 10A–10J are implemented and documented.
+**Status: READY — Stage 10 implementation onboarding is complete and CI workflow #118 is green. Feature-by-feature S21 execution has not started.** Device-capability onboarding and the source-level ownership audit are complete in PRs #39–#47. Review and execute one test chunk at a time using [ANDROID_MCP_FEATURE_TEST_ROADMAP.md](ANDROID_MCP_FEATURE_TEST_ROADMAP.md); do not treat CI success as device acceptance.
 
 #### 8A — Consolidated test and build preflight
 - [ ] Confirm the complete dependency chain resolves through the final Stage 10 implementation head stacked on PR #48; keep all PRs draft/open/unmerged.
@@ -264,10 +265,13 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 
 **High-priority coverage review:** verify permission/approval ordering and denial at the provider boundary; stale/replayed handles and cancellation/cleanup; multimodal image-byte delivery and clearing; SAF grant/revocation; notification/call-log/SMS eligibility; USB disconnect/permission timeout; and lifecycle behavior when the app backgrounds or the process dies. These are the highest-risk integration seams and should be explicitly mapped to tests before the first full-suite run.
 
-#### 8B — Consolidated automated validation (run once preflight is complete)
-- [ ] Run the complete `:app:testShizukuDebugUnitTest` suite on the combined head; preserve full logs and distinguish pre-existing failures from regressions.
-- [ ] Run `:app:assembleShizukuDebug` on the same head; record APK path, SHA-256, versionCode, signing certificate fingerprint, and build warnings.
-- [ ] If failures occur, group by root cause, fix on the appropriate stacked branch/PR, add regression coverage, and rerun the affected tests plus the full gate when stable. No PR merge without explicit owner approval.
+#### 8B — Consolidated automated validation
+- [x] Run `:app:testShizukuDebugUnitTest` on commit `7bacd681bdd8d5b35d255933e21e66c6a3780b09`; workflow #118 passed (308 tests).
+- [x] Run `:app:assembleShizukuDebug` on the same commit; workflow #118 passed and uploaded the APK artifact.
+- [x] Run `:app:assembleRelease` on the same commit; workflow #118 passed and uploaded the APK artifact.
+- [ ] Record APK SHA-256, versionCode, and signing certificate fingerprint during Chunk 00 artifact provenance; CI success alone does not substitute for that installation baseline.
+- [ ] Execute Android instrumentation tests and S21 device acceptance in the feature-chunk order; workflow #118 did not run instrumentation.
+- If failures occur later, group by root cause, fix on the appropriate stacked branch/PR, add regression coverage, and rerun the affected tests plus the agreed full gate. No PR merge without explicit owner approval.
 
 #### 8C — S21 installation and core runtime smoke tests
 - [ ] Install/update using the same signing identity; verify package/version, launch, model selection/load, Agent Skills UI lifecycle, and no white-screen regression.
@@ -301,7 +305,7 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 - [ ] Establish regression checks for Android/API changes, Termux:API compatibility, Shizuku/Rish behavior, Gallery upstream changes, and model/runtime updates.
 - [ ] Maintain the roadmap after each future capability or compatibility change.
 
-## Current progress snapshot (2026-11-17)
+## Current progress snapshot (2026-11-19)
 
 | Workstream | Current status | Evidence / next gate |
 |---|---|---|
@@ -319,8 +323,8 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; validation deferred | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (tests added, not run); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
-| Wave 6 consolidated S21 acceptance | DEFERRED UNTIL STAGE 10 COMPLETE | Test inventory/preflight prepared; do not execute tests, builds, or S21 acceptance before all Stage 10 slices are onboarded |
-| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IMPLEMENTATION COMPLETE — 10A–10I | PDF/DOCX/XLSX/PPTX, ZIP create/extract, bounded embedded images, local image transforms/composition/annotation, conditionally configured Firebase Gemini remote generation with one-time consent, SAF output, Termux stdin chunks, Shizuku PFD output; TERMUX_RISH and on-device generation honestly unavailable; Stage 10J validation remains |
+| Wave 6 consolidated S21 acceptance | READY — CI green; device pass pending | Workflow #118 passed 308 unit tests and debug/release APK builds; execute the feature test roadmap one chunk at a time |
+| Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IMPLEMENTATION COMPLETE — 10A–10I; CI GREEN | Workflow #118 passed 308 unit tests plus Shizuku debug and release APK builds; instrumentation and S21 acceptance remain outstanding; TERMUX_RISH binary output and on-device generation remain unavailable |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
 ## Active PR dependency chain
