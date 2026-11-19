@@ -37,9 +37,46 @@ jobs:
         run: echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37.0"
       - name: Run Shizuku debug unit tests
         run: ./gradlew :app:testShizukuDebugUnitTest
+      # These repository Actions secrets must contain the existing local debug
+      # keystore (base64) and its credentials. Never commit the keystore itself.
+      - name: Prepare update-compatible signing key
+        env:
+          ANDROID_CI_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_CI_SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_CI_SIGNING_KEYSTORE_BASE64}" ]; then
+            echo "::error::Missing ANDROID_CI_SIGNING_KEYSTORE_BASE64 repository secret. Configure the established app-signing keystore before building installable APK artifacts."
+            exit 1
+          fi
+          printf '%s' "$ANDROID_CI_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/gallery-debug.keystore"
+          test -s "$RUNNER_TEMP/gallery-debug.keystore"
+          chmod 600 "$RUNNER_TEMP/gallery-debug.keystore"
       - name: Build Shizuku debug APK
+        env:
+          ANDROID_CI_SIGNING_STORE_FILE: ${{ runner.temp }}/gallery-debug.keystore
+          ANDROID_CI_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_CI_SIGNING_STORE_PASSWORD }}
+          ANDROID_CI_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_CI_SIGNING_KEY_ALIAS }}
+          ANDROID_CI_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_CI_SIGNING_KEY_PASSWORD }}
         run: ./gradlew :app:assembleShizukuDebug
+      - name: Verify update-compatible APK certificate
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/shizuku/debug/app-shizuku-debug.apk"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -n "$apksigner"
+          actual="$( "$apksigner" verify --print-certs "$apk" | awk -F': ' '/SHA-256 digest:/ { print toupper($NF); exit }' | tr -d ':')"
+          expected="AD74215CFA10F3C8D9D99BCA96512D52EB26ABB83A379C7E479E3AF26D0853E4"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::APK signing certificate mismatch. Expected $expected but got $actual"
+            exit 1
+          fi
+          echo "Verified update-compatible signing certificate: $actual"
       - name: Build release APK
+        env:
+          ANDROID_CI_SIGNING_STORE_FILE: ${{ runner.temp }}/gallery-debug.keystore
+          ANDROID_CI_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_CI_SIGNING_STORE_PASSWORD }}
+          ANDROID_CI_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_CI_SIGNING_KEY_ALIAS }}
+          ANDROID_CI_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_CI_SIGNING_KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
