@@ -17,6 +17,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+private fun sha256(bytes: ByteArray): String =
+  MessageDigest.getInstance("SHA-256").digest(bytes)
+    .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+
 class ShellArtifactDestinationAdapterTest {
   @Test fun describeRejectsPathLeafThatDoesNotMatchTheApprovedFilename() = runBlocking {
     val directory = Files.createTempDirectory("artifact-description-test").toFile()
@@ -171,10 +175,6 @@ class ShellArtifactDestinationAdapterTest {
     output.write(bytes)
     ArtifactOutputMetadata("application/pdf", bytes.size.toLong(), sha256(bytes))
   }
-
-  private fun sha256(bytes: ByteArray): String =
-    MessageDigest.getInstance("SHA-256").digest(bytes)
-      .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
   private class FakeTermuxBinaryWriter(
     private val failAfterFirstChunk: Boolean = false,
