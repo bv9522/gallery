@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImageGenerationProvidersTest {
-  @Test fun channelConsentRequesterShowsExactRemoteDisclosureAndWaitsForOneTimeDecision(): Unit = runBlocking {
+  @Test fun channelConsentRequesterShowsExactRemoteDisclosureAndWaitsForOneTimeDecision(): Unit = runBlocking<Unit> {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(Channel.UNLIMITED)
     val requester = ChannelRemoteImageGenerationConsentRequester(channel)
     val pending = async {
