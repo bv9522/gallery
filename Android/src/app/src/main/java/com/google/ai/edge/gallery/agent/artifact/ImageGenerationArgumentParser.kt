@@ -72,6 +72,7 @@ internal object ImageGenerationArgumentParser {
     return if (value != null && value.isJsonPrimitive && value.asJsonPrimitive.isString) value.asString else null
   }
 
+  // Members belong directly to this singleton; Kotlin objects do not use companion objects.
   private const val MAX_PROMPT_CHARS = 10_000
   private const val MAX_SOURCE_IMAGES = 8
   private const val MAX_SOURCE_LABEL_CHARS = 200
