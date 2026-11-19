@@ -932,6 +932,11 @@ class AndroidNativeCapabilityTool internal constructor(
       (AndroidCapability.MEDIA_SCAN to if (mediaOperations != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED) +
       (AndroidCapability.MEDIA_PLAYBACK to if (mediaOperations != null && mediaPlaybackRequester != null) ProviderAvailability.AVAILABLE else ProviderAvailability.UNSUPPORTED)
     val routedObservation = observation.copy(capabilityAvailability = capabilityAvailability)
+    if (capability == AndroidCapability.NOTIFICATION_READ &&
+      capabilityAvailability[capability] == ProviderAvailability.PERMISSION_REQUIRED
+    ) {
+      return failure("Notification-listener access is required to read notifications. Enable Gallery in Android's notification access settings, then retry.")
+    }
     val resolution = registry.resolve(capability, listOf(routedObservation))
     if (resolution.selectedProviderId == CapabilityProviderId.ANDROID_NATIVE) return null
     val detail = resolution.candidates.firstOrNull()?.detail
