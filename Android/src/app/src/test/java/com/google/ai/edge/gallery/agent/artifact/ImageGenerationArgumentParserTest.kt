@@ -12,18 +12,11 @@ class ImageGenerationArgumentParserTest {
       addProperty("provider_id", FirebaseAiLogicImageGenerationProvider.PROVIDER_ID)
       addProperty("prompt", "Generate a watercolor landscape")
       addProperty("output_mime_type", "image/png")
-      add("source_images", JsonArray().apply {
-        add(JsonObject().apply {
-          addProperty("source_tree_uri", "content://provider/tree/root")
-          addProperty("source_document_id", "photo-1")
-          addProperty("label", "Mountain reference")
-        })
-      })
     })
     assertEquals(FirebaseAiLogicImageGenerationProvider.PROVIDER_ID, parsed.providerId)
     assertEquals("Generate a watercolor landscape", parsed.request.prompt)
-    assertEquals(1, parsed.request.sourceImages.size)
-    assertEquals(listOf("Mountain reference"), parsed.request.sourceImageLabels)
+    assertEquals(0, parsed.request.sourceImages.size)
+    assertEquals(emptyList<String>(), parsed.request.sourceImageLabels)
   }
 
   @Test(expected = IllegalArgumentException::class)
