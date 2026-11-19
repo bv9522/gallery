@@ -42,12 +42,17 @@ jobs:
       - name: Prepare update-compatible signing key
         env:
           ANDROID_CI_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_CI_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_CI_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_CI_SIGNING_STORE_PASSWORD }}
+          ANDROID_CI_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_CI_SIGNING_KEY_ALIAS }}
+          ANDROID_CI_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_CI_SIGNING_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          if [ -z "${ANDROID_CI_SIGNING_KEYSTORE_BASE64}" ]; then
-            echo "::error::Missing ANDROID_CI_SIGNING_KEYSTORE_BASE64 repository secret. Configure the established app-signing keystore before building installable APK artifacts."
-            exit 1
-          fi
+          for name in ANDROID_CI_SIGNING_KEYSTORE_BASE64 ANDROID_CI_SIGNING_STORE_PASSWORD ANDROID_CI_SIGNING_KEY_ALIAS ANDROID_CI_SIGNING_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required repository Actions secret: $name. Configure all four signing secrets before building installable APK artifacts."
+              exit 1
+            fi
+          done
           printf '%s' "$ANDROID_CI_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/gallery-debug.keystore"
           test -s "$RUNNER_TEMP/gallery-debug.keystore"
           chmod 600 "$RUNNER_TEMP/gallery-debug.keystore"
