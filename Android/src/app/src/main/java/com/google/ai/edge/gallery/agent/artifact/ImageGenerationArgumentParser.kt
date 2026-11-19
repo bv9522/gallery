@@ -43,10 +43,6 @@ internal object ImageGenerationArgumentParser {
       require(sourceUnknown.isEmpty()) { "Unsupported source image field(s): ${sourceUnknown.sorted().joinToString()}." }
       val treeText = string(source, "source_tree_uri")
         ?: throw IllegalArgumentException("Each source image requires source_tree_uri.")
-      val tree = Uri.parse(treeText)
-      require(tree.scheme == "content" && DocumentsContract.isTreeUri(tree)) {
-        "Source image tree URI must come from Gallery's document-tree grant flow."
-      }
       val documentId = string(source, "source_document_id")
         ?: throw IllegalArgumentException("Each source image requires source_document_id.")
       require(documentId.isNotBlank() && documentId.length <= 1_024 &&
@@ -57,6 +53,17 @@ internal object ImageGenerationArgumentParser {
         ?: throw IllegalArgumentException("Each remote source image requires a visible label.")
       require(label.isNotBlank() && label.length <= MAX_SOURCE_LABEL_CHARS) {
         "Source image labels must contain 1–$MAX_SOURCE_LABEL_CHARS characters."
+      }
+      // Validate the URI's portable syntax before calling Android framework URI helpers.
+      val parsedTree = try { java.net.URI(treeText) } catch (_: java.net.URISyntaxException) {
+        throw IllegalArgumentException("Source image tree URI is malformed.")
+      }
+      require(parsedTree.scheme == "content" && parsedTree.path.orEmpty().contains("/tree/")) {
+        "Source image tree URI must come from Gallery's document-tree grant flow."
+      }
+      val tree = Uri.parse(treeText)
+      require(DocumentsContract.isTreeUri(tree)) {
+        "Source image tree URI must come from Gallery's document-tree grant flow."
       }
       sourceUris += DocumentsContract.buildDocumentUriUsingTree(tree, documentId)
       labels += label
