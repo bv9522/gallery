@@ -41,16 +41,16 @@ class PdfArtifactGenerator(context: Context? = null) : ArtifactGenerator {
     var totalEmbeddedBytes = 0
     try {
       val renderer = PdfPageRenderer(pdf)
-      renderer.drawText(document.title, TITLE_PAINT, bottomGap = 18f)
+      renderer.drawText(document.title, titlePaint(), bottomGap = 18f)
       document.pages.forEachIndexed { pageIndex, content ->
         content.heading?.takeIf { it.isNotBlank() }?.let {
-          renderer.drawText(it, HEADING_PAINT, bottomGap = 10f)
+          renderer.drawText(it, headingPaint(), bottomGap = 10f)
         }
-        content.paragraphs.forEach { renderer.drawText(it, BODY_PAINT, bottomGap = 10f) }
-        content.bullets.forEach { renderer.drawText("•  $it", BODY_PAINT, bottomGap = 5f, indent = 14f) }
+        content.paragraphs.forEach { renderer.drawText(it, bodyPaint(), bottomGap = 10f) }
+        content.bullets.forEach { renderer.drawText("•  $it", bodyPaint(), bottomGap = 5f, indent = 14f) }
         content.tables.forEach { table ->
           table.forEach { row ->
-            renderer.drawText(row.joinToString("   |   "), TABLE_PAINT, bottomGap = 4f)
+            renderer.drawText(row.joinToString("   |   "), tablePaint(), bottomGap = 4f)
           }
           renderer.addGap(10f)
         }
@@ -270,22 +270,22 @@ class PdfArtifactGenerator(context: Context? = null) : ArtifactGenerator {
     const val RIGHT_MARGIN = 48f
     const val TOP_MARGIN = 54f
     const val BOTTOM_MARGIN = 48f
-    val TITLE_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun titlePaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff111111.toInt()
       textSize = 22f
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val HEADING_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun headingPaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff202020.toInt()
       textSize = 15f
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val BODY_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun bodyPaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff222222.toInt()
       textSize = 10.5f
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
     }
-    val TABLE_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun tablePaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff333333.toInt()
       textSize = 8.5f
       typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
