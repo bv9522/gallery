@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ImageGenerationProvidersTest {
-  @Test fun channelConsentRequesterShowsExactRemoteDisclosureAndWaitsForOneTimeDecision() = runBlocking {
+  @Test fun channelConsentRequesterShowsExactRemoteDisclosureAndWaitsForOneTimeDecision(): Unit = runBlocking {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(Channel.UNLIMITED)
     val requester = ChannelRemoteImageGenerationConsentRequester(channel)
     val pending = async {
@@ -72,7 +72,7 @@ class ImageGenerationProvidersTest {
     assertTrue(generated)
   }
 
-  @Test fun remoteProviderRequiresVisibleLabelsForSourceImages() = runBlocking {
+  @Test fun remoteProviderRejectsSourceLabelCountMismatch() = runBlocking {
     var generated = false
     val provider = FakeProvider(ImageGenerationDataBoundary.REMOTE) { generated = true; "image/png" }
     val dispatcher = GuardedImageGenerationDispatcher(
@@ -82,10 +82,10 @@ class ImageGenerationProvidersTest {
     try {
       dispatcher.generate(
         "fake",
-        ImageGenerationRequest("make a diagram", "image/png", listOf(Uri.parse("content://local/image"))),
+        ImageGenerationRequest("make a diagram", "image/png", sourceImageLabels = listOf("Reference photo")),
         ByteArrayOutputStream(),
       )
-      throw AssertionError("Expected missing source labels to be rejected.")
+      throw AssertionError("Expected source labels without matching source images to be rejected.")
     } catch (_: IllegalArgumentException) {
       assertFalse(generated)
     }
@@ -99,7 +99,7 @@ class ImageGenerationProvidersTest {
       RemoteImageGenerationConsentRequester { consentRequests++; false },
     )
     assertEquals("image/webp", dispatcher.generate(
-      "fake", ImageGenerationRequest("draw locally", "image/webp", listOf(Uri.parse("content://local/image"))),
+      "fake", ImageGenerationRequest("draw locally", "image/webp"),
       ByteArrayOutputStream()
     ))
     assertEquals(0, consentRequests)
