@@ -124,7 +124,11 @@ For every executed case record:
 - **T03-14 — Infrared:** frequency discovery is read-only; transmit validates frequency/pattern and requires approval; no IR hardware returns unavailable; cancellation stops operation.
 - **T03-15 — NFC:** full NDEF read and text-only write; exact text/replacement warning in approval; test no tag, incompatible tag, existing content, denial, cancellation, and UI dismissal.
 - **T03-16 — Camera metadata:** fixed metadata query only; no image capture or camera stream; test no camera and multiple camera IDs.
-- **T03-17 — Ownership/no duplicate route:** verify each catalog capability resolves to exactly one provider and legacy Termux battery/volume/torch probes remain diagnostic-only.
+- **T03-17 — Photo capture:** explicit approval before launching the user-mediated camera activity; verify Gallery-owned pending MediaStore URI is published only after successful capture and deleted on cancel/failure; no unnecessary CAMERA permission prompt.
+- **T03-18 — Wallpaper:** accept only Gallery-readable image content URIs and SYSTEM/LOCK/BOTH targets; exact one-time approval; reject arbitrary paths, URLs, unsupported MIME, revoked grants, and denial without changing wallpaper.
+- **T03-19 — Microphone recording:** approval before RECORD_AUDIO permission; enforce 1–30 seconds; verify AAC/MPEG-4 MediaStore output, stop/release on cancel/background, delete unpublished row on failure, and no automatic upload/transcription or background recording.
+- **T03-20 — Audio route discovery:** list at most 24 input/output endpoints with bounded metadata; test wired/Bluetooth route changes, disconnect, no devices, and no sensitive identifiers.
+- **T03-21 — Ownership/no duplicate route:** verify each catalog capability resolves to exactly one provider and legacy Termux battery/volume/torch probes remain diagnostic-only.
 
 **Existing seams:** `TermuxApiCapabilityToolTest`, `TermuxApiReadCommandTest`, `AndroidNativeCapabilityToolTest`, `AndroidControlArgumentsTest`, `CapabilityRegistryTest`, `BatteryPercentResolverTest`.
 
@@ -200,6 +204,9 @@ For every executed case record:
 - **T07-03 — Clipboard write:** exact content shown before approval, maximum 2,048 characters; denial leaves clipboard unchanged; verify no background write.
 - **T07-04 — Active notifications:** explicit user request plus one-time NOTIFICATION_READ approval and manually enabled listener; at most 20 active entries; app label fallback; private/empty content; no history/callback capture/storage.
 - **T07-05 — Notification listener state:** disabled, revoked, disconnected, reconnecting, and enabled states reported honestly; settings launch never enables it.
+- **T07-05a — Gallery notifications:** posting requires POST_NOTIFICATIONS permission/global notifications enabled and exact approval; test denied permission, disabled app notifications, channel disabled, bounded listing/dismissal, and no false posted state.
+- **T07-05b — Notification channels:** list bounded channels, create only allowlisted/bounded channels with approval, and verify users retain control of channel settings.
+- **T07-05c — Reminder scheduling:** schedule/list/cancel through Gallery's existing AlarmManager/DataStore scheduler; verify exact local wall-clock time, reboot recovery, daylight/time-zone changes, cancellation, duplicate requests, and 50-reminder cap.
 - **T07-06 — Call log:** approval before READ_CALL_LOG prompt; maximum 20 recent entries; order, type, timestamp, duration, cached contact names; installer/Android eligibility restrictions fail closed.
 - **T07-07 — Call-log edge cases:** denied/revoked permission, empty log, private/blocked number, malformed fields, truncation, and no background read.
 - **T07-08 — SMS inbox:** approval before READ_SMS prompt; maximum 20 received inbox entries; bounded previews, sender, timestamp, read state; no sending or role change.
