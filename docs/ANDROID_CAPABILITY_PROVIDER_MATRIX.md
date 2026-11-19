@@ -109,7 +109,7 @@ The capability catalog assigns exactly one owner to every declared capability. T
 - The fork's `model_allowlists/1_0_23.json` declares `Gemma-4-E2B-it` with `llmSupportImage: true`, `llm_agent_chat` and `llm_ask_image` task support, a GPU vision-accelerator default, and an 8 GiB minimum-device-memory requirement. The tool schema exposes `capture` only when both the selected model and runtime configuration support image input; text-only models and pre-API-34 devices do not see that operation.
 - Image budgets reject oversized payloads instead of truncating them. Raw screenshot bytes are zeroed and references removed after inference and on failure/reset/turn-limit paths. LiteRT-LM may retain the visual representation in the in-memory conversation until that conversation is reset; no persistent screenshot file or background capture is created.
 - The heuristic sensitive-screen gate is deliberately conservative but cannot guarantee recognition of every sensitive visual in every third-party app. The approval prompt tells the user to verify the target screen is appropriate. No tap, gesture, typing, or app-switching capability is added.
-- Unit tests are added for multimodal coordinator delivery, image-budget enforcement, and transient-byte erasure. Unit tests and APK builds passed in workflow #118; Android instrumentation and S21 device acceptance remain pending.
+- Unit tests for multimodal coordinator delivery, image-budget enforcement, and transient-byte erasure passed in workflow #118; Android instrumentation and S21 device acceptance remain pending.
 
 ## Accessibility provider — Wave 5C approved semantic UI actions (PR #41 draft)
 
