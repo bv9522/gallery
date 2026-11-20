@@ -4,7 +4,11 @@
  */
 package com.google.ai.edge.gallery.agent.artifact
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.text.Layout
@@ -14,34 +18,57 @@ import com.google.gson.JsonObject
 import java.io.OutputStream
 
 /** Native Android PDF writer. It creates real PDF pages, not a renamed text or HTML file. */
-class PdfArtifactGenerator : ArtifactGenerator {
+class PdfArtifactGenerator(context: Context? = null) : ArtifactGenerator {
+  private val imageLoader = context?.let(::ArtifactImageSourceLoader)
   override val format = ArtifactFormat.PDF
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
-  override fun estimateBytes(request: ArtifactCreateRequest): Long? =
-    (request.payload.toString().length * ESTIMATED_BYTES_PER_CHARACTER)
-      .toLong()
+  override fun estimateBytes(request: ArtifactCreateRequest): Long? {
+    val imageCount = request.payload.get("pages")?.takeIf { it.isJsonArray }?.asJsonArray?.sumOf { page ->
+      page.takeIf { it.isJsonObject }?.asJsonObject?.get("images")
+        ?.takeIf { it.isJsonArray }?.asJsonArray?.size() ?: 0
+    } ?: 0
+    return (request.payload.toString().length.toLong() * ESTIMATED_BYTES_PER_CHARACTER +
+      imageCount.toLong() * MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES)
       .coerceAtLeast(MIN_ESTIMATED_BYTES)
       .coerceAtMost(maxOutputBytes)
+  }
 
   override fun write(request: ArtifactCreateRequest, output: OutputStream): String {
     require(request.format == ArtifactFormat.PDF) { "PDF generator received a non-PDF request." }
     val document = parse(request.payload)
     val pdf = PdfDocument()
+    var totalEmbeddedBytes = 0
     try {
       val renderer = PdfPageRenderer(pdf)
-      renderer.drawText(document.title, TITLE_PAINT, bottomGap = 18f)
+      renderer.drawText(document.title, titlePaint(), bottomGap = 18f)
       document.pages.forEachIndexed { pageIndex, content ->
         content.heading?.takeIf { it.isNotBlank() }?.let {
-          renderer.drawText(it, HEADING_PAINT, bottomGap = 10f)
+          renderer.drawText(it, headingPaint(), bottomGap = 10f)
         }
-        content.paragraphs.forEach { renderer.drawText(it, BODY_PAINT, bottomGap = 10f) }
-        content.bullets.forEach { renderer.drawText("•  $it", BODY_PAINT, bottomGap = 5f, indent = 14f) }
+        content.paragraphs.forEach { renderer.drawText(it, bodyPaint(), bottomGap = 10f) }
+        content.bullets.forEach { renderer.drawText("•  $it", bodyPaint(), bottomGap = 5f, indent = 14f) }
         content.tables.forEach { table ->
           table.forEach { row ->
-            renderer.drawText(row.joinToString("   |   "), TABLE_PAINT, bottomGap = 4f)
+            renderer.drawText(row.joinToString("   |   "), tablePaint(), bottomGap = 4f)
           }
           renderer.addGap(10f)
+        }
+        content.images.forEach { imageRequest ->
+          val asset = checkNotNull(imageLoader) {
+            "Embedded PDF images require the Gallery application context."
+          }.load(imageRequest)
+          totalEmbeddedBytes += asset.bytes.size
+          require(totalEmbeddedBytes <= MAX_TOTAL_EMBEDDED_IMAGE_BYTES) {
+            "Embedded PDF images exceed the $MAX_TOTAL_EMBEDDED_IMAGE_BYTES byte combined limit."
+          }
+          val bitmap = BitmapFactory.decodeByteArray(asset.bytes, 0, asset.bytes.size)
+            ?: throw IllegalArgumentException("Could not decode the normalized PDF image.")
+          try {
+            renderer.drawImage(bitmap)
+          } finally {
+            bitmap.recycle()
+          }
         }
       }
       renderer.finish()
@@ -67,10 +94,11 @@ class PdfArtifactGenerator : ArtifactGenerator {
       ?: throw IllegalArgumentException("PDF payload requires a pages array.")
     require(pages.size() in 1..MAX_PAGES) { "PDF must contain 1–$MAX_PAGES content sections." }
     var totalCharacters = title.length
+    var totalImages = 0
     val parsedPages = pages.mapIndexed { index, element ->
       require(element.isJsonObject) { "PDF page section ${index + 1} must be an object." }
       val page = element.asJsonObject
-      val pageUnknown = page.keySet() - setOf("heading", "paragraphs", "bullet_items", "table")
+      val pageUnknown = page.keySet() - setOf("heading", "paragraphs", "bullet_items", "table", "images")
       require(pageUnknown.isEmpty()) {
         "Unsupported field(s) in PDF section ${index + 1}: ${pageUnknown.sorted().joinToString()}."
       }
@@ -78,6 +106,11 @@ class PdfArtifactGenerator : ArtifactGenerator {
       val paragraphs = stringArray(page, "paragraphs", MAX_BLOCKS_PER_SECTION)
       val bullets = stringArray(page, "bullet_items", MAX_BLOCKS_PER_SECTION)
       val tables = parseTables(page.get("table"))
+      val images = ArtifactEmbeddedImageArguments.parse(page.get("images"))
+      totalImages += images.size
+      require(totalImages <= MAX_TOTAL_EMBEDDED_IMAGES) {
+        "PDF exceeds the $MAX_TOTAL_EMBEDDED_IMAGES embedded image limit."
+      }
       require(paragraphs.size + bullets.size <= MAX_BLOCKS_PER_SECTION) {
         "PDF section ${index + 1} exceeds $MAX_BLOCKS_PER_SECTION paragraph and bullet blocks."
       }
@@ -86,7 +119,7 @@ class PdfArtifactGenerator : ArtifactGenerator {
       require(totalCharacters <= MAX_TOTAL_CHARACTERS) {
         "PDF text exceeds the $MAX_TOTAL_CHARACTERS character content limit."
       }
-      PdfSection(heading, paragraphs, bullets, tables)
+      PdfSection(heading, paragraphs, bullets, tables, images)
     }
     return PdfDocumentContent(title, parsedPages)
   }
@@ -128,7 +161,7 @@ class PdfArtifactGenerator : ArtifactGenerator {
         }
         cell.asString.also { require(it.length <= MAX_CELL_CHARS) { "Table cell exceeds $MAX_CELL_CHARS characters." } }
       }
-    }) }
+    })
   }
 
   private data class PdfDocumentContent(val title: String, val pages: List<PdfSection>)
@@ -137,6 +170,7 @@ class PdfArtifactGenerator : ArtifactGenerator {
     val paragraphs: List<String>,
     val bullets: List<String>,
     val tables: List<List<List<String>>>,
+    val images: List<ArtifactEmbeddedImageRequest>,
   )
 
   private class PdfPageRenderer(private val document: PdfDocument) {
@@ -172,6 +206,18 @@ class PdfArtifactGenerator : ArtifactGenerator {
 
     fun addGap(points: Float) { cursorY += points }
 
+    fun drawImage(bitmap: Bitmap) {
+      val maxWidth = PAGE_WIDTH - LEFT_MARGIN - RIGHT_MARGIN
+      val maxHeight = 360f
+      val scale = minOf(maxWidth / bitmap.width, maxHeight / bitmap.height)
+      val width = bitmap.width * scale
+      val height = bitmap.height * scale
+      if (cursorY + height > PAGE_HEIGHT - BOTTOM_MARGIN) startPage()
+      val target = RectF(LEFT_MARGIN, cursorY, LEFT_MARGIN + width, cursorY + height)
+      canvas?.drawBitmap(bitmap, null, target, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+      cursorY = target.bottom + 12f
+    }
+
     fun newPage() { startPage() }
 
     fun finish() {
@@ -206,6 +252,9 @@ class PdfArtifactGenerator : ArtifactGenerator {
   private companion object {
     const val MAX_OUTPUT_BYTES = 10L * 1024L * 1024L
     const val MAX_PAGES = 100
+    const val MAX_TOTAL_EMBEDDED_IMAGES = 8
+    const val MAX_TOTAL_EMBEDDED_IMAGE_BYTES = 8 * 1024 * 1024
+    const val MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES = 4L * 1024L * 1024L
     const val MAX_TITLE_CHARS = 200
     const val MAX_BLOCK_CHARS = 8_000
     const val MAX_BLOCKS_PER_SECTION = 100
@@ -221,22 +270,22 @@ class PdfArtifactGenerator : ArtifactGenerator {
     const val RIGHT_MARGIN = 48f
     const val TOP_MARGIN = 54f
     const val BOTTOM_MARGIN = 48f
-    val TITLE_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun titlePaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff111111.toInt()
       textSize = 22f
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val HEADING_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun headingPaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff202020.toInt()
       textSize = 15f
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
-    val BODY_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun bodyPaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff222222.toInt()
       textSize = 10.5f
       typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
     }
-    val TABLE_PAINT = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun tablePaint() = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
       color = 0xff333333.toInt()
       textSize = 8.5f
       typeface = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)

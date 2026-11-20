@@ -32,6 +32,50 @@ class ImageTransformArgumentsTest {
     assertEquals(90, parsed.quality)
   }
 
+  @Test fun acceptsImageCompositionAndAnnotation() {
+    val parsed = ImageTransformArguments.parse(JsonObject().apply {
+      addProperty("source_tree_uri", "content://provider/tree/root")
+      addProperty("source_document_id", "primary")
+      add("additional_sources", com.google.gson.JsonArray().apply {
+        add(JsonObject().apply {
+          addProperty("source_tree_uri", "content://provider/tree/root")
+          addProperty("source_document_id", "secondary")
+          addProperty("alt_text", "Second image")
+        })
+      })
+      addProperty("annotation_text", "Project milestone")
+      addProperty("annotation_position", "top")
+    })
+    assertEquals(1, parsed.additionalSources.size)
+    assertEquals("Project milestone", parsed.annotationText)
+    assertEquals("top", parsed.annotationPosition)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun rejectsCompositionCombinedWithGeometricTransforms() {
+    ImageTransformArguments.parse(JsonObject().apply {
+      addProperty("source_tree_uri", "content://provider/tree/root")
+      addProperty("source_document_id", "primary")
+      add("additional_sources", com.google.gson.JsonArray().apply {
+        add(JsonObject().apply {
+          addProperty("source_tree_uri", "content://provider/tree/root")
+          addProperty("source_document_id", "secondary")
+        })
+      })
+      addProperty("resize_width", 800)
+      addProperty("resize_height", 600)
+    })
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun rejectsAnnotationPositionWithoutAnnotationText() {
+    ImageTransformArguments.parse(JsonObject().apply {
+      addProperty("source_tree_uri", "content://provider/tree/root")
+      addProperty("source_document_id", "primary")
+      addProperty("annotation_position", "top")
+    })
+  }
+
   @Test(expected = IllegalArgumentException::class)
   fun rejectsIncompleteResizePair() {
     ImageTransformArguments.parse(JsonObject().apply {

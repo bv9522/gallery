@@ -1184,7 +1184,7 @@ class AndroidNativeCapabilityAdapter(
       }
     }
     var registered = false
-    try {
+    return try {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         appContext.registerReceiver(receiver, IntentFilter(action), Context.RECEIVER_NOT_EXPORTED)
       } else {
@@ -1192,7 +1192,7 @@ class AndroidNativeCapabilityAdapter(
         appContext.registerReceiver(receiver, IntentFilter(action))
       }
       registered = true
-      return withTimeoutOrNull(USB_PERMISSION_TIMEOUT_MS) {
+      withTimeoutOrNull(USB_PERMISSION_TIMEOUT_MS) {
         suspendCancellableCoroutine { continuation ->
           continuationRef.set(continuation)
           continuation.invokeOnCancellation { continuationRef.compareAndSet(continuation, null) }

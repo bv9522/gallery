@@ -65,11 +65,47 @@ android {
     }
   }
 
+  // CI may provide the repository's established signing key so generated APKs
+  // remain update-compatible with existing installations. Local builds continue
+  // to use the normal machine-local debug key when these variables are absent.
+  val ciSigningStoreFile = System.getenv("ANDROID_CI_SIGNING_STORE_FILE")
+  val ciSigningStorePassword = System.getenv("ANDROID_CI_SIGNING_STORE_PASSWORD")
+  val ciSigningKeyAlias = System.getenv("ANDROID_CI_SIGNING_KEY_ALIAS")
+  val ciSigningKeyPassword = System.getenv("ANDROID_CI_SIGNING_KEY_PASSWORD")
+  val ciSigningValues = listOf(
+      ciSigningStoreFile,
+      ciSigningStorePassword,
+      ciSigningKeyAlias,
+      ciSigningKeyPassword,
+  )
+  require(ciSigningValues.all { it.isNullOrBlank() } || ciSigningValues.all { !it.isNullOrBlank() }) {
+    "CI signing configuration is incomplete. Provide all ANDROID_CI_SIGNING_* variables or none."
+  }
+  val hasCiSigningConfig = ciSigningValues.all { !it.isNullOrBlank() }
+
+  signingConfigs {
+    if (hasCiSigningConfig) {
+      create("ciDebug") {
+        storeFile = file(ciSigningStoreFile!!)
+        storePassword = ciSigningStorePassword
+        keyAlias = ciSigningKeyAlias
+        keyPassword = ciSigningKeyPassword
+      }
+    }
+  }
+
   buildTypes {
+    debug {
+      if (hasCiSigningConfig) {
+        signingConfig = signingConfigs.getByName("ciDebug")
+      }
+    }
     release {
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("debug")
+      signingConfig =
+          if (hasCiSigningConfig) signingConfigs.getByName("ciDebug")
+          else signingConfigs.getByName("debug")
     }
   }
   compileOptions {
@@ -127,6 +163,9 @@ dependencies {
   implementation(platform(libs.firebase.bom))
   implementation(libs.firebase.analytics)
   implementation(libs.firebase.messaging)
+  implementation(libs.firebase.ai)
+  implementation(libs.firebase.appcheck.debug)
+  implementation(libs.firebase.appcheck.playintegrity)
   implementation(libs.androidx.exifinterface)
   implementation(libs.moshi.kotlin)
   ksp(libs.hilt.android.compiler)

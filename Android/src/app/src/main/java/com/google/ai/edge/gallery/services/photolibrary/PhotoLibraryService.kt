@@ -749,6 +749,14 @@ class DefaultPhotoLibraryService(
 
   override suspend fun createAssetFromUri(uri: Uri): PhotoAsset =
     withContext(ioDispatcher) {
+      val uriString = uri.toString()
+      val fetched = extractMediaStoreId(uri)?.let { fetchAsset(it) }
+      if (fetched != null) {
+        return@withContext fetched.copy(
+          id = uriString,
+          contentUri = if ("picker" in uriString) fetched.contentUri else uri,
+        )
+      }
       val mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
       var displayName = uri.lastPathSegment ?: if (mimeType?.startsWith("video/") == true) "Video" else "Media"
       var sizeBytes = 0L
@@ -791,7 +799,6 @@ class DefaultPhotoLibraryService(
           }
         }.onFailure { Log.w(TAG, "Unable to read modification time for selected document URI.", it) }
       }
-      val uriString = uri.toString()
       val extensionSuggestsVideo =
         listOf(".mp4", ".mov", ".mkv", ".webm", ".3gp", ".m4v").any {
           displayName.endsWith(it, ignoreCase = true) || uriString.endsWith(it, ignoreCase = true)
@@ -1362,77 +1369,6 @@ class DefaultPhotoLibraryService(
     }
     return bitmap
   }
-
-  override suspend fun createAssetFromUri(uri: Uri): PhotoAsset =
-    withContext(ioDispatcher) {
-      val uriString = uri.toString()
-      val fetched = extractMediaStoreId(uri)?.let { fetchAsset(it) }
-      if (fetched != null) {
-        return@withContext fetched.copy(
-          id = uriString,
-          contentUri = if ("picker" in uriString) fetched.contentUri else uri,
-        )
-      }
-      var isVideo = false
-      var durationMs: Long? = null
-      var displayName = uri.lastPathSegment ?: "Media"
-
-      try {
-        val mimeType = context.contentResolver.getType(uri)
-        if (mimeType != null) {
-          isVideo = mimeType.startsWith("video/")
-        }
-      } catch (e: Exception) {
-        // Fallback to URI analysis
-      }
-
-      if (!isVideo) {
-        isVideo =
-          uriString.contains("/video/") ||
-            listOf(".mp4", ".mov", ".mkv", ".webm", ".3gp").any {
-              uriString.endsWith(it, ignoreCase = true)
-            }
-      }
-
-      try {
-        context.contentResolver
-          .query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
-          ?.use { cursor ->
-            if (cursor.moveToFirst()) {
-              val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-              if (nameIdx >= 0 && !cursor.isNull(nameIdx)) {
-                cursor.getString(nameIdx)?.let { displayName = it }
-              }
-            }
-          }
-      } catch (e: Exception) {
-        // Fallback
-      }
-
-      if (isVideo) {
-        try {
-          val retriever = MediaMetadataRetriever()
-          try {
-            retriever.setDataSource(context, uri)
-            val durStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-            durationMs = durStr?.toLongOrNull()
-          } finally {
-            retriever.release()
-          }
-        } catch (e: Exception) {
-          // Ignored
-        }
-      }
-
-      PhotoAsset(
-        id = uri.toString(),
-        contentUri = uri,
-        dateTaken = System.currentTimeMillis(),
-        displayName = displayName,
-        isVideo = isVideo,
-        durationMs = durationMs,
-      )
-    }
 
   private fun getCityAndState(context: Context, lat: Double, lng: Double): String? {
     return try {

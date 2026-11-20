@@ -112,6 +112,7 @@ import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
 import com.google.ai.edge.gallery.tools.AskArtifactGenerationPermissionAction
+import com.google.ai.edge.gallery.tools.AskRemoteImageGenerationPermissionAction
 import com.google.ai.edge.gallery.tools.AuthenticateBiometricToolAction
 import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.OpenDocumentTreeToolAction
@@ -193,6 +194,9 @@ fun AgentChatScreen(
   }
   var currentArtifactGenerationPermissionAction by remember {
     mutableStateOf<AskArtifactGenerationPermissionAction?>(null)
+  }
+  var currentRemoteImageGenerationPermissionAction by remember {
+    mutableStateOf<AskRemoteImageGenerationPermissionAction?>(null)
   }
   var currentPhotoCaptureAction by remember { mutableStateOf<CapturePhotoToolAction?>(null) }
   var currentDocumentTreeAction by remember { mutableStateOf<OpenDocumentTreeToolAction?>(null) }
@@ -562,6 +566,9 @@ fun AgentChatScreen(
             is AskArtifactGenerationPermissionAction -> {
               currentArtifactGenerationPermissionAction = action
             }
+            is AskRemoteImageGenerationPermissionAction -> {
+              currentRemoteImageGenerationPermissionAction = action
+            }
             is AuthenticateBiometricToolAction -> {
               val activity = context.findFragmentActivity()
               if (activity == null) {
@@ -851,6 +858,20 @@ fun AgentChatScreen(
       onResult = { approved ->
         action.result.complete(approved)
         currentArtifactGenerationPermissionAction = null
+      },
+    )
+  }
+
+  if (currentRemoteImageGenerationPermissionAction != null) {
+    val action = currentRemoteImageGenerationPermissionAction!!
+    RemoteImageGenerationPermissionDialog(
+      providerId = action.providerId,
+      prompt = action.prompt,
+      outputMimeType = action.outputMimeType,
+      sourceImageLabels = action.sourceImageLabels,
+      onResult = { approved ->
+        action.result.complete(approved)
+        currentRemoteImageGenerationPermissionAction = null
       },
     )
   }

@@ -4,6 +4,7 @@
  */
 package com.google.ai.edge.gallery.agent.artifact
 
+import android.content.Context
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -12,25 +13,39 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /** Minimal editable Word OOXML package writer; no office runtime or third-party dependency. */
-class DocxArtifactGenerator : ArtifactGenerator {
+class DocxArtifactGenerator(context: Context? = null) : ArtifactGenerator {
+  private val imageLoader = context?.let(::ArtifactImageSourceLoader)
   override val format = ArtifactFormat.DOCX
   override val maxOutputBytes = MAX_OUTPUT_BYTES
 
-  override fun estimateBytes(request: ArtifactCreateRequest): Long? =
-    (request.payload.toString().length * ESTIMATED_BYTES_PER_CHARACTER)
-      .toLong().coerceAtLeast(MIN_ESTIMATED_BYTES).coerceAtMost(maxOutputBytes)
+  override fun estimateBytes(request: ArtifactCreateRequest): Long? {
+    val imageCount = request.payload.get("images")?.takeIf { it.isJsonArray }?.asJsonArray?.size() ?: 0
+    return (request.payload.toString().length.toLong() * ESTIMATED_BYTES_PER_CHARACTER +
+      imageCount.toLong() * MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES)
+      .coerceAtLeast(MIN_ESTIMATED_BYTES)
+      .coerceAtMost(maxOutputBytes)
+  }
 
   fun validatePayload(payload: JsonObject) { DocxPayload.parse(payload) }
 
   override fun write(request: ArtifactCreateRequest, output: OutputStream): String {
     require(request.format == ArtifactFormat.DOCX) { "DOCX generator received a non-DOCX request." }
     val content = DocxPayload.parse(request.payload)
+    val embeddedImages = content.images.map { image ->
+      checkNotNull(imageLoader) { "Embedded DOCX images require the Gallery application context." }.load(image)
+    }
+    require(embeddedImages.sumOf { it.bytes.size } <= MAX_TOTAL_EMBEDDED_IMAGE_BYTES) {
+      "Embedded DOCX images exceed the $MAX_TOTAL_EMBEDDED_IMAGE_BYTES byte combined limit."
+    }
     val zip = ZipOutputStream(output).apply { setLevel(COMPRESSION_LEVEL) }
-    addEntry(zip, "[Content_Types].xml", contentTypes(content))
+    addEntry(zip, "[Content_Types].xml", contentTypes(content, embeddedImages))
     addEntry(zip, "_rels/.rels", rootRelationships())
-    addEntry(zip, "word/document.xml", documentXml(content))
+    addEntry(zip, "word/document.xml", documentXml(content, embeddedImages))
     addEntry(zip, "word/styles.xml", stylesXml())
-    addEntry(zip, "word/_rels/document.xml.rels", documentRelationships(content))
+    addEntry(zip, "word/_rels/document.xml.rels", documentRelationships(content, embeddedImages))
+    embeddedImages.forEachIndexed { index, image ->
+      addBinaryEntry(zip, "word/media/image${index + 1}.${image.extension}", image.bytes)
+    }
     if (content.header != null) addEntry(zip, "word/header1.xml", headerFooterXml("hdr", content.header))
     if (content.footer != null) addEntry(zip, "word/footer1.xml", headerFooterXml("ftr", content.footer))
     zip.finish()
@@ -44,11 +59,19 @@ class DocxArtifactGenerator : ArtifactGenerator {
     zip.closeEntry()
   }
 
-  private fun contentTypes(content: DocxContent) = buildString {
+  private fun addBinaryEntry(zip: ZipOutputStream, name: String, value: ByteArray) {
+    zip.putNextEntry(ZipEntry(name))
+    zip.write(value)
+    zip.closeEntry()
+  }
+
+  private fun contentTypes(content: DocxContent, images: List<ArtifactEmbeddedImageAsset>) = buildString {
     append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
     append("""<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">""")
     append("""<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>""")
     append("""<Default Extension="xml" ContentType="application/xml"/>""")
+    if (images.any { it.extension == "jpg" }) append("""<Default Extension="jpg" ContentType="image/jpeg"/>""")
+    if (images.any { it.extension == "png" }) append("""<Default Extension="png" ContentType="image/png"/>""")
     append("""<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>""")
     append("""<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>""")
     if (content.header != null) append("""<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>""")
@@ -62,12 +85,15 @@ class DocxArtifactGenerator : ArtifactGenerator {
       """<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>""" +
       "</Relationships>"
 
-  private fun documentRelationships(content: DocxContent) = buildString {
+  private fun documentRelationships(content: DocxContent, images: List<ArtifactEmbeddedImageAsset>) = buildString {
     append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
     append("""<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">""")
     append("""<Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>""")
     if (content.header != null) append("""<Relationship Id="rIdHeader" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>""")
     if (content.footer != null) append("""<Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>""")
+    images.forEachIndexed { index, image ->
+      append("""<Relationship Id="rIdImage${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${index + 1}.${image.extension}"/>""")
+    }
     append("</Relationships>")
   }
 
@@ -79,10 +105,11 @@ class DocxArtifactGenerator : ArtifactGenerator {
       """<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="240" w:after="120"/></w:pPr><w:rPr><w:b/><w:sz w:val="28"/></w:rPr></w:style>""" +
       "</w:styles>"
 
-  private fun documentXml(content: DocxContent) = buildString {
+  private fun documentXml(content: DocxContent, images: List<ArtifactEmbeddedImageAsset>) = buildString {
     append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
-    append("""<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>""")
+    append("""<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>""")
     append(paragraph(content.title, "Title"))
+    images.forEachIndexed { index, image -> append(inlineImage(image, index)) }
     content.sections.forEach { section ->
       section.heading?.takeIf { it.isNotBlank() }?.let { append(paragraph(it, "Heading1")) }
       section.paragraphs.forEach { append(paragraph(it)) }
@@ -94,6 +121,17 @@ class DocxArtifactGenerator : ArtifactGenerator {
     if (content.footer != null) append("""<w:footerReference w:type="default" r:id="rIdFooter"/>""")
     append("""<w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>""")
     append("</w:sectPr></w:body></w:document>")
+  }
+
+  private fun inlineImage(image: ArtifactEmbeddedImageAsset, index: Int): String {
+    val maxWidth = 5_029_200L
+    val maxHeight = 5_486_400L
+    val scale = minOf(maxWidth.toDouble() / image.width, maxHeight.toDouble() / image.height, 1.0)
+    val width = (image.width * scale).toLong().coerceAtLeast(1L)
+    val height = (image.height * scale).toLong().coerceAtLeast(1L)
+    val id = index + 1
+    val alt = xmlEscape(image.altText)
+    return """<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="$width" cy="$height"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:docPr id="$id" name="Gallery image $id" descr="$alt"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="$id" name="Gallery image $id" descr="$alt"/><pic:cNvPicPr><a:picLocks noChangeAspect="1"/></pic:cNvPicPr></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdImage$id"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="$width" cy="$height"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>"""
   }
 
   private fun paragraph(text: String, style: String? = null): String = buildString {
@@ -149,6 +187,7 @@ class DocxArtifactGenerator : ArtifactGenerator {
     val header: String?,
     val footer: String?,
     val sections: List<DocxSection>,
+    val images: List<ArtifactEmbeddedImageRequest>,
   )
   private data class DocxSection(
     val heading: String?,
@@ -159,7 +198,7 @@ class DocxArtifactGenerator : ArtifactGenerator {
 
   private object DocxPayload {
     fun parse(payload: JsonObject): DocxContent {
-      val unknown = payload.keySet() - setOf("title", "header", "footer", "sections")
+      val unknown = payload.keySet() - setOf("title", "header", "footer", "sections", "images")
       require(unknown.isEmpty()) { "Unsupported DOCX payload field(s): ${unknown.sorted().joinToString()}." }
       val title = string(payload, "title")
       require(title.isNotBlank() && title.length <= MAX_TITLE_CHARS) {
@@ -168,6 +207,7 @@ class DocxArtifactGenerator : ArtifactGenerator {
       require(isXml10Text(title)) { "DOCX title contains characters not permitted in XML 1.0." }
       val header = optionalString(payload, "header", MAX_HEADER_FOOTER_CHARS)
       val footer = optionalString(payload, "footer", MAX_HEADER_FOOTER_CHARS)
+      val images = ArtifactEmbeddedImageArguments.parse(payload.get("images"))
       val sections = payload.get("sections")?.takeIf { it.isJsonArray }?.asJsonArray
         ?: throw IllegalArgumentException("DOCX payload requires a sections array.")
       require(sections.size() in 1..MAX_SECTIONS) { "DOCX must contain 1–$MAX_SECTIONS sections." }
@@ -191,7 +231,7 @@ class DocxArtifactGenerator : ArtifactGenerator {
         require(total <= MAX_TOTAL_CHARACTERS) { "DOCX text exceeds the $MAX_TOTAL_CHARACTERS character limit." }
         DocxSection(heading, paragraphs, bullets, tables)
       }
-      return DocxContent(title, header, footer, parsed)
+      return DocxContent(title, header, footer, parsed, images)
     }
 
     private fun string(obj: JsonObject, key: String): String {
@@ -244,7 +284,7 @@ class DocxArtifactGenerator : ArtifactGenerator {
             require(isXml10Text(it)) { "DOCX table cell contains characters not permitted in XML 1.0." }
           }
         }
-      }) }
+      })
     }
 
     private fun isXml10Text(value: String): Boolean {
@@ -272,6 +312,8 @@ class DocxArtifactGenerator : ArtifactGenerator {
     const val MAX_BLOCK_CHARS = 8_000
     const val MAX_BLOCKS_PER_SECTION = 100
     const val MAX_TOTAL_CHARACTERS = 100_000
+    const val MAX_TOTAL_EMBEDDED_IMAGE_BYTES = 8 * 1024 * 1024
+    const val MAX_ESTIMATED_EMBEDDED_IMAGE_BYTES = 4L * 1024L * 1024L
     const val MAX_TABLE_ROWS = 100
     const val MAX_TABLE_COLUMNS = 8
     const val MAX_CELL_CHARS = 1_000
