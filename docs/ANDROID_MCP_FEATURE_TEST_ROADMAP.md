@@ -1,8 +1,8 @@
 # Android MCP — Feature-by-Feature Test Roadmap
 
-**Status:** Test strategy authored; execution is deliberately chunked and has not started on the Galaxy S21.  
+**Status:** Chunked validation is in progress on the Galaxy S21. Chunk 00 is active; no later chunks have started. Preserve the existing 12-chunk sequence and do not advance until the current chunk's exit criteria are evidenced.  
 **Owner workflow:** Review and execute one chunk at a time with Brian. Do not run the entire device matrix in one session.  
-**Implementation baseline:** Stage 10A–10I onboarding is implemented on the current stacked branch. GitHub Actions workflow #118 (commit `7bacd681bdd8d5b35d255933e21e66c6a3780b09`) passed `:app:testShizukuDebugUnitTest`, `:app:assembleShizukuDebug`, and `:app:assembleRelease`. The unit task reported 308 tests. This is automated CI evidence only; it is not proof of device acceptance or exhaustive feature coverage.  
+**Implementation baseline:** Stage 10A–10I onboarding is implemented on the current stacked branch. GitHub Actions workflow #130 passed unit tests, Shizuku debug build, signing-certificate verification, release build, and artifact upload on PR #60 head `e839f0a6ed612820ee44d550a1606e81de828604`. Workflow #118 remains historical CI evidence (308 unit tests). CI is not proof of device acceptance or exhaustive feature coverage.  
 **Target:** unrooted Samsung Galaxy S21 SM-G991U, Android 15 / One UI 7, package `com.google.aiedge.gallery.shizuku`. Keep Knox intact.  
 **Related authority:** [Master project roadmap and progress ledger](ANDROID_CAPABILITY_OWNERSHIP_AND_IMPLEMENTATION_PLAN.md), [provider matrix](ANDROID_CAPABILITY_PROVIDER_MATRIX.md).
 
@@ -62,6 +62,21 @@ For every executed case record:
 - **T00-07 — Permission observation:** open provider status/discovery for every capability family and verify no Android runtime permission or special-access prompt appears merely from discovery.
 - **T00-08 — Baseline footprint:** record free storage, installed APK size, model storage, idle RAM/process state, battery percentage/temperature, and initial thermal state.
 
+**Execution method:** Use PowerShell/ADB for artifact/package/signature/install state, process lifecycle, permissions, persisted grants, storage, battery/thermal, model-file inventory, and logs wherever the platform exposes the evidence. Manual S21 interaction is still required for visual rendering, actual navigation, model selection/loading/unloading, Agent Skills rendering, and provider-discovery screens. ADB evidence does not substitute for visual acceptance; manual observations do not replace machine-readable state.
+
+**Live execution record (2026-11-19):**
+
+| Case | Current status | Evidence / remaining work |
+|---|---|---|
+| T00-01 | PARTIAL | PR #60 head `e839f0a6ed612820ee44d550a1606e81de828604`; workflow #130 succeeded and artifact #14495336561 was downloaded. Installed package is `com.google.aiedge.gallery.shizuku`, versionName `1.0.23`, versionCode `52`. Downloaded APK and installed base APK have matching signing certificate SHA-256 fingerprint `ad74215cfa10f3c8d9d99bca96512d52eb26abb83a379c7e479e3af26d0853e4`. Still record the APK file SHA-256 and explicitly compare debug/release artifact identities. |
+| T00-02 | PASS | `adb install -r` succeeded with matching signing identity. `firstInstallTime=2026-11-05 21:12:13` remained unchanged; `lastUpdateTime=2026-11-18 22:22:58`. No uninstall or data clear. |
+| T00-03 | PARTIAL | ADB launch created MainActivity and process PID 10373; no fatal exception/fatal signal in captured launch logs. Brian visually confirmed normal home screen and prompt/smooth navigation. Foreground/background, rotation if supported, return from system picker/settings, and relaunch lifecycle cases remain. |
+| T00-04 | PARTIAL | Gemma 4 E2B-it model file and runtime caches found under `/sdcard/Android/data/com.google.aiedge.gallery.shizuku/files/Gemma_4_E2B_it/`; Brian selected it and observed successful loading/running. Unload, reload, and return-to-chat lifecycle checks remain. |
+| T00-05 | PARTIAL | Brian opened Agent Skills with Gemma loaded and confirmed normal content rendering (previous white-screen regression absent in this observation). Full open/close, model selection, back navigation, and reopen-chat sequence remains. |
+| T00-06 | PENDING | Verify selected app settings and persisted SAF grants survive ordinary process death/relaunch. No app-data reset or uninstall. |
+| T00-07 | PARTIAL | `dumpsys package` confirms Shizuku API and Termux RUN_COMMAND permissions granted; notification and microphone are granted; SMS, call-log, contacts, calendar, camera, media-library, and Bluetooth runtime permissions are denied. Brian observed no permission prompts during the completed UI checks. Provider status/discovery still needs to be inspected for every capability family without triggering prompts. |
+| T00-08 | PARTIAL | Baseline: Android 15/API 35; `/data` 105 GiB total, 54 GiB used, 51 GiB available (52%); battery 50%, 24.3°C, 3853 mV. Gemma files are present. Installed APK size, aggregate model storage, idle RAM/process state, and initial thermal state remain. The latest `pidof` and `dumpsys meminfo` returned no process because the app was not running at capture time; this is not a crash or test failure and must be recaptured with the app running. |
+
 **Exit:** correct artifact and package are confirmed; app launches; model/Agent Skills UI is usable; no destructive setup action was needed.
 
 ## Chunk 01 — Unified shell execution and backend identity
@@ -97,8 +112,7 @@ For every executed case record:
 - **T02-08 — Denial/dismissal:** deny and dismiss; verify provider is never invoked and no permission prompt appears afterward.
 - **T02-09 — Approval timeout/channel closure:** close chat or remove the action collector during approval; verify fail-closed behavior.
 - **T02-10 — Cancellation propagation:** cancel while awaiting approval and while provider is running; verify no late mutation or duplicate continuation.
-- **T02-11 — Result/context budgets:** return large bounded provider output and verify truncation/budget handling preserves authoritative fields and does not exhaust model context.
-- **T02-12 — Tool-loop ceiling:** provoke repeated tool requests; verify loop limits, cancellation, and clear termination.
+- **T02-11 — Result/context budgets:** return large bounded provider output and verify truncation/budget handling preserves authoritative fields and does not exhaust model context.- **T02-12 — Tool-loop ceiling:** provoke repeated tool requests; verify loop limits, cancellation, and clear termination.
 - **T02-13 — Lifecycle recovery:** background/foreground chat during model generation, approval, and tool result delivery; verify no lost approval or stale response.
 - **T02-14 — Multimodal screenshot result:** approved screenshot bytes reach Gemma as a multimodal tool result; verify correct image dimensions/encoding, bounded payload, no path/URI leakage, and byte/reference cleanup after the turn.
 
@@ -198,7 +212,6 @@ For every executed case record:
 ## Chunk 07 — Privacy-sensitive information and user-mediated communication
 
 **Goal:** Verify sensitive data is read only after clear intent, exact approval, and permission; no background collection or persistence.
-
 - **T07-01 — Contacts search:** approval precedes READ_CONTACTS prompt; return at most 20 bounded name/phone/email fields; test denial, empty database, missing fields, and revoked permission.
 - **T07-02 — Clipboard read:** foreground-only plain-text snapshot, maximum five items/8,192 characters; test background, sensitive/empty clipboard, Android access restrictions, and no history collection.
 - **T07-03 — Clipboard write:** exact content shown before approval, maximum 2,048 characters; denial leaves clipboard unchanged; verify no background write.
@@ -298,7 +311,6 @@ For every executed case record:
 - **T10-22 — PPTX bounds:** slide/block/text/output limits and malformed layout data rejected.
 
 ### ZIP create/extract
-
 - **T10-23 — ZIP creation:** up to 100 UTF-8 entries, per-entry/total limits, safe nested paths, duplicate/case collisions, file-directory collisions, and valid archive integrity.
 - **T10-24 — ZIP hostile paths:** traversal, absolute paths, drive prefixes, backslashes, control chars, reserved names, empty/dot segments, and duplicate targets rejected.
 - **T10-25 — ZIP extraction preflight:** 500-entry, 50 MiB compressed/expanded, 10 MiB per-file, and 100:1 ratio limits; unknown sizes and malformed central directory handled safely.
@@ -395,6 +407,7 @@ These limitations must remain documented in the result record and must not be re
 | Shizuku debug APK build | PASS | Workflow #118 |
 | Release APK build | PASS | Workflow #118 |
 | Termux APP_SHELL / Shizuku PFD instrumentation execution | NOT YET VERIFIED | Instrumentation source exists; workflow #118 did not run instrumentation task |
-| Galaxy S21 acceptance | NOT STARTED | Requires interactive device pass |
-| Full capability chunks 00–11 | PLANNED | Execute one chunk at a time with owner |
+| Galaxy S21 acceptance | IN PROGRESS | Chunk 00 underway; see live execution record above |
+| Chunk 00 | IN PROGRESS | T00-02 PASS; T00-01, T00-03–T00-05, T00-07, T00-08 PARTIAL; T00-06 PENDING |
+| Chunks 01–11 | NOT STARTED | Remain blocked until Chunk 00 exit criteria are met |
 | Stage 9 integration/release | NOT STARTED | Requires S21 acceptance and explicit owner approval |
