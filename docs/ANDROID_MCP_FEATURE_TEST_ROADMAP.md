@@ -62,20 +62,26 @@ For every executed case record:
 - **T00-07 — Permission observation:** open provider status/discovery for every capability family and verify no Android runtime permission or special-access prompt appears merely from discovery.
 - **T00-08 — Baseline footprint:** record free storage, installed APK size, model storage, idle RAM/process state, battery percentage/temperature, and initial thermal state.
 
-**Execution method:** Use PowerShell/ADB for artifact/package/signature/install state, process lifecycle, permissions, persisted grants, storage, battery/thermal, model-file inventory, and logs wherever the platform exposes the evidence. Manual S21 interaction is still required for visual rendering, actual navigation, model selection/loading/unloading, Agent Skills rendering, and provider-discovery screens. ADB evidence does not substitute for visual acceptance; manual observations do not replace machine-readable state.
+**Execution method:** Use PowerShell/ADB for artifact/package/signature/install state, process lifecycle, permissions, persisted grants, storage, battery/thermal, model-file inventory, and logs wherever the platform exposes the evidence. Manual S21 interaction is still required for visual rendering, actual navigation, model selection/loading, Agent Skills rendering, and provider-discovery screens. Test unloading only if the app exposes a user-facing unload control; otherwise record the unload/reload subtest as NOT APPLICABLE rather than deleting model files or forcing process termination. ADB evidence does not substitute for visual acceptance; manual observations do not replace machine-readable state.
 
-**Live execution record (2026-11-19):**
+**Live execution record (updated 2026-11-21):**
+
+**Tested environment:** Samsung Galaxy S21 SM-G991U; Android 15/API 35; One UI 7; package `com.google.aiedge.gallery.shizuku`; installed versionName `1.0.23`, versionCode `52`. The app was updated in place; no uninstall, app-data clear, model deletion, or Termux/Shizuku reset was performed.
 
 | Case | Current status | Evidence / remaining work |
 |---|---|---|
-| T00-01 | PARTIAL | PR #60 head `e839f0a6ed612820ee44d550a1606e81de828604`; workflow #130 succeeded and artifact #14495336561 was downloaded. Installed package is `com.google.aiedge.gallery.shizuku`, versionName `1.0.23`, versionCode `52`. Downloaded APK and installed base APK have matching signing certificate SHA-256 fingerprint `ad74215cfa10f3c8d9d99bca96512d52eb26abb83a379c7e479e3af26d0853e4`. Still record the APK file SHA-256 and explicitly compare debug/release artifact identities. |
-| T00-02 | PASS | `adb install -r` succeeded with matching signing identity. `firstInstallTime=2026-11-05 21:12:13` remained unchanged; `lastUpdateTime=2026-11-18 22:22:58`. No uninstall or data clear. |
-| T00-03 | PARTIAL | ADB launch created MainActivity and process PID 10373; no fatal exception/fatal signal in captured launch logs. Brian visually confirmed normal home screen and prompt/smooth navigation. Foreground/background, rotation if supported, return from system picker/settings, and relaunch lifecycle cases remain. |
-| T00-04 | PARTIAL | Gemma 4 E2B-it model file and runtime caches found under `/sdcard/Android/data/com.google.aiedge.gallery.shizuku/files/Gemma_4_E2B_it/`; Brian selected it and observed successful loading/running. Unload, reload, and return-to-chat lifecycle checks remain. |
-| T00-05 | PARTIAL | Brian opened Agent Skills with Gemma loaded and confirmed normal content rendering (previous white-screen regression absent in this observation). Full open/close, model selection, back navigation, and reopen-chat sequence remains. |
-| T00-06 | PENDING | Verify selected app settings and persisted SAF grants survive ordinary process death/relaunch. No app-data reset or uninstall. |
-| T00-07 | PARTIAL | `dumpsys package` confirms Shizuku API and Termux RUN_COMMAND permissions granted; notification and microphone are granted; SMS, call-log, contacts, calendar, camera, media-library, and Bluetooth runtime permissions are denied. Brian observed no permission prompts during the completed UI checks. Provider status/discovery still needs to be inspected for every capability family without triggering prompts. |
-| T00-08 | PARTIAL | Baseline: Android 15/API 35; `/data` 105 GiB total, 54 GiB used, 51 GiB available (52%); battery 50%, 24.3°C, 3853 mV. Gemma files are present. Installed APK size, aggregate model storage, idle RAM/process state, and initial thermal state remain. The latest `pidof` and `dumpsys meminfo` returned no process because the app was not running at capture time; this is not a crash or test failure and must be recaptured with the app running. |
+| T00-01 | PARTIAL | GitHub Actions workflow #130 succeeded (run ID `44445805976`; artifact ID `14495336561`) and passed unit tests, Shizuku debug build, signing-certificate verification, release build, and artifact upload on PR #60 head `e839f0a6ed612820ee44d550a1606e81de828604`. Downloaded debug APK: `C:\Users\bvell\Downloads\app-shizuku-debug.apk`; SHA-256 `AD25C82A6F228F7C6EDE8C22B72444CD0DC1F58A455DB524B23738D5471C0C72`. Package/version are correct. Downloaded APK and installed base APK signing certificate SHA-256 match: `ad74215cfa10f3c8d9d99bca96512d52eb26abb83a379c7e479e3af26d0853e4` (SHA-1 `3fd97253dd8664b718d1607d9d6d962bea830f6e`). Still verify/debug-document that debug and release APK outputs are distinct expected artifacts and complete the evidence ledger; no reinstall is needed. |
+| T00-02 | PASS | `adb install -r` succeeded with the expected signing identity. `firstInstallTime=2026-11-05 21:12:13` remained unchanged; `lastUpdateTime=2026-11-18 22:22:58`. Existing app data was preserved; no uninstall or data clear. |
+| T00-03 | PASS | ADB launch created MainActivity and the app rendered normally; no fatal exception/fatal signal was found in the captured launch logs. Brian confirmed prompt/smooth navigation and passed background/foreground via Recents, return from Settings, rotation recovery, close, and relaunch from the app icon. |
+| T00-04 | PASS with N/A subtest | Gemma 4 E2B-it is installed (model directory under `/sdcard/Android/data/com.google.aiedge.gallery.shizuku/files/Gemma_4_E2B_it/`; approximately 3.2 GB) and Brian confirmed successful selection/initialization, including after app restart. The app UI exposes no manual unload-from-memory control. Therefore manual unload/reload is NOT APPLICABLE to the current UI, not a failure; no model files were deleted. |
+| T00-05 | PASS | Brian opened Agent Skills with Gemma loaded and confirmed normal rendering. He re-entered Agent Skills, confirmed it behaved normally, then navigated back to Agent Chat without a blank screen or freeze. |
+| T00-06 | PARTIAL — theme PASS; SAF grant N/A | Theme was changed Auto→Light, the app was closed/reopened, and Light persisted; Brian restored Auto and confirmed it. Persisted-URI inspection found no existing SAF grant owned by app UID 10447 and no URI/persisted/content-URI references in the package dump. There is therefore no existing app grant with which to test persistence across process death. Mark that subtest N/A pending a legitimate SAF workflow that creates a grant; do not manufacture an unrelated grant. |
+| T00-07 | PARTIAL | Package permission audit is complete. Core Shizuku API (`moe.shizuku.manager.permission.API_V23`) and Termux RUN_COMMAND (`com.termux.permission.RUN_COMMAND`) are granted. Latest audit also showed grants for notifications, microphone, SMS, calendar, call log, contacts, accounts, camera, media images/video/visual-selected, media location, and Bluetooth connect/scan; `READ_EXTERNAL_STORAGE` remained false. No permission audit needs repeating. Remaining: manually inspect provider status/discovery screens for the capability families and confirm discovery alone does not trigger runtime or special-access prompts. |
+| T00-08 | PARTIAL — measurements captured; evidence consolidation remains | Captured baseline: `/data` 105 GiB total, 55 GiB used, 50 GiB available (53%); installed base APK 198,976,637 bytes (189.76 MiB); Gemma model storage approximately 3.2 GB. With app process running, `dumpsys meminfo` reported Native Heap 45,332 KB, total PSS 237,053 KB (~231.5 MiB), total RSS 329,204 KB (~321.5 MiB), swap PSS 134 KB. Thermal status 0; AP 27.5°C, battery 26.8°C, USB 26.8°C, skin 27.8°C, path 28.0°C. Battery snapshot: 58%, 3936 mV, 27.6°C, discharging. App PID 18738 was observed during capture. No fatal exception/ANR match was found in the inspected last 3,000 logcat lines. Consolidate these captured values into the evidence record; do not recapture solely to replace earlier snapshots. |
+
+**Execution notes:** The initial T00-08 snapshot had no running app process, so its blank `pidof`/`dumpsys meminfo` output was not a crash; a later capture with the app running supplied the RAM/process measurements above. No user data or model assets were removed during Chunk 00.
+
+
 
 **Exit:** correct artifact and package are confirmed; app launches; model/Agent Skills UI is usable; no destructive setup action was needed.
 
@@ -97,7 +103,6 @@ For every executed case record:
 - **T01-12 — Rish setup errors:** test unset application ID, wrong manager identity, timeout, and unavailable manager without a fallback.
 
 **Note:** TERMUX_RISH remains a supported shell execution transport for ordinary commands where validated; its binary artifact-output path is intentionally rejected and tested separately in Chunk 10.
-
 ## Chunk 02 — Gemma, AgentCoordinator, tool calling, approvals, and result integrity
 
 **Goal:** Prove the model invokes the real tool runtime rather than merely printing tool-call-looking text.
@@ -197,8 +202,7 @@ For every executed case record:
 - **T06-04 — Media index:** one-time approval; only MediaStore/photo-picker/previously granted SAF content; depth 8/10,000 visited nodes/1,000 discovered SAF media per pass; repeated run skips indexed URIs.
 - **T06-05 — Index privacy/storage:** verify embeddings remain on device, no source upload, bounded database growth, and cleanup of revoked-source entries where supported.
 - **T06-06 — Media play:** fresh search handle and approval; open in Gallery Media3 player; reject stale/replayed handle and inaccessible media.
-- **T06-07 — Downloads status:** list at most 20 active Gallery-tagged downloads; labels come from allowlist; no URLs/tokens/WorkManager IDs/paths.
-- **T06-08 — Exact download cancel:** fresh one-use handle, exact job revalidation, approval, cancel only selected UUID; reject stale/replayed/foreign/completed job.
+- **T06-07 — Downloads status:** list at most 20 active Gallery-tagged downloads; labels come from allowlist; no URLs/tokens/WorkManager IDs/paths.- **T06-08 — Exact download cancel:** fresh one-use handle, exact job revalidation, approval, cancel only selected UUID; reject stale/replayed/foreign/completed job.
 - **T06-09 — Download lifecycle:** queued/running/paused/succeeded/failed/cancelled snapshots, process restart, progress bounds, unknown imported jobs generic label.
 - **T06-10 — Media sessions list:** only after manually enabled notification-listener access and per-read approval; maximum 10; bounded metadata; no notification history/callback persistence.
 - **T06-11 — Media session control:** only advertised PLAY/PAUSE/NEXT/PREVIOUS/SEEK; exact approval; seek requires known duration/in-range position; refresh/consume opaque handle and reject changed session.
@@ -297,7 +301,6 @@ For every executed case record:
 - **T10-14 — DOCX safety:** XML-invalid characters, injection-like text, malformed payloads, and output limits fail safely.
 
 ### XLSX
-
 - **T10-15 — Editable workbook:** multiple named sheets, string/numeric/boolean/blank cells, styles, column widths, header styling, and filters open in spreadsheet reader.
 - **T10-16 — XLSX bounds:** 20 sheets, 500 rows/sheet, 32 columns/row, 10,000 cells, 100,000 text chars, 15 significant numeric digits, 20 MiB output.
 - **T10-17 — Formula safety:** values beginning with =, +, -, or @ remain inert text where specified; no formula/macro execution or macro parts.
@@ -397,7 +400,6 @@ The first review session should be Chunk 00 only. Do not ask Brian to perform la
 - Firebase Gemini remote generation is applicable only when Firebase is configured and must remain opt-in with explicit per-request disclosure/consent.
 
 These limitations must remain documented in the result record and must not be represented as passed features.
-
 ## 5. Current evidence ledger
 
 | Item | Status | Evidence |
@@ -407,7 +409,7 @@ These limitations must remain documented in the result record and must not be re
 | Shizuku debug APK build | PASS | Workflow #118 |
 | Release APK build | PASS | Workflow #118 |
 | Termux APP_SHELL / Shizuku PFD instrumentation execution | NOT YET VERIFIED | Instrumentation source exists; workflow #118 did not run instrumentation task |
-| Galaxy S21 acceptance | IN PROGRESS | Chunk 00 underway; see live execution record above |
-| Chunk 00 | IN PROGRESS | T00-02 PASS; T00-01, T00-03–T00-05, T00-07, T00-08 PARTIAL; T00-06 PENDING |
+| Galaxy S21 acceptance | IN PROGRESS | Chunk 00 underway; see updated 2026-11-21 live execution record above |
+| Chunk 00 | IN PROGRESS | T00-02, T00-03, T00-05 PASS; T00-04 PASS with manual unload/reload N/A; T00-01, T00-06, T00-07, T00-08 PARTIAL for documented follow-ups |
 | Chunks 01–11 | NOT STARTED | Remain blocked until Chunk 00 exit criteria are met |
 | Stage 9 integration/release | NOT STARTED | Requires S21 acceptance and explicit owner approval |
