@@ -23,15 +23,7 @@ class ArtifactGenerationTool(
   }
   override val name: String = "artifact_create"
   override val description: String =
-    "Create a bounded artifact in one of the currently supported formats: " +
-      supportedFormats.joinToString { it.name.lowercase() } + ". " +
-      "Supported destinations: " + supportedDestinations.joinToString { it.name.lowercase() } + ". " +
-      "SAF requires a persisted Gallery document-tree grant and a tree URI/document ID returned by document_tree grants/list operations. " +
-      "SAF currently refuses replacement of an existing file; choose a new filename. Shell overwrite requires overwrite=true and explicit user approval. " +
-      "Shell destinations require an explicit TERMUX or SHIZUKU backend and an absolute path accessible to that identity. TERMUX_RISH binary output is unavailable until remote stdin forwarding is verified. " +
-      "The exact filename, format, destination, and overwrite behavior are shown for one-time approval. " +
-      "Local image operations are bounded on-device resize/crop/rotate/convert/compose/annotate. Image generation uses a configured provider: Firebase Gemini remote generation is available only when Firebase is configured and always requires one-time disclosure and approval before prompt/source upload; no on-device generative provider is registered. " +
-      "PDF accepts up to eight embedded SAF images per document; DOCX accepts four per document; PPTX accepts one per slide and four per presentation. Embedded sources must be selected from a persisted Gallery read grant."
+    "Create bounded local artifacts in supported formats and destinations. SAF requires an existing persisted Gallery tree grant and returned document IDs. Shell output requires an explicit TERMUX or SHIZUKU backend; TERMUX_RISH binary output is unavailable. Approval shows exact format, filename, destination, and overwrite behavior. Remote image generation is available only when configured and requires separate disclosure/consent before prompt or source upload; no on-device generative provider is registered. Embedded images must come from a persisted Gallery read grant."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
