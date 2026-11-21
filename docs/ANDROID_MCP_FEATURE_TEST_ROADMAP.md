@@ -56,7 +56,7 @@ For every executed case record:
 - **T00-01 — Artifact provenance:** verify workflow run, commit SHA, debug APK artifact, package ID, version name/code, APK SHA-256, and signing certificate. Confirm debug and release APKs are distinct expected outputs.
 - **T00-02 — Safe update/install:** attempt update with the expected signing identity. If Android reports signature incompatibility, stop; do not uninstall or clear data as a workaround.
 - **T00-03 — Launch smoke:** cold launch, foreground/background, rotate if supported, return from system picker/settings, and relaunch. No crash, blank screen, or stuck loading overlay.
-- **T00-04 — Model lifecycle:** verify Gemma 4 E2B remains installed, selects, loads, unloads, and returns to chat without a white screen or stale spinner.
+- **T00-04 — Model lifecycle:** verify Gemma 4 E2B remains installed, selects and loads, and returns to chat without a white screen or stale spinner. Verify manual unload/reload only if the app exposes a user-facing unload control; otherwise record that subtest as NOT APPLICABLE.
 - **T00-05 — Agent Skills lifecycle:** open/close Agent Skills, select the model, navigate back, reopen chat, and verify content remains rendered.
 - **T00-06 — Persistence:** verify app settings and persisted SAF grants survive ordinary process death/relaunch; do not infer persistence after uninstall.
 - **T00-07 — Permission observation:** open provider status/discovery for every capability family and verify no Android runtime permission or special-access prompt appears merely from discovery.
@@ -70,7 +70,7 @@ For every executed case record:
 
 | Case | Current status | Evidence / remaining work |
 |---|---|---|
-| T00-01 | PARTIAL | GitHub Actions workflow #130 succeeded (run ID `44445805976`; artifact ID `14495336561`) and passed unit tests, Shizuku debug build, signing-certificate verification, release build, and artifact upload on PR #60 head `e839f0a6ed612820ee44d550a1606e81de828604`. Downloaded debug APK: `C:\Users\bvell\Downloads\app-shizuku-debug.apk`; SHA-256 `AD25C82A6F228F7C6EDE8C22B72444CD0DC1F58A455DB524B23738D5471C0C72`. Package/version are correct. Downloaded APK and installed base APK signing certificate SHA-256 match: `ad74215cfa10f3c8d9d99bca96512d52eb26abb83a379c7e479e3af26d0853e4` (SHA-1 `3fd97253dd8664b718d1607d9d6d962bea830f6e`). Still verify/debug-document that debug and release APK outputs are distinct expected artifacts and complete the evidence ledger; no reinstall is needed. |
+| T00-01 | PASS | GitHub Actions workflow #130 succeeded (run ID `44445805976`; artifact ID `14495336561`) on PR #60 head `e839f0a6ed612820ee44d550a1606e81de828604`. Job log confirms `assembleShizukuDebug` and `assembleShizukuRelease` completed and the upload step included both `Android/src/app/build/outputs/apk/shizuku/debug/*.apk` and `.../release/*.apk`; GitHub reported exactly 2 files uploaded. Artifact ZIP: 145,780,692 bytes; SHA-256 `2a0062f6d9e197cc9aaec277c0da234f91391fbe53da0a99e502085e3350241d`. Downloaded debug APK: `C:\Users\bvell\Downloads\app-shizuku-debug.apk`; SHA-256 `AD25C82A6F228F7C6EDE8C22B72444CD0DC1F58A455DB524B23738D5471C0C72`. Package/version are correct: `com.google.aiedge.gallery.shizuku`, `1.0.23`/52. Downloaded APK and installed base APK signing-certificate SHA-256 match: `ad74215cfa10f3c8d9d99bca96512d52eb26abb83a379c7e479e3af26d0853e4` (SHA-1 `3fd97253dd8664b718d1607d9d6d962bea830f6e`). Debug/release output paths and the two-file artifact are confirmed; no reinstall is needed. |
 | T00-02 | PASS | `adb install -r` succeeded with the expected signing identity. `firstInstallTime=2026-11-05 21:12:13` remained unchanged; `lastUpdateTime=2026-11-18 22:22:58`. Existing app data was preserved; no uninstall or data clear. |
 | T00-03 | PASS | ADB launch created MainActivity and the app rendered normally; no fatal exception/fatal signal was found in the captured launch logs. Brian confirmed prompt/smooth navigation and passed background/foreground via Recents, return from Settings, rotation recovery, close, and relaunch from the app icon. |
 | T00-04 | PASS with N/A subtest | Gemma 4 E2B-it is installed (model directory under `/sdcard/Android/data/com.google.aiedge.gallery.shizuku/files/Gemma_4_E2B_it/`; approximately 3.2 GB) and Brian confirmed successful selection/initialization, including after app restart. The app UI exposes no manual unload-from-memory control. Therefore manual unload/reload is NOT APPLICABLE to the current UI, not a failure; no model files were deleted. |
@@ -97,8 +97,7 @@ For every executed case record:
 - **T01-06 — Output contract:** verify stdout/stderr separation, exit code, truncation marker, maximum output, and stable result formatting.
 - **T01-07 — Timeout:** execute a bounded long-running harmless command; verify deadline, termination, and timeout result.
 - **T01-08 — Cancellation:** cancel during execution; verify prompt cancellation, process termination, and no false success.
-- **T01-09 — Process cleanup:** repeat success/failure/cancellation and verify no orphan processes or retained descriptors.
-- **T01-10 — Termux RUN_COMMAND prerequisites:** revoke/deny RUN_COMMAND permission or disable external apps in a controlled test; verify clear unavailable/permission failure and recovery after restoring setup.
+- **T01-09 — Process cleanup:** repeat success/failure/cancellation and verify no orphan processes or retained descriptors.- **T01-10 — Termux RUN_COMMAND prerequisites:** revoke/deny RUN_COMMAND permission or disable external apps in a controlled test; verify clear unavailable/permission failure and recovery after restoring setup.
 - **T01-11 — Shizuku lifecycle:** stop/revoke Shizuku service during a request; verify binder death is surfaced and a later fresh request can recover.
 - **T01-12 — Rish setup errors:** test unset application ID, wrong manager identity, timeout, and unavailable manager without a fallback.
 
@@ -197,8 +196,7 @@ For every executed case record:
 **Goal:** Verify bounded media discovery/indexing/playback and user-mediated sharing.
 
 - **T06-01 — Media search NAME:** filename-only search, bounded results, no content/URI/path disclosure.
-- **T06-02 — Media search AUTO:** combine filename and available visual index; handle index absent/stale without claiming visual success.
-- **T06-03 — Media search VISUAL:** semantic query returns only permitted indexed media; test no index, empty results, and index failure.
+- **T06-02 — Media search AUTO:** combine filename and available visual index; handle index absent/stale without claiming visual success.- **T06-03 — Media search VISUAL:** semantic query returns only permitted indexed media; test no index, empty results, and index failure.
 - **T06-04 — Media index:** one-time approval; only MediaStore/photo-picker/previously granted SAF content; depth 8/10,000 visited nodes/1,000 discovered SAF media per pass; repeated run skips indexed URIs.
 - **T06-05 — Index privacy/storage:** verify embeddings remain on device, no source upload, bounded database growth, and cleanup of revoked-source entries where supported.
 - **T06-06 — Media play:** fresh search handle and approval; open in Gallery Media3 player; reject stale/replayed handle and inaccessible media.
@@ -297,8 +295,7 @@ For every executed case record:
 
 - **T10-11 — Editable DOCX:** paragraphs, heading styles, bullets, tables, page layout, optional headers/footers open in Word-compatible reader and remain editable.
 - **T10-12 — DOCX package:** required content types/relationships/media entries present; all XML is well-formed; relationship targets resolve.
-- **T10-13 — DOCX images:** up to four embedded images; drawing relationships resolve; image is embedded, not externally linked.
-- **T10-14 — DOCX safety:** XML-invalid characters, injection-like text, malformed payloads, and output limits fail safely.
+- **T10-13 — DOCX images:** up to four embedded images; drawing relationships resolve; image is embedded, not externally linked.- **T10-14 — DOCX safety:** XML-invalid characters, injection-like text, malformed payloads, and output limits fail safely.
 
 ### XLSX
 - **T10-15 — Editable workbook:** multiple named sheets, string/numeric/boolean/blank cells, styles, column widths, header styling, and filters open in spreadsheet reader.
@@ -398,7 +395,6 @@ The first review session should be Chunk 00 only. Do not ask Brian to perform la
 - NFC, infrared, BLE/GATT, USB descriptor, and other hardware-dependent checks may be UNAVAILABLE if the S21/accessory does not support them.
 - Call-log/SMS access can be blocked by Android installer/default-role eligibility; Gallery must not change roles or bypass platform policy.
 - Firebase Gemini remote generation is applicable only when Firebase is configured and must remain opt-in with explicit per-request disclosure/consent.
-
 These limitations must remain documented in the result record and must not be represented as passed features.
 ## 5. Current evidence ledger
 
@@ -410,6 +406,6 @@ These limitations must remain documented in the result record and must not be re
 | Release APK build | PASS | Workflow #118 |
 | Termux APP_SHELL / Shizuku PFD instrumentation execution | NOT YET VERIFIED | Instrumentation source exists; workflow #118 did not run instrumentation task |
 | Galaxy S21 acceptance | IN PROGRESS | Chunk 00 underway; see updated 2026-11-21 live execution record above |
-| Chunk 00 | IN PROGRESS | T00-02, T00-03, T00-05 PASS; T00-04 PASS with manual unload/reload N/A; T00-01, T00-06, T00-07, T00-08 PARTIAL for documented follow-ups |
+| Chunk 00 | IN PROGRESS | T00-01, T00-02, T00-03, T00-05 PASS; T00-04 PASS with manual unload/reload N/A; T00-06, T00-07, T00-08 PARTIAL for documented follow-ups |
 | Chunks 01–11 | NOT STARTED | Remain blocked until Chunk 00 exit criteria are met |
 | Stage 9 integration/release | NOT STARTED | Requires S21 acceptance and explicit owner approval |
