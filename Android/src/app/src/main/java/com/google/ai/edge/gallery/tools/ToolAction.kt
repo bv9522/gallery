@@ -30,6 +30,7 @@ enum class ToolActionName() {
   ASK_SHELL_COMMAND_PERMISSION,
   ASK_NATIVE_CAPABILITY_PERMISSION,
   ASK_ARTIFACT_GENERATION_PERMISSION,
+  ASK_REMOTE_IMAGE_GENERATION_PERMISSION,
   AUTHENTICATE_BIOMETRIC,
   CAPTURE_PHOTO,
   OPEN_DOCUMENT_TREE,
@@ -169,6 +170,18 @@ class AskArtifactGenerationPermissionAction(
   val overwrite: Boolean,
   val result: CompletableDeferred<Boolean> = CompletableDeferred(),
 ) : ToolAction(name = ToolActionName.ASK_ARTIFACT_GENERATION_PERMISSION)
+
+/**
+ * Requests one-time, explicit approval before an image-generation provider sends a prompt or
+ * source images off-device. No persistent approval is supported.
+ */
+class AskRemoteImageGenerationPermissionAction(
+  val providerId: String,
+  val prompt: String,
+  val outputMimeType: String,
+  val sourceImageLabels: List<String>,
+  val result: CompletableDeferred<Boolean> = CompletableDeferred(),
+) : ToolAction(name = ToolActionName.ASK_REMOTE_IMAGE_GENERATION_PERMISSION)
 
 /** Requests a foreground system biometric prompt, optionally bound to a Keystore cipher. */
 class AuthenticateBiometricToolAction(

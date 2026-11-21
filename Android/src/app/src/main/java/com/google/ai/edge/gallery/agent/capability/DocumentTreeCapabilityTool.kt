@@ -29,14 +29,7 @@ class DocumentTreeCapabilityTool internal constructor(
 
   override val name: String = "document_tree"
   override val description: String =
-    "Access folders and attached USB storage only through user-granted Android Storage Access Framework tree URIs. " +
-      "Use grants to list existing Gallery grants, request_access to open the system folder picker, list to inspect " +
-      "children, read_text for bounded text files, create_file/create_directory to create items, write_text to write " +
-      "text, rename/delete for explicit file management, and metadata for document details. The user must select " +
-      "the folder or USB drive; no raw filesystem paths, arbitrary URIs, or shell commands are accepted. " +
-      "Read and write actions require scoped approval. Cross-tree file copy/move is supported between two separately granted trees; directory transfer is not. " +
-      "create_text_file creates and populates a bounded UTF-8 document in one approved operation. Search matches names " +
-      "only and is bounded to 500 visited entries, depth 4, and 50 results. General metadata writes are not supported."
+    "Access files only inside exact persisted, user-selected Android SAF tree grants. Use request_access for the system picker and fresh returned tree/document IDs for listing, reading, writing, creating, renaming, deleting, copying, moving, or searching. Never use raw paths or arbitrary URIs. File reads, writes, and destructive actions require scoped approval; obey operation and size limits."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {

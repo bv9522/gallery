@@ -28,8 +28,8 @@ class ActiveMediaSessionCapabilityTool internal constructor(
   )
 
   override val name = "media_sessions"
-  override val description =
-    "Use operation=list to inspect up to 10 active media sessions after the user enables Gallery's notification-listener special access. Results include app label, track metadata, playback state, supported controls, and short-lived opaque handles. Use operation=control with a fresh handle and action PLAY, PAUSE, NEXT, PREVIOUS, or SEEK; seek requires position_ms within the current track duration. Each inspection and control requires one-time approval. Use operation=open_settings only when the user explicitly asks to enable access; it opens Android notification-listener settings but does not grant access. Never read/store notifications, expose package names/session tokens, guess handles, or claim that a dispatched command guarantees playback changed."
+    override val description =
+    "List up to 10 active media sessions after the user enables notification-listener access. Control a session only with its fresh handle and one approved PLAY, PAUSE, NEXT, PREVIOUS, or bounded SEEK action. Each list/control requires approval; no history or background monitoring."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {

@@ -1,6 +1,6 @@
 # Stage 10C — Native PDF generation and binary output
 
-**Status:** PDF core and SAF binary output implemented in PR #51; shell binary output is added in Stage 10I / PR #58. Optional embedded images remain follow-up work.  
+**Status:** PDF core, SAF/shell binary output, and bounded embedded SAF images are implemented. Shell output is Stage 10I / PR #58; embedded image and EXIF normalization are in the final Stage 10 image integration PR.  
 **Validation:** PDF payload and engine tests added but not executed. No Gradle tests, build, or device acceptance run.
 
 ## Runtime exposure
@@ -20,10 +20,11 @@ The PDF payload is a strict JSON object:
   - `paragraphs`: optional array of strings
   - `bullet_items`: optional array of strings
   - `table`: optional array of rows, each with 1–12 string cells
+  - `images`: optional array of up to four SAF image-source objects per page; eight images maximum across the document. Each object contains `source_tree_uri`, `source_document_id`, and optional `alt_text`.
 
 Unknown fields and wrong value types are rejected. Limits include 8,000 characters per text block, 500 characters per table cell, 100 blocks per section, 100,000 total text characters, 100 rendered pages, and 10 MiB output.
 
-The renderer uses Android `PdfDocument`, `StaticLayout`, and platform drawing APIs. It emits actual PDF bytes, page breaks, text wrapping, headings, bullets, simple text tables, and page numbers. It does not create HTML/text files with a PDF extension.
+The renderer uses Android `PdfDocument`, `StaticLayout`, and platform drawing APIs. It emits actual PDF bytes, page breaks, text wrapping, headings, bullets, simple text tables, embedded raster images, and page numbers. Images are read only from persisted Gallery SAF read grants, normalized for EXIF orientation, sampled and size-bounded before drawing.
 
 ## Output and storage safeguards
 
@@ -34,8 +35,7 @@ The renderer uses Android `PdfDocument`, `StaticLayout`, and platform drawing AP
 - The shared engine counts bytes and computes SHA-256 while streaming, enforces the generator output cap, validates MIME type and file signature, and propagates cancellation.
 - Raw artifact bytes are never returned to the model.
 
-## Remaining 10C follow-up
+## Stage 10J validation
 
-- Add bounded optional embedded images using explicit user-granted document sources, decode bounds, and image-dimension limits.
-- Add output readability/package checks in the final validation stage.
+- Verify image embedding, output readability, page breaks, malformed content, low storage, revoked grants, and provider failures.
 - Shell output uses the Stage 10I Termux stdin-chunk or Shizuku PFD pipe adapter; neither uses the command-only shell transport for artifact bytes. TERMUX_RISH is rejected rather than silently substituted.

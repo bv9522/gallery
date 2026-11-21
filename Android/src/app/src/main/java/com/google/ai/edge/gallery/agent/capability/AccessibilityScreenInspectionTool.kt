@@ -38,16 +38,8 @@ class AccessibilityScreenInspectionTool internal constructor(
     get() = imageInputSupported &&
       AccessibilityScreenInspectionPolicy.supportsWindowScreenshot(android.os.Build.VERSION.SDK_INT)
 
-  override val description: String
-    get() = buildString {
-      append("Use operation=status to check Gallery's manually enabled AccessibilityService. Use inspect for a bounded semantic summary of the active window. Use inspect_external when Gallery and exactly one target app are visible together (normally split-screen); it returns safe non-editable semantic elements with short-lived handles. Use act only after inspect_external and only for one CLICK, LONG_CLICK, SCROLL_FORWARD, or SCROLL_BACKWARD action on a fresh handle. Every action requires one-time UI_GESTURE approval and revalidates the exact app window, node identity, label, bounds, enabled state, and advertised action immediately before dispatch. Use inspect_inputs only when the user explicitly asks to enter or select text; it accepts only safe, ordinary, single-line EditText fields and returns labels and text lengths, never current field contents. Use enter_text only on a fresh input handle for an empty field; it replaces nothing, accepts at most 256 safe single-line characters, and requires separate UI_TEXT_INPUT approval showing the exact text. Use select_text only on a fresh input handle and a valid character range; it requires separate UI_TEXT_INPUT approval showing the exact range. Password, numeric, email, URI, multiline, sensitive, ambiguous, incomplete, or changed screens fail closed. No clipboard, coordinate gestures, arbitrary keyboard events, or hidden typing are exposed. A result confirms Android accepted dispatch only, not that the app state changed. ")
-      if (windowCaptureSupported) {
-        append("Use capture only when the user explicitly asks for visual understanding; it requires API 34+, one-time SCREEN_CAPTURE approval, exactly one safe external app window, and sends a bounded in-memory window screenshot to the local multimodal model. ")
-      } else {
-        append("Visual capture is unavailable for this model/runtime or Android version; no full-display fallback is used. ")
-      }
-      append("Ordinary editable text fields are excluded from inspect, inspect_external, and visual capture; inspect_inputs is a separate user-requested path with a dedicated plain-text-only policy. Passwords, numeric/email/URI fields, multiline fields, sign-in/credential, payment/banking, identity, health, system-settings, detected personal identifiers, empty/incomplete trees, and ambiguous windows are excluded. Sensitive-screen detection is conservative and not guaranteed to identify every visual risk. The user must manually enable Gallery in Android Accessibility settings. No background monitoring or persistent screenshot files are implemented. Use open_settings only when the user explicitly asks to enable access.")
-    }
+  override val description: String =
+    "Inspect bounded semantic UI state. External inspection requires Gallery and exactly one target app visible together. Use fresh one-use handles; each UI action or text entry needs exact scoped approval and revalidation. Text entry is only for empty ordinary single-line fields. Never inspect or interact with credentials, payments, banking, identity, health, or other sensitive screens; no clipboard, coordinate gestures, or arbitrary keyboard events. Capture only an explicitly requested, approved external window when supported; no full-display fallback or background monitoring. The user manually enables AccessibilityService."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {

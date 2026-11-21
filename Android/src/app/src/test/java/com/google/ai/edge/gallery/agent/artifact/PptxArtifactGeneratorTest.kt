@@ -56,6 +56,58 @@ class PptxArtifactGeneratorTest {
     }
   }
 
+  @Test fun imagePayloadIsIncludedInApprovalSizeEstimate() {
+    val payload = request().payload.deepCopy()
+    payload.getAsJsonArray("slides")[0].asJsonObject.add(
+      "images",
+      JsonArray().apply { add(imageSource("slide-one-image")) },
+    )
+    assertTrue(generator.estimateBytes(request().copy(payload = payload))!! >= 4L * 1024L * 1024L)
+  }
+
+  @Test fun validatesOneEmbeddedImagePerSlide() {
+    val payload = request().payload.deepCopy()
+    payload.getAsJsonArray("slides")[0].asJsonObject.add(
+      "images",
+      JsonArray().apply { add(imageSource("slide-one-image")) },
+    )
+    generator.validatePayload(payload)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun rejectsMoreThanFourEmbeddedImagesAcrossPresentation() {
+    val payload = JsonObject().apply {
+      add("slides", JsonArray().apply {
+        repeat(5) { index ->
+          add(JsonObject().apply {
+            addProperty("title", "Slide $index")
+            add("images", JsonArray().apply { add(imageSource("slide-image-$index")) })
+          })
+        }
+      })
+    }
+    generator.validatePayload(payload)
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun rejectsMoreThanOneImageOnASlide() {
+    val payload = request().payload.deepCopy()
+    payload.getAsJsonArray("slides")[0].asJsonObject.add(
+      "images",
+      JsonArray().apply {
+        add(imageSource("first"))
+        add(imageSource("second"))
+      },
+    )
+    generator.validatePayload(payload)
+  }
+
+  private fun imageSource(id: String) = JsonObject().apply {
+    addProperty("source_tree_uri", "content://provider/tree/root")
+    addProperty("source_document_id", id)
+    addProperty("alt_text", "Slide illustration")
+  }
+
   @Test fun validatesBoundedSlidesAndText() {
     generator.validatePayload(request().payload)
   }

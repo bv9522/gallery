@@ -31,8 +31,8 @@ class ShareContentCapabilityTool internal constructor(
   )
 
   override val name = "share_content"
-  override val description =
-    "share_text previews and approves exact text, then opens Android's share chooser. share_file accepts only tree_uri and document_id from an existing document_tree grant/list result, verifies the persisted read grant and file metadata, then opens Android's chooser with temporary read access. The user chooses the receiving app and completes or cancels. Never claim delivery merely because the chooser opened. No receiver is targeted and no background send occurs."
+    override val description =
+    "Preview and approve exact text or a file from a persisted document_tree grant, then open Android's share chooser. The user selects the recipient; never send directly or claim delivery."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {

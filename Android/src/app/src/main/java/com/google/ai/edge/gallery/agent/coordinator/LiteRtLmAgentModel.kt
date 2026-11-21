@@ -98,14 +98,42 @@ internal fun buildLiteRtToolResponseMessage(toolMessages: List<AgentMessage>): M
   return Message.tool(Contents.of(contents))
 }
 
+internal data class AgentConversationTurn(
+  val messages: MutableList<Message> = mutableListOf(),
+  var complete: Boolean = false,
+)
+
+/** Pure history policy: compaction removes whole, completed turns only. */
+internal object AgentConversationCompactionPolicy {
+  fun shouldCompact(tokenCount: Int, threshold: Int): Boolean = tokenCount >= threshold
+
+  fun dropOldestCompletedTurn(
+    turns: List<AgentConversationTurn>,
+  ): List<AgentConversationTurn>? {
+    if (turns.size <= 1 || !turns.first().complete) return null
+    return turns.drop(1)
+  }
+
+  fun isContextOverflow(error: Throwable): Boolean =
+    generateSequence(error) { it.cause }.any { cause ->
+      val message = cause.message.orEmpty().lowercase()
+      message.contains("input token ids are too long") ||
+        message.contains("exceeding the maximum number of tokens")
+    }
+}
+
 class LiteRtLmAgentModel(
-  private val conversation: Conversation,
+  private var conversation: Conversation,
+  private val conversationFactory: (List<Message>) -> Conversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
-  private val onClosed: (() -> Unit)? = null,
+  private val onConversationClosed: ((Conversation) -> Unit)? = null,
+  private val compactAtTokenCount: Int = 3_000,
+  private val compactToTokenCount: Int = 2_400,
 ) : AgentModel, Closeable {
   private val mutex = Mutex()
   private var consumedMessageCount = 0
   private var modelTurn = 0
+  private val conversationTurns = mutableListOf<AgentConversationTurn>()
   @Volatile private var closed = false
   private val registeredToolSummaries: List<String> =
     conversation.toolManager.getToolsDescription().mapNotNull { entry ->
@@ -155,6 +183,39 @@ class LiteRtLmAgentModel(
         } else {
           buildLiteRtToolResponseMessage(toolMessages)
         }
+      // Replay history deliberately omits transient image/audio payloads. Tool screenshot bytes
+      // are erased after inference, so retaining them here would replay zeroed or private data.
+      val replayMessage = if (userMessages.isNotEmpty()) {
+        val user = userMessages.single()
+        if (user.userContents != null) {
+          Message.user(
+            user.content.ifBlank {
+              "[A prior multimodal attachment was omitted during context compaction.]"
+            }
+          )
+        } else {
+          message
+        }
+      } else {
+        Message.tool(
+          Contents.of(toolMessages.map { toolResult ->
+            val name = toolResult.toolName ?: error("Tool result is missing its tool name.")
+            val replayText = if (toolResult.toolImageBytes != null) {
+              toolResult.content +
+                "\n[Transient image payload omitted during context compaction.]"
+            } else {
+              toolResult.content
+            }
+            Content.ToolResponse(name, replayText)
+          })
+        )
+      }
+      val turn = if (userMessages.isNotEmpty()) {
+        AgentConversationTurn().also(conversationTurns::add)
+      } else {
+        conversationTurns.lastOrNull()?.takeIf { !it.complete }
+          ?: error("Tool results have no active user turn.")
+      }
       val turnExtraContext = userMessages.singleOrNull()?.extraContext.orEmpty()
       val thinkingRequested = turnExtraContext["enable_thinking"]?.toString() ?: "not-provided"
       Log.i(
@@ -162,7 +223,26 @@ class LiteRtLmAgentModel(
         "Turn request: turn=$modelTurn, thinkingRequested=$thinkingRequested, " +
           "toolResultCount=${toolMessages.size}",
       )
-      val response = sendMessageCancellable(message, extraContext = turnExtraContext)
+      val response = try {
+        sendMessageCancellable(message, extraContext = turnExtraContext)
+      } catch (error: Throwable) {
+        if (AgentConversationCompactionPolicy.isContextOverflow(error)) {
+          throw IllegalStateException(
+            "This turn is larger than the model's available context. No tool was executed for " +
+              "this failed inference. Shorten the request or start a new agent conversation.",
+            error,
+          )
+        }
+        throw error
+      }
+
+      // Keep native structured tool calls and their corresponding tool-role responses together.
+      turn.messages += replayMessage
+      turn.messages += response
+      if (response.toolCalls.isEmpty()) {
+        turn.complete = true
+        compactCompletedHistory()
+      }
 
       val content = response.toString()
       val responseSummary = LiteRtLmResponseProtocol.summarizeResponse(
@@ -200,6 +280,51 @@ class LiteRtLmAgentModel(
         AgentModelResponse.FinalAnswer(content)
       }
     }
+
+  /**
+   * Rebuilds the native KV cache from complete recent turns when it approaches the configured
+   * context budget. The active/latest turn is never dropped; tool-call and tool-result messages
+   * remain grouped inside their original turn.
+   */
+  private suspend fun compactCompletedHistory() = withContext(ioDispatcher) {
+    var tokenCount = try {
+      conversation.getTokenCount()
+    } catch (error: Exception) {
+      Log.w(TAG, "Unable to read native context token count; leaving conversation unchanged.", error)
+      return@withContext
+    }
+    if (!AgentConversationCompactionPolicy.shouldCompact(tokenCount, compactAtTokenCount)) {
+      return@withContext
+    }
+
+    while (tokenCount > compactToTokenCount) {
+      val retainedTurns =
+        AgentConversationCompactionPolicy.dropOldestCompletedTurn(conversationTurns) ?: break
+      val retainedMessages = retainedTurns.flatMap { it.messages }
+      val replacement = try {
+        conversationFactory(retainedMessages)
+      } catch (error: Exception) {
+        Log.w(TAG, "Native conversation rebuild failed; retaining the existing conversation.", error)
+        break
+      }
+      val previous = conversation
+      conversation = replacement
+      conversationTurns.removeAt(0)
+      onConversationClosed?.invoke(previous)
+      runCatching { previous.close() }
+        .onFailure { Log.w(TAG, "Failed to close compacted native conversation.", it) }
+      tokenCount = try {
+        replacement.getTokenCount()
+      } catch (error: Exception) {
+        Log.w(TAG, "Unable to read rebuilt context token count.", error)
+        break
+      }
+      Log.i(
+        TAG,
+        "Native context compacted: tokenCount=$tokenCount, retainedTurns=${conversationTurns.size}",
+      )
+    }
+  }
 
   /**
    * LiteRT-LM's synchronous sendMessage() is not coroutine-aware. Dispatch it to IO and attach
@@ -280,7 +405,7 @@ class LiteRtLmAgentModel(
         runCatching { conversation.close() }
       }
     } finally {
-      onClosed?.invoke()
+      onConversationClosed?.invoke(conversation)
     }
   }
 

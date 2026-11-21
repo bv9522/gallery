@@ -67,7 +67,7 @@ class SafArtifactDestinationAdapter(context: Context) : ArtifactDestinationAdapt
       "The destination file appeared after approval; refusing to overwrite it."
     }
     var created: Uri? = null
-    try {
+    return try {
       val parentUri = DocumentsContract.buildDocumentUriUsingTree(tree, parentId)
       val outputMimeType = mimeTypeForRequest(request)
       val documentUri = withContext(Dispatchers.IO) {

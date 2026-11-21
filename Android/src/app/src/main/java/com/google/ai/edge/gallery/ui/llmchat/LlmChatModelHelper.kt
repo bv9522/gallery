@@ -147,7 +147,7 @@ object LlmChatModelHelper : LlmModelHelper {
       }
     // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
     // Serialize access because LiteRT-LM exposes this setting as a process-wide mutable flag.
-    val conversation =
+    val conversationFactory: (List<Message>) -> Conversation = { retainedHistory ->
       withConversationConstrainedDecoding(enableConversationConstrainedDecoding) {
         instance.engine.createConversation(
           ConversationConfig(
@@ -155,15 +155,29 @@ object LlmChatModelHelper : LlmModelHelper {
             systemInstruction =
               systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
             tools = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders,
-            initialMessages = initialMessages,
+            initialMessages = initialMessages + retainedHistory,
             automaticToolCalling = false,
+            // Make getTokenCount() authoritative immediately after a history rebuild.
+            prefillPrefaceOnInit = true,
           )
         )
       }
+    }
+    val conversation = conversationFactory(emptyList())
     instance.activeEphemeralConversations.add(conversation)
-    return LiteRtLmAgentModel(conversation, onClosed = {
-      instance.activeEphemeralConversations.remove(conversation)
-    })
+    val contextLimit = model.getIntConfigValue(
+      key = ConfigKeys.MAX_TOKENS,
+      defaultValue = DEFAULT_MAX_TOKEN,
+    ).coerceAtMost(4_000).coerceAtLeast(100)
+    return LiteRtLmAgentModel(
+      conversation = conversation,
+      conversationFactory = { history ->
+        conversationFactory(history).also { instance.activeEphemeralConversations.add(it) }
+      },
+      onConversationClosed = { instance.activeEphemeralConversations.remove(it) },
+      compactAtTokenCount = (contextLimit * 0.75).toInt(),
+      compactToTokenCount = (contextLimit * 0.60).toInt(),
+    )
   }
 
   // Indexed by model name.

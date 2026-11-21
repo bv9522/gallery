@@ -143,7 +143,7 @@ class GalleryAccessibilityService : AccessibilityService() {
     val windowInfos = windows
     val visited = ArrayList<Pair<AccessibilityNodeInfo, Int>>(MAX_NODES)
     val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
-    try {
+    return try {
       val window = windowInfos.singleOrNull {
         it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.id == fingerprint.windowId
       } ?: return Result.failure(IllegalStateException("The inspected application window is no longer uniquely available."))
@@ -292,7 +292,7 @@ class GalleryAccessibilityService : AccessibilityService() {
     val windowInfos = windows
     val visited = ArrayList<Pair<AccessibilityNodeInfo, Int>>(MAX_NODES)
     val queue = ArrayDeque<Pair<AccessibilityNodeInfo, Int>>()
-    try {
+    return try {
       val window = windowInfos.singleOrNull {
         it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.id == fingerprint.windowId
       } ?: return Result.failure(IllegalStateException("The inspected application window is no longer uniquely available."))
@@ -453,7 +453,7 @@ class GalleryAccessibilityService : AccessibilityService() {
     }
     return try {
       val bytes = withTimeoutOrNull(SCREENSHOT_TIMEOUT_MS) {
-        suspendCancellableCoroutine { continuation ->
+        suspendCancellableCoroutine<ByteArray> { continuation ->
           var pendingBytes: ByteArray? = null
           continuation.invokeOnCancellation { pendingBytes?.fill(0) }
           try {

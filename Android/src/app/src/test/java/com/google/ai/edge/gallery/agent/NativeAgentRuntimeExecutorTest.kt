@@ -23,15 +23,15 @@ import org.junit.Test
 
 class NativeAgentRuntimeExecutorTest {
   @Test
-  fun shellGuidanceSeparatesNativeShellFromExternalMcpAndForbidsFallback() {
+  fun compactRoutingGuidancePreservesExplicitBackendIdentityAndForbidsFallback() {
     val instruction = buildAgentSystemInstruction("Existing system context")
 
     assertTrue(instruction.startsWith("Existing system context"))
-    assertTrue(instruction.contains("native execute_shell tool directly"))
-    assertTrue(instruction.contains("run_mcp_tool"))
-    assertTrue(instruction.contains("Never silently switch or fall back"))
-    assertTrue(instruction.contains("actual error"))
-    assertTrue(instruction.contains("retry once using the same operation and only those accepted arguments"))
+    assertTrue(instruction.contains("android_control: native Android"))
+    assertTrue(instruction.contains("termux_api: allowlist only"))
+    assertTrue(instruction.contains("Preserve TERMUX/SHIZUKU/TERMUX_RISH identity"))
+    assertTrue(instruction.contains("No backend substitution or shell fallback"))
+    assertTrue(instruction.contains("provider errors fail closed"))
   }
 
   @Test
@@ -76,10 +76,11 @@ class NativeAgentRuntimeExecutorTest {
   }
 
   @Test
-  fun shellGuidanceIsPresentWithoutAnExistingSystemInstruction() {
+  fun compactShellRoutingGuidanceIsPresentWithoutAnExistingSystemInstruction() {
     val instruction = buildAgentSystemInstruction(null)
 
-    assertTrue(instruction.contains("DEVICE SHELL TOOL RULES"))
+    assertTrue(instruction.contains("ROUTING"))
     assertTrue(instruction.contains("TERMUX_RISH"))
+    assertTrue(instruction.contains("No backend substitution or shell fallback"))
   }
 }

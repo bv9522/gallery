@@ -76,7 +76,7 @@ data class ArtifactGenerationResult(
 )
 
 fun interface ArtifactOutputProducer {
-  fun write(output: OutputStream): ArtifactOutputMetadata
+  suspend fun write(output: OutputStream): ArtifactOutputMetadata
 }
 
 interface ArtifactGenerator {
@@ -84,6 +84,11 @@ interface ArtifactGenerator {
   val maxOutputBytes: Long
   fun estimateBytes(request: ArtifactCreateRequest): Long? = null
   fun write(request: ArtifactCreateRequest, output: OutputStream): String
+}
+
+/** Optional async path for generators that await user-mediated or network-backed providers. */
+interface SuspendingArtifactGenerator : ArtifactGenerator {
+  suspend fun writeSuspending(request: ArtifactCreateRequest, output: OutputStream): String
 }
 
 interface ArtifactDestinationAdapter {
@@ -176,7 +181,11 @@ class DefaultArtifactGenerationEngine(
               out.write(bytes, offset, length)
             }
           }
-          val mimeType = generator.write(request, bounded)
+          val mimeType = if (generator is SuspendingArtifactGenerator) {
+            generator.writeSuspending(request, bounded)
+          } else {
+            generator.write(request, bounded)
+          }
           require(request.format.acceptsMimeType(mimeType)) {
             "The generator returned MIME type '$mimeType' for format ${request.format.name.lowercase()}."
           }
