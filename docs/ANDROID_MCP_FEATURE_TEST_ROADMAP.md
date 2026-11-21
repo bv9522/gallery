@@ -409,3 +409,14 @@ These limitations must remain documented in the result record and must not be re
 | Chunk 00 | IN PROGRESS | T00-01, T00-02, T00-03, T00-05 PASS; T00-04 PASS with manual unload/reload N/A; T00-06, T00-07, T00-08 PARTIAL for documented follow-ups |
 | Chunks 01–11 | NOT STARTED | Remain blocked until Chunk 00 exit criteria are met |
 | Stage 9 integration/release | NOT STARTED | Requires S21 acceptance and explicit owner approval |
+
+## 6. Native Gemma input-token budget regression (discovered 2026-11-21)
+
+During pre-Chunk-02 Gemma capability-discovery testing, LiteRT-LM rejected the native request with `Input token ids are too long`: 10,992 input token IDs against a 4,000-token ceiling. Inspection found that the app-authored `buildAgentSystemInstruction` was 22,411 characters before the user's current request and registered tool definitions were added. This was a major confirmed prompt-footprint contributor; character-to-token conversion is approximate and the native tokenizer remains authoritative.
+
+**Fix committed on `stage-10h-image-followups`:**
+- Replaced the oversized repetitive agent policy text with a compact policy prompt while retaining approval, privacy, routing, fresh-handle, accessibility, SAF, remote-consent, and fail-closed requirements.
+- Compressed the descriptions registered for native Android, accessibility, SAF, artifact, active-media-session, sharing, and Termux:API tools. Operation schemas and dispatch implementations were not removed.
+- Added `AgentSystemInstructionTest` to enforce a 3,500-character ceiling for the built-in policy prompt, preserve the existing assistant instruction, and guard critical safety clauses.
+
+**Validation state:** GitHub Actions PR workflow #142 (run ID `44958060069`) was in progress when this record was updated. No S21 retest has yet been performed. The regression is not considered device-accepted until the workflow passes and Gemma successfully handles repeated short user turns and a tool-call round trip without the 4,000-token error. Keep T02-11 (result/context budgets) unverified until that device evidence exists; do not advance the chunk sequence while Chunk 00 remains active.
