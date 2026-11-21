@@ -420,3 +420,16 @@ During pre-Chunk-02 Gemma capability-discovery testing, LiteRT-LM rejected the n
 - Added `AgentSystemInstructionTest` to enforce a 3,500-character ceiling for the built-in policy prompt, preserve the existing assistant instruction, and guard critical safety clauses.
 
 **Validation state:** GitHub Actions PR workflow #142 (run ID `44958060069`) was in progress when this record was updated. No S21 retest has yet been performed. The regression is not considered device-accepted until the workflow passes and Gemma successfully handles repeated short user turns and a tool-call round trip without the 4,000-token error. Keep T02-11 (result/context budgets) unverified until that device evidence exists; do not advance the chunk sequence while Chunk 00 remains active.
+
+
+## 7. Native agent context budgeting and compaction (implementation update)
+
+The native agent now reads LiteRT-LM's actual conversation KV-cache token count after each completed model turn. When the configured context reaches 75% of its effective ceiling (capped at the observed 4,000-token native input limit), it rebuilds the native conversation from retained complete recent turns until the cache is at or below 60% of the configured ceiling, or only the latest turn remains. Compaction removes whole turns, never a partial tool-call/result transaction. The recreated conversation uses the same system instruction, registered tools, sampler, and original initial messages, and pre-fills its preface so token accounting is immediately available.
+
+Replay history deliberately omits transient image/audio payloads: user attachments and screenshot bytes are not retained in the compaction journal. A tool response that originally carried an image retains its bounded text result plus an omission note after compaction. This avoids replaying zeroed screenshot buffers or extending raw image retention.
+
+If LiteRT-LM rejects a single oversized inference with its native input-token overflow, the agent reports a bounded, actionable message instead of surfacing the raw JNI exception or retrying a potentially partial operation. No tool is executed for an inference rejected before a structured tool call is returned.
+
+The built-in agent policy prompt is reduced to a 2,500-character enforced ceiling, targeting Google's upstream 2,044-character default while retaining this fork's Android permission, routing, privacy, accessibility, SAF, USB, remote-upload, sharing, and download safeguards.
+
+**Validation:** Unit tests cover prompt size/safety clauses, compaction threshold, atomic retention of complete turns/tool transactions, protection of incomplete/current turns, and native overflow classification. GitHub Actions and Galaxy S21 repeated-turn/tool-round-trip validation are required before marking the token-budget regression resolved. A single oversized user turn or a latest turn that alone consumes the context ceiling still requires a shorter prompt or a fresh agent conversation; the compactor deliberately does not destroy the current turn to conceal that limit.
