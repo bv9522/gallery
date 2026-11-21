@@ -43,15 +43,15 @@ class AgentSystemInstructionTest {
   fun compactInstructionRetainsCriticalSafetyBoundaries() {
     val instruction = buildAgentSystemInstruction(null)
 
-    assertTrue(instruction.contains("Discovery/status is observational"))
+    assertTrue(instruction.contains("Discovery is read-only"))
     assertTrue(instruction.contains("fail closed"))
-    assertTrue(instruction.contains("Never use shell as an automatic fallback"))
-    assertTrue(instruction.contains("only on explicit user request"))
+    assertTrue(instruction.contains("No backend substitution or shell fallback"))
+    assertTrue(instruction.contains("only on explicit request"))
     assertTrue(instruction.contains("fresh opaque handles"))
-    assertTrue(instruction.contains("separate disclosure and consent"))
+    assertTrue(instruction.contains("separate consent naming provider"))
   }
 
   private companion object {
-    const val MAX_BUILT_IN_INSTRUCTION_CHARS = 3_500
+    const val MAX_BUILT_IN_INSTRUCTION_CHARS = 2_500
   }
 }
