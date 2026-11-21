@@ -46,7 +46,7 @@ class AgentSystemInstructionTest {
     assertTrue(instruction.contains("Provider discovery/status is observational"))
     assertTrue(instruction.contains("fail closed"))
     assertTrue(instruction.contains("Never use shell as an automatic fallback"))
-    assertTrue(instruction.contains("Never read it without an explicit request"))
+    assertTrue(instruction.contains("never read it without an explicit request"))
     assertTrue(instruction.contains("fresh opaque handles"))
     assertTrue(instruction.contains("separate disclosure and consent"))
   }
