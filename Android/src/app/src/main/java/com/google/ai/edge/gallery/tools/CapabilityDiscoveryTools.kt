@@ -72,45 +72,72 @@ class DiscoverMcpToolsTool(private val mcpServersProvider: McpServersProvider) :
 
   @Tool(
     description =
-      "Search or list enabled tools from connected MCP servers. Returns matching tool names, " +
-        "short descriptions, and their input JSON schemas. This is discovery only; invoke a " +
-        "selected tool separately with run_mcp_tool."
+      "Search or list enabled tools from connected MCP servers. Returns only matching tool names " +
+        "and short descriptions. Call get_mcp_tool_schema for one selected tool before invoking it."
   )
   fun discoverMcpTools(
     @ToolParam(description = "Words describing the MCP capability. Use an empty string to list enabled tools.")
     query: String
   ): Map<String, String> {
-    val enabledTools = mcpServersProvider.mcpServers
-      .filter { it.mcpServer.enabled && it.client != null }
-      .flatMap { state -> state.mcpServer.toolsList.filter { it.enabled } }
-
-    // run_mcp_tool addresses tools by name only. Do not advertise duplicate names because the
-    // existing dispatcher would otherwise resolve an ambiguous name to the first server.
-    val grouped = enabledTools.groupBy { it.name }
-    val ambiguousNames = grouped.filterValues { it.size > 1 }.keys
-    val candidates = grouped
-      .filterKeys { it !in ambiguousNames }
-      .values
-      .mapNotNull { it.firstOrNull() }
-
+    val candidates = uniqueEnabledMcpTools(mcpServersProvider)
     val matches = selectDiscoveryMatches(
       values = candidates,
       query = query,
       searchableText = { "${it.name} ${it.description}" },
     )
-    val rendered = matches.joinToString("\n\n") { tool ->
-      "MCP tool: ${tool.name}\n" +
-        "Description: ${compactDiscoveryDescription(tool.description)}\n" +
-        "Input schema JSON: ${tool.inputSchema}"
+    val rendered = matches.joinToString("\\n") { tool ->
+      "- ${tool.name}: ${compactDiscoveryDescription(tool.description)}"
     }
     return mapOf(
       "status" to if (matches.isEmpty()) "no_matches" else "ok",
       "count" to matches.size.toString(),
       "tools" to rendered,
-      "ambiguous_name_count" to ambiguousNames.size.toString(),
-      "next_step" to "Call run_mcp_tool with the exact tool name and JSON arguments. User consent is still required when configured.",
+      "next_step" to "Call get_mcp_tool_schema with one exact tool name to retrieve its input schema.",
     )
   }
+}
+
+/**
+ * Returns one enabled MCP tool's schema on demand. This is read-only and does not execute the tool
+ * or grant permission to execute it.
+ */
+class GetMcpToolSchemaTool(private val mcpServersProvider: McpServersProvider) : ToolDefinition {
+  override val alwaysAllow: Boolean = true
+  override var executionContext: ToolExecutionContext? = null
+
+  @Tool(
+    description =
+      "Retrieve the input JSON schema for one exact enabled MCP tool name. This does not execute " +
+        "the tool or grant consent; invoke it separately with run_mcp_tool."
+  )
+  fun getMcpToolSchema(
+    @ToolParam(description = "The exact tool name returned by discover_mcp_tools.")
+    toolName: String
+  ): Map<String, String> {
+    val tool = uniqueEnabledMcpTools(mcpServersProvider).singleOrNull { it.name == toolName }
+      ?: return mapOf(
+        "status" to "unavailable_or_ambiguous",
+        "error" to "The MCP tool is not uniquely available. Search enabled connected tools again.",
+      )
+    return mapOf(
+      "status" to "ok",
+      "tool_name" to tool.name,
+      "input_schema_json" to tool.inputSchema,
+      "next_step" to "Call run_mcp_tool with this exact tool name and JSON arguments. User consent is still required when configured.",
+    )
+  }
+}
+
+/**
+ * run_mcp_tool accepts a name without a server identifier. Exclude duplicate names so discovery
+ * never advertises a tool that the existing dispatcher could route to the wrong server.
+ */
+private fun uniqueEnabledMcpTools(provider: McpServersProvider): List<McpTool> {
+  val enabledTools = provider.mcpServers
+    .filter { it.mcpServer.enabled && it.client != null }
+    .flatMap { state -> state.mcpServer.toolsList.filter { it.enabled } }
+  val grouped = enabledTools.groupBy { it.name }
+  return grouped.values.filter { it.size == 1 }.map { it.first() }
 }
 
 internal fun <T> selectDiscoveryMatches(
