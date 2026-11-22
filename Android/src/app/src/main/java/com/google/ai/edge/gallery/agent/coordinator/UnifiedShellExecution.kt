@@ -113,8 +113,10 @@ class ChannelShellExecutionApprovalPolicy(
       maxOutputChars = request.maxOutputChars,
     )
     return try {
-      actionChannel.send(action)
-      withTimeoutOrNull(approvalTimeoutMs) { action.result.await() } ?: false
+      withTimeoutOrNull(approvalTimeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
     } finally {
       if (!action.result.isCompleted) action.result.complete(false)
     }
