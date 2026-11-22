@@ -336,7 +336,8 @@ class NativeAgentRuntimeExecutor(
 
   private suspend fun ensureAgentModel(config: AgentRuntimeConfig): LiteRtLmAgentModel =
     withContext(Dispatchers.IO) {
-      synchronized(stateLock) {
+      var createdNow = false
+      val model = synchronized(stateLock) {
         agentModel?.let { return@synchronized it }
         val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
         val actionChannel = config.actionChannel ?: agentTools.sendActionChannel
@@ -465,8 +466,14 @@ class NativeAgentRuntimeExecutor(
           )
           throw error
         }
+        agentModel = created
+        coordinator = AgentCoordinator(created, created.toolRegistry(runtimeTools))
+        createdNow = true
+        created
+      }
+      if (createdNow) {
         val initialTokenCount = try {
-          created.currentTokenCount()
+          model.currentTokenCount()
         } catch (error: Exception) {
           Log.w(TAG, "Unable to read initial native context token count (${error.javaClass.simpleName}).")
           null
@@ -478,10 +485,8 @@ class NativeAgentRuntimeExecutor(
             "constrainedDecoding=${config.enableConversationConstrainedDecoding}, " +
             "initialTokenCount=${initialTokenCount ?: "unavailable"}",
         )
-        agentModel = created
-        coordinator = AgentCoordinator(created, created.toolRegistry(runtimeTools))
-        created
       }
+      model
     }
 
   private fun discardAgentConversation() {
