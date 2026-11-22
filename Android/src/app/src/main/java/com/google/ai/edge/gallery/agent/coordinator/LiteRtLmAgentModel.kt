@@ -192,11 +192,13 @@ class LiteRtLmAgentModel(
     }
     val retainedMessages = conversationTurns.flatMap { it.messages }
     var candidate: Conversation? = null
+    var replacementTokenCount = -1
+    val switchStartedAtNanos = System.nanoTime()
     val replacement = try {
       withContext(ioDispatcher) {
         factory(retainedMessages, projected).also {
           candidate = it
-          it.getTokenCount()
+          replacementTokenCount = it.getTokenCount()
         }
       }
     } catch (error: Exception) {
@@ -218,7 +220,9 @@ class LiteRtLmAgentModel(
     Log.i(
       TAG,
       "Capability group projection changed: groups=${activeGroupIds.sorted()}, " +
-        "visibleNativeTools=${projected.names().size}, retainedTurns=${conversationTurns.size}",
+        "visibleNativeTools=${projected.names().size}, retainedTurns=${conversationTurns.size}, " +
+        "nativeTokenCount=$replacementTokenCount, " +
+        "switchLatencyMs=${(System.nanoTime() - switchStartedAtNanos) / 1_000_000}",
     )
     return true
   }
