@@ -103,6 +103,46 @@ internal data class AgentConversationTurn(
   var complete: Boolean = false,
 )
 
+/**
+ * Validates the complete activation tool-result batch before changing the model-visible schema set.
+ * A partial or fabricated result must never activate only a subset of a requested batch.
+ */
+internal object AgentCapabilityActivationPolicy {
+  fun requestedGroups(
+    conversationMessages: List<AgentMessage>,
+    toolResults: List<AgentMessage>,
+  ): Set<String>? {
+    if (toolResults.isEmpty() || toolResults.any {
+      it.role != AgentMessage.Role.TOOL ||
+        it.toolName != "activate_capability_group" ||
+        it.toolSucceeded != true ||
+        it.toolCallId.isNullOrBlank()
+    }) {
+      return null
+    }
+    val callIds = toolResults.map { it.toolCallId!! }
+    if (callIds.size != callIds.toSet().size) return null
+    val calls = conversationMessages.filter {
+      it.role == AgentMessage.Role.ASSISTANT &&
+        it.toolName == "activate_capability_group" &&
+        it.toolCallId in callIds
+    }
+    if (calls.size != callIds.size) return null
+    val groups = calls.map { call ->
+      val id = call.toolArguments
+        ?.get("group_id")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString
+        ?: return null
+      if (AgentCapabilityGroups.find(id)?.id == null || id == AgentCapabilityGroups.CORE) {
+        return null
+      }
+      id
+    }
+    return groups.toSet()
+  }
+}
+
 /** Pure history policy: compaction removes whole, completed turns only. */
 internal object AgentConversationCompactionPolicy {
   fun shouldCompact(tokenCount: Int, threshold: Int): Boolean = tokenCount >= threshold
@@ -257,22 +297,15 @@ class LiteRtLmAgentModel(
         } else {
           buildLiteRtToolResponseMessage(toolMessages)
         }
-      if (toolMessages.any { it.toolName == "activate_capability_group" }) {
-        val activationCallIds = toolMessages
-          .filter { it.toolName == "activate_capability_group" }
-          .mapNotNull { it.toolCallId }
-          .toSet()
-        val requestedGroups = messages
-          .filter {
-            it.role == AgentMessage.Role.ASSISTANT &&
-              it.toolName == "activate_capability_group" &&
-              it.toolCallId != null && it.toolCallId in activationCallIds
-          }
-          .mapNotNull {
-            it.toolArguments?.get("group_id")?.takeIf { value -> value.isJsonPrimitive }?.asString
-          }
-          .toSet()
-        val activated = requestedGroups.isNotEmpty() &&
+      val activationResults = toolMessages.filter {
+        it.toolName == "activate_capability_group"
+      }
+      if (activationResults.isNotEmpty()) {
+        val requestedGroups = AgentCapabilityActivationPolicy.requestedGroups(
+          conversationMessages = messages,
+          toolResults = activationResults,
+        )
+        val activated = !requestedGroups.isNullOrEmpty() &&
           switchGroupsLocked(activeGroupIds + requestedGroups)
         if (!activated) {
           val note = "\\nCapability group activation failed; the previous toolset remains active."
