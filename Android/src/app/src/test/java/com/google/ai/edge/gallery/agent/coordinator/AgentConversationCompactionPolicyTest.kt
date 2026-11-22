@@ -29,6 +29,7 @@ class AgentConversationCompactionPolicyTest {
   fun compactionStartsAtConfiguredThreshold() {
     assertFalse(AgentConversationCompactionPolicy.shouldCompact(2_999, 3_000))
     assertTrue(AgentConversationCompactionPolicy.shouldCompact(3_000, 3_000))
+    assertTrue(AgentConversationCompactionPolicy.shouldCompact(3_001, 3_000))
   }
 
   @Test
@@ -76,6 +77,14 @@ class AgentConversationCompactionPolicyTest {
     assertTrue(
       AgentConversationCompactionPolicy.isContextOverflow(
         IllegalArgumentException("INVALID_ARGUMENT: Input token ids are too long.")
+      )
+    )
+    assertTrue(
+      AgentConversationCompactionPolicy.isContextOverflow(
+        IllegalStateException(
+          "Conversation failed",
+          IllegalArgumentException("Exceeding the maximum number of tokens"),
+        )
       )
     )
     assertFalse(
