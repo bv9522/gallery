@@ -25,6 +25,7 @@ import com.google.ai.edge.gallery.tools.CallJsSkillResultWebview
 import com.google.ai.edge.gallery.tools.LoadSkillTool
 import com.google.ai.edge.gallery.tools.DiscoverSkillsTool
 import com.google.ai.edge.gallery.tools.DiscoverMcpToolsTool
+import com.google.ai.edge.gallery.tools.GetMcpToolSchemaTool
 import com.google.ai.edge.gallery.tools.RunIntentTool
 import com.google.ai.edge.gallery.tools.RunJsTool
 import com.google.ai.edge.gallery.tools.RunMcpTool
@@ -74,6 +75,10 @@ open class AgentToolsImpl : AgentTools {
     DiscoverMcpToolsTool(mcpServersProvider = mcpManagerViewModel)
   }
 
+  val getMcpToolSchemaTool by lazy {
+    GetMcpToolSchemaTool(mcpServersProvider = mcpManagerViewModel)
+  }
+
   val runMcpTool by lazy {
     RunMcpTool(
       mcpServersProvider = mcpManagerViewModel,
@@ -93,6 +98,7 @@ open class AgentToolsImpl : AgentTools {
       discoverSkillsTool,
       loadSkillTool,
       discoverMcpToolsTool,
+      getMcpToolSchemaTool,
       runMcpTool,
       runJsTool,
       runIntentTool,
