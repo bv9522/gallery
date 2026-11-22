@@ -38,6 +38,12 @@ class AgentCapabilityGroupsTest {
       AgentCapabilityGroups.TERMUX_API,
       AgentCapabilityGroups.route("Read the accelerometer sensor."),
     )
+    assertEquals(
+      AgentCapabilityGroups.TERMUX_API,
+      AgentCapabilityGroups.route("Use Termux API to scan nearby Wi-Fi networks."),
+    )
+    assertEquals(AgentCapabilityGroups.ANDROID_CONTROLS, AgentCapabilityGroups.route("Authenticate with biometrics."))
+    assertEquals(null, AgentCapabilityGroups.route("Wi-Fi status"))
     assertEquals(null, AgentCapabilityGroups.route("What is the capital of France?"))
     assertEquals(null, AgentCapabilityGroups.route("Inspect the screen and save a PDF."))
   }
