@@ -23,6 +23,8 @@ import com.google.ai.edge.gallery.skills.SkillsProvider
 import com.google.ai.edge.gallery.tools.CallJsSkillResultImage
 import com.google.ai.edge.gallery.tools.CallJsSkillResultWebview
 import com.google.ai.edge.gallery.tools.LoadSkillTool
+import com.google.ai.edge.gallery.tools.DiscoverSkillsTool
+import com.google.ai.edge.gallery.tools.DiscoverMcpToolsTool
 import com.google.ai.edge.gallery.tools.RunIntentTool
 import com.google.ai.edge.gallery.tools.RunJsTool
 import com.google.ai.edge.gallery.tools.RunMcpTool
@@ -66,6 +68,12 @@ open class AgentToolsImpl : AgentTools {
 
   val loadSkillTool by lazy { LoadSkillTool(skillsProvider = skillsProvider) }
 
+  val discoverSkillsTool by lazy { DiscoverSkillsTool(skillsProvider = skillsProvider) }
+
+  val discoverMcpToolsTool by lazy {
+    DiscoverMcpToolsTool(mcpServersProvider = mcpManagerViewModel)
+  }
+
   val runMcpTool by lazy {
     RunMcpTool(
       mcpServersProvider = mcpManagerViewModel,
@@ -81,7 +89,14 @@ open class AgentToolsImpl : AgentTools {
   val runIntentTool by lazy { RunIntentTool(context = context, skillsProvider = skillsProvider) }
 
   override fun getAvailableTools(): List<ToolDefinition> {
-    return listOf(loadSkillTool, runMcpTool, runJsTool, runIntentTool) + activeTools
+    return listOf(
+      discoverSkillsTool,
+      loadSkillTool,
+      discoverMcpToolsTool,
+      runMcpTool,
+      runJsTool,
+      runIntentTool,
+    ) + activeTools
   }
 
   override fun registerTool(tool: ToolDefinition) {
