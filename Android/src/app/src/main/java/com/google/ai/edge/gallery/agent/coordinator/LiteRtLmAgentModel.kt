@@ -349,7 +349,7 @@ class LiteRtLmAgentModel(
         val activated = !requestedGroups.isNullOrEmpty() &&
           switchGroupsLocked(activeGroupIds + requestedGroups)
         if (!activated) {
-          val note = "\\nCapability group activation failed; the previous toolset remains active."
+          val note = "\nCapability group activation failed; the previous toolset remains active."
           replayToolMessages = AgentCapabilityActivationPolicy.markActivationFailure(
             toolMessages,
             note,
