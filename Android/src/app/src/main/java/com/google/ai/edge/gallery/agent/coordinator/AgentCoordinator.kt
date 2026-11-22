@@ -174,8 +174,8 @@ class AgentCoordinator(
     }
     val tool = tools.find(call.name)
       ?: return AgentToolResult(
-        content = "Unknown tool '" + call.name + "'. Available tools: " +
-          tools.names().sorted().joinToString(", "),
+        content = "Unknown tool '" + call.name +
+          "'. Use the available discovery tools to find the correct capability before retrying.",
         isSuccessful = false,
       )
     val result = try {
