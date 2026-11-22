@@ -124,12 +124,12 @@ object LlmChatModelHelper : LlmModelHelper {
   fun createAgentModel(
     model: Model,
     tools: AgentToolRegistry,
-    visibleTools: AgentToolRegistry = tools,
-    initialGroupIds: Set<String> = emptySet(),
     systemInstruction: String? = null,
     additionalToolProviders: List<ToolProvider> = emptyList(),
     initialMessages: List<Message> = emptyList(),
     enableConversationConstrainedDecoding: Boolean = true,
+    visibleTools: AgentToolRegistry = tools,
+    initialGroupIds: Set<String> = emptySet(),
   ): LiteRtLmAgentModel {
     val instance = model.instance as? LlmModelInstance
       ?: error("LiteRT-LM model is not initialized.")
