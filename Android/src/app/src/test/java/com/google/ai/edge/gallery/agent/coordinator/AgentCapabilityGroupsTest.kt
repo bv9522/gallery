@@ -80,6 +80,31 @@ class AgentCapabilityGroupsTest {
   }
 
   @Test
+  fun projectionFailsClosedWhenAGroupToolIsMissing() {
+    val incomplete = AgentToolRegistry(
+      listOf(
+        testTool("execute_shell"),
+        testTool("discover_capability_groups"),
+        testTool("activate_capability_group"),
+        testTool("document_tree"),
+      )
+    )
+
+    try {
+      AgentCapabilityGroups.project(incomplete, setOf(AgentCapabilityGroups.STORAGE_ARTIFACTS))
+      throw AssertionError("Expected an incomplete group mapping to fail closed.")
+    } catch (expected: IllegalArgumentException) {
+      assertTrue(expected.message.orEmpty().contains("artifact_create"))
+    }
+  }
+
+  @Test
+  fun eachNativeToolBelongsToAtMostOneGroup() {
+    val assignedTools = AgentCapabilityGroups.definitions.flatMap { it.toolNames }
+    assertEquals(assignedTools.size, assignedTools.toSet().size)
+  }
+
+  @Test
   fun discoveryIsReadOnlyAndReturnsOnlyCompactGroupMetadata() = runBlocking {
     val result = DiscoverCapabilityGroupsTool().execute(
       JsonObject().apply { addProperty("query", "pdf") }
