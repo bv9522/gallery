@@ -35,7 +35,7 @@ class AgentCapabilityActivationPolicyTest {
 
     assertEquals(
       setOf(AgentCapabilityGroups.ANDROID_CONTROLS, AgentCapabilityGroups.STORAGE_ARTIFACTS),
-      AgentCapabilityActivationPolicy.requestedGroups(calls, results),
+      AgentCapabilityActivationPolicy.requestedGroups(calls + results, results),
     )
   }
 
@@ -49,7 +49,23 @@ class AgentCapabilityActivationPolicyTest {
       activationResult("activate-2"),
     )
 
-    assertNull(AgentCapabilityActivationPolicy.requestedGroups(calls, results))
+    assertNull(AgentCapabilityActivationPolicy.requestedGroups(calls + results, results))
+  }
+
+  @Test
+  fun rejectsMissingResultForOneActivationInTheSameAssistantBatch() {
+    val calls = listOf(
+      activationCall("activate-1", AgentCapabilityGroups.ANDROID_CONTROLS),
+      activationCall("activate-2", AgentCapabilityGroups.STORAGE_ARTIFACTS),
+    )
+    val partialResults = listOf(activationResult("activate-1"))
+
+    assertNull(
+      AgentCapabilityActivationPolicy.requestedGroups(
+        calls + partialResults,
+        partialResults,
+      ),
+    )
   }
 
   @Test
@@ -57,7 +73,7 @@ class AgentCapabilityActivationPolicyTest {
     val call = activationCall("activate-1", AgentCapabilityGroups.TERMUX_API)
     val result = activationResult("activate-1").copy(toolSucceeded = false)
 
-    assertNull(AgentCapabilityActivationPolicy.requestedGroups(listOf(call), listOf(result)))
+    assertNull(AgentCapabilityActivationPolicy.requestedGroups(listOf(call, result), listOf(result)))
   }
 
   @Test
@@ -67,13 +83,13 @@ class AgentCapabilityActivationPolicyTest {
 
     assertNull(
       AgentCapabilityActivationPolicy.requestedGroups(
-        listOf(unknown),
+        listOf(unknown, activationResult("activate-1")),
         listOf(activationResult("activate-1")),
       ),
     )
     assertNull(
       AgentCapabilityActivationPolicy.requestedGroups(
-        listOf(core),
+        listOf(core, activationResult("activate-2")),
         listOf(activationResult("activate-2")),
       ),
     )
@@ -105,7 +121,7 @@ class AgentCapabilityActivationPolicyTest {
     val missingId = activationResult(callId = null)
     val validCall = activationCall("activate-1", AgentCapabilityGroups.TERMUX_API)
     assertNull(
-      AgentCapabilityActivationPolicy.requestedGroups(listOf(validCall), listOf(missingId)),
+      AgentCapabilityActivationPolicy.requestedGroups(listOf(validCall, missingId), listOf(missingId)),
     )
 
     val duplicateResults = listOf(
@@ -114,7 +130,7 @@ class AgentCapabilityActivationPolicyTest {
     )
     assertNull(
       AgentCapabilityActivationPolicy.requestedGroups(
-        listOf(validCall),
+        listOf(validCall) + duplicateResults,
         duplicateResults,
       ),
     )
