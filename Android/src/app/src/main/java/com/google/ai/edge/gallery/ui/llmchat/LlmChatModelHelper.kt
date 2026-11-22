@@ -147,18 +147,19 @@ object LlmChatModelHelper : LlmModelHelper {
       }
     // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
     // Serialize access because LiteRT-LM exposes this setting as a process-wide mutable flag.
-    val conversationFactory: (List<Message>) -> Conversation = { retainedHistory ->
+    val toolProviders = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders
+    val conversationFactory: (List<Message>, Boolean) -> Conversation = { retainedHistory, prefill ->
       withConversationConstrainedDecoding(enableConversationConstrainedDecoding) {
         instance.engine.createConversation(
           ConversationConfig(
             samplerConfig = samplerConfig,
             systemInstruction =
               systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
-            tools = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders,
+            tools = toolProviders,
             initialMessages = initialMessages + retainedHistory,
             automaticToolCalling = false,
             // Make getTokenCount() authoritative immediately after a history rebuild.
-            prefillPrefaceOnInit = true,
+            prefillPrefaceOnInit = prefill,
           )
         )
       }
@@ -170,7 +171,24 @@ object LlmChatModelHelper : LlmModelHelper {
         "initialMessageCount=${initialMessages.size}, " +
         "systemInstructionChars=${systemInstruction?.length ?: 0}",
     )
-    val conversation = conversationFactory(emptyList())
+    val conversation = try {
+      conversationFactory(emptyList(), true)
+    } catch (creationError: Exception) {
+      Log.e(TAG, "Agent conversation creation/prefill failed; collecting schema-only diagnostics.", creationError)
+      // A non-prefilled diagnostic conversation exposes LiteRT-LM's fully expanded schemas without
+      // attempting to tokenize the oversized prompt. This runs only after the normal creation fails.
+      runCatching {
+        val diagnosticConversation = conversationFactory(emptyList(), false)
+        try {
+          logAgentToolSchemaSizes(diagnosticConversation)
+        } finally {
+          diagnosticConversation.close()
+        }
+      }.onFailure { diagnosticError ->
+        Log.w(TAG, "Unable to create a schema-only diagnostic conversation.", diagnosticError)
+      }
+      throw creationError
+    }
     logAgentToolSchemaSizes(conversation)
     instance.activeEphemeralConversations.add(conversation)
     val contextLimit = model.getIntConfigValue(
@@ -180,7 +198,7 @@ object LlmChatModelHelper : LlmModelHelper {
     return LiteRtLmAgentModel(
       conversation = conversation,
       conversationFactory = { history ->
-        conversationFactory(history).also { instance.activeEphemeralConversations.add(it) }
+        conversationFactory(history, true).also { instance.activeEphemeralConversations.add(it) }
       },
       onConversationClosed = { instance.activeEphemeralConversations.remove(it) },
       compactAtTokenCount = (contextLimit * 0.75).toInt(),
