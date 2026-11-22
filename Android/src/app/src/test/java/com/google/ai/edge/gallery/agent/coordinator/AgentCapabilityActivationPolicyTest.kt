@@ -80,6 +80,27 @@ class AgentCapabilityActivationPolicyTest {
   }
 
   @Test
+  fun failedActivationResultIsAlsoTheResultRetainedForHistoryReplay() {
+    val activation = activationResult("activate-1")
+    val unrelated = AgentMessage(
+      role = AgentMessage.Role.TOOL,
+      toolName = "execute_shell",
+      content = "shell output",
+      toolSucceeded = true,
+    )
+    val note = "\\nCapability group activation failed; the previous toolset remains active."
+
+    val replayResults = AgentCapabilityActivationPolicy.markActivationFailure(
+      listOf(activation, unrelated),
+      note,
+    )
+
+    assertEquals(activation.content + note, replayResults[0].content)
+    assertEquals(false, replayResults[0].toolSucceeded)
+    assertEquals(unrelated, replayResults[1])
+  }
+
+  @Test
   fun rejectsMissingAndDuplicateCallIdentifiers() {
     val missingId = activationResult(callId = null)
     val validCall = activationCall("activate-1", AgentCapabilityGroups.TERMUX_API)
