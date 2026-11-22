@@ -88,7 +88,7 @@ class AgentCapabilityActivationPolicyTest {
       content = "shell output",
       toolSucceeded = true,
     )
-    val note = "\\nCapability group activation failed; the previous toolset remains active."
+    val note = "\nCapability group activation failed; the previous toolset remains active."
 
     val replayResults = AgentCapabilityActivationPolicy.markActivationFailure(
       listOf(activation, unrelated),
