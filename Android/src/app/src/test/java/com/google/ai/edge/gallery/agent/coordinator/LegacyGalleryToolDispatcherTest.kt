@@ -37,7 +37,7 @@ class LegacyGalleryToolDispatcherTest {
       JsonObject().apply { addProperty("value", "independent") }
     )
 
-    assertTrue(result.isSuccessful)
+    assertTrue("Legacy tool dispatch failed: ${result.content}", result.isSuccessful)
     assertEquals("echo:independent", result.content)
   }
 
