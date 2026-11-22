@@ -129,11 +129,17 @@ class LiteRtLmAgentModel(
   private val onConversationClosed: ((Conversation) -> Unit)? = null,
   private val compactAtTokenCount: Int = 3_000,
   private val compactToTokenCount: Int = 2_400,
+  private val fullToolRegistry: AgentToolRegistry? = null,
+  initialVisibleToolRegistry: AgentToolRegistry? = null,
+  private val groupedConversationFactory: ((List<Message>, AgentToolRegistry) -> Conversation)? = null,
+  initialGroupIds: Set<String> = emptySet(),
 ) : AgentModel, Closeable {
   private val mutex = Mutex()
   private var consumedMessageCount = 0
   private var modelTurn = 0
   private val conversationTurns = mutableListOf<AgentConversationTurn>()
+  private var visibleToolRegistry: AgentToolRegistry? = initialVisibleToolRegistry
+  private val activeGroupIds = initialGroupIds.toMutableSet()
   @Volatile private var closed = false
   private val registeredToolSummaries: List<String> =
     conversation.toolManager.getToolsDescription().mapNotNull { entry ->
@@ -159,6 +165,54 @@ class LiteRtLmAgentModel(
   /** Returns the native token count for the current prefetched conversation. */
   suspend fun currentTokenCount(): Int = mutex.withLock { conversation.getTokenCount() }
 
+  /** Current model-visible names, including the always-registered Gallery legacy tools. */
+  fun visibleToolNames(): Set<String> = conversation.toolManager.getToolsDescription().mapNotNull { entry ->
+    entry.asJsonObject.getAsJsonObject("function")?.get("name")?.asString
+  }.toSet()
+
+  /** Deterministic routing selects one group; no match leaves the current projection unchanged. */
+  suspend fun selectGroup(groupId: String): Boolean = mutex.withLock {
+    switchGroupsLocked(setOf(groupId))
+  }
+
+  /** Model-driven activation adds one group to the current task's projection. */
+  suspend fun activateGroup(groupId: String): Boolean = mutex.withLock {
+    switchGroupsLocked(activeGroupIds + groupId)
+  }
+
+  private suspend fun switchGroupsLocked(groupIds: Set<String>): Boolean {
+    val full = fullToolRegistry ?: return false
+    val factory = groupedConversationFactory ?: return false
+    if (groupIds.any { AgentCapabilityGroups.find(it) == null || it == AgentCapabilityGroups.CORE }) return false
+    val projected = AgentCapabilityGroups.project(full, groupIds)
+    if (projected.names() == visibleToolRegistry?.names()) {
+      activeGroupIds.clear()
+      activeGroupIds.addAll(groupIds)
+      return true
+    }
+    val retainedMessages = conversationTurns.flatMap { it.messages }
+    val replacement = try {
+      factory(retainedMessages, projected).also { it.getTokenCount() }
+    } catch (error: Exception) {
+      Log.w(TAG, "Capability conversation rebuild failed; retaining the active conversation.", error)
+      return false
+    }
+    val previous = conversation
+    conversation = replacement
+    visibleToolRegistry = projected
+    activeGroupIds.clear()
+    activeGroupIds.addAll(groupIds)
+    onConversationClosed?.invoke(previous)
+    runCatching { previous.close() }
+      .onFailure { Log.w(TAG, "Failed to close previous capability conversation.", it) }
+    Log.i(
+      TAG,
+      "Capability group projection changed: groups=${activeGroupIds.sorted()}, " +
+        "visibleNativeTools=${projected.names().size}, retainedTurns=${conversationTurns.size}",
+    )
+    return true
+  }
+
   override suspend fun generate(messages: List<AgentMessage>): AgentModelResponse =
     mutex.withLock {
       check(!closed) { "Agent conversation is closed." }
@@ -179,13 +233,25 @@ class LiteRtLmAgentModel(
           "${userMessages.size} user and ${toolMessages.size} tool messages."
       }
 
-      val message =
+      var message =
         if (userMessages.isNotEmpty()) {
           userMessages.single().userContents?.let(Message::user)
             ?: Message.user(userMessages.single().content)
         } else {
           buildLiteRtToolResponseMessage(toolMessages)
         }
+      if (toolMessages.any { it.toolName == "activate_capability_group" }) {
+        val requestedGroup = messages.lastOrNull {
+          it.role == AgentMessage.Role.ASSISTANT && it.toolName == "activate_capability_group"
+        }?.toolArguments?.get("group_id")?.takeIf { it.isJsonPrimitive }?.asString
+        val activated = requestedGroup?.let { switchGroupsLocked(activeGroupIds + it) } ?: false
+        if (!activated) {
+          val note = "\\nCapability group activation failed; the previous toolset remains active."
+          message = buildLiteRtToolResponseMessage(toolMessages.map { result ->
+            if (result.toolName == "activate_capability_group") result.copy(content = result.content + note, toolSucceeded = false) else result
+          })
+        }
+      }
       // Replay history deliberately omits transient image/audio payloads. Tool screenshot bytes
       // are erased after inference, so retaining them here would replay zeroed or private data.
       val replayMessage = if (userMessages.isNotEmpty()) {
@@ -305,7 +371,8 @@ class LiteRtLmAgentModel(
         AgentConversationCompactionPolicy.dropOldestCompletedTurn(conversationTurns) ?: break
       val retainedMessages = retainedTurns.flatMap { it.messages }
       val replacement = try {
-        conversationFactory(retainedMessages)
+        groupedConversationFactory?.invoke(retainedMessages, visibleToolRegistry ?: fullToolRegistry ?: return@withContext)
+          ?: conversationFactory(retainedMessages)
       } catch (error: Exception) {
         Log.w(TAG, "Native conversation rebuild failed; retaining the existing conversation.", error)
         break
