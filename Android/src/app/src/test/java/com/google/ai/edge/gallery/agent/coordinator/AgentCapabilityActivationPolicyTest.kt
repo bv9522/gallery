@@ -69,6 +69,50 @@ class AgentCapabilityActivationPolicyTest {
   }
 
   @Test
+  fun acceptsActivationWhenEverySiblingToolCallHasAResult() {
+    val activation = activationCall("activate-1", AgentCapabilityGroups.TERMUX_API)
+    val shellCall = AgentMessage(
+      role = AgentMessage.Role.ASSISTANT,
+      toolCallId = "shell-1",
+      toolName = "execute_shell",
+    )
+    val activationResult = activationResult("activate-1")
+    val shellResult = AgentMessage(
+      role = AgentMessage.Role.TOOL,
+      toolCallId = "shell-1",
+      toolName = "execute_shell",
+      content = "uid=2000(shell)",
+      toolSucceeded = true,
+    )
+
+    assertEquals(
+      setOf(AgentCapabilityGroups.TERMUX_API),
+      AgentCapabilityActivationPolicy.requestedGroups(
+        listOf(activation, shellCall, activationResult, shellResult),
+        listOf(activationResult),
+      ),
+    )
+  }
+
+  @Test
+  fun rejectsActivationWhenANonActivationSiblingResultIsMissing() {
+    val activation = activationCall("activate-1", AgentCapabilityGroups.TERMUX_API)
+    val shellCall = AgentMessage(
+      role = AgentMessage.Role.ASSISTANT,
+      toolCallId = "shell-1",
+      toolName = "execute_shell",
+    )
+    val activationResult = activationResult("activate-1")
+
+    assertNull(
+      AgentCapabilityActivationPolicy.requestedGroups(
+        listOf(activation, shellCall, activationResult),
+        listOf(activationResult),
+      ),
+    )
+  }
+
+  @Test
   fun rejectsFailedActivationToolResult() {
     val call = activationCall("activate-1", AgentCapabilityGroups.TERMUX_API)
     val result = activationResult("activate-1").copy(toolSucceeded = false)
