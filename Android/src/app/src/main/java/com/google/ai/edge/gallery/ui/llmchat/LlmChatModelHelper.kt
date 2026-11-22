@@ -229,7 +229,7 @@ object LlmChatModelHelper : LlmModelHelper {
           "chars=$totalCharacters, utf8Bytes=$totalUtf8Bytes",
       )
     }.onFailure { error ->
-      Log.w(TAG, "Unable to inspect registered agent tool schemas.", error)
+      Log.w(TAG, "Unable to inspect registered agent tool schemas (${error.javaClass.simpleName}).")
     }
   }
 
