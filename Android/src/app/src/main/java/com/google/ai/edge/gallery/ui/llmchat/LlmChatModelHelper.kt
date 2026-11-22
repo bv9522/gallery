@@ -124,6 +124,8 @@ object LlmChatModelHelper : LlmModelHelper {
   fun createAgentModel(
     model: Model,
     tools: AgentToolRegistry,
+    visibleTools: AgentToolRegistry = tools,
+    initialGroupIds: Set<String> = emptySet(),
     systemInstruction: String? = null,
     additionalToolProviders: List<ToolProvider> = emptyList(),
     initialMessages: List<Message> = emptyList(),
@@ -147,8 +149,9 @@ object LlmChatModelHelper : LlmModelHelper {
       }
     // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
     // Serialize access because LiteRT-LM exposes this setting as a process-wide mutable flag.
-    val toolProviders = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders
-    val conversationFactory: (List<Message>, Boolean, Boolean) -> Conversation = { retainedHistory, prefill, includeInitialMessages ->
+    // Provider schemas are projected per conversation; the full execution registry stays app-side.
+    val conversationFactory: (List<Message>, AgentToolRegistry, Boolean, Boolean) -> Conversation = { retainedHistory, visibleRegistry, prefill, includeInitialMessages ->
+      val toolProviders = LiteRtLmAgentModel.toolProviders(visibleRegistry) + additionalToolProviders
       withConversationConstrainedDecoding(enableConversationConstrainedDecoding) {
         instance.engine.createConversation(
           ConversationConfig(
@@ -172,13 +175,13 @@ object LlmChatModelHelper : LlmModelHelper {
         "systemInstructionChars=${systemInstruction?.length ?: 0}",
     )
     val conversation = try {
-      conversationFactory(emptyList(), true, true)
+      conversationFactory(emptyList(), visibleTools, true, true)
     } catch (creationError: Exception) {
       Log.e(TAG, "Agent conversation creation/prefill failed; collecting schema-only diagnostics (${creationError.javaClass.simpleName}).")
       // A non-prefilled diagnostic conversation exposes LiteRT-LM's fully expanded schemas without
       // attempting to tokenize the oversized prompt. This runs only after the normal creation fails.
       runCatching {
-        val diagnosticConversation = conversationFactory(emptyList(), false, false)
+        val diagnosticConversation = conversationFactory(emptyList(), visibleTools, false, false)
         try {
           logAgentToolSchemaSizes(diagnosticConversation)
         } finally {
@@ -198,8 +201,14 @@ object LlmChatModelHelper : LlmModelHelper {
     return LiteRtLmAgentModel(
       conversation = conversation,
       conversationFactory = { history ->
-        conversationFactory(history, true, true).also { instance.activeEphemeralConversations.add(it) }
+        conversationFactory(history, visibleTools, true, true).also { instance.activeEphemeralConversations.add(it) }
       },
+      fullToolRegistry = tools,
+      initialVisibleToolRegistry = visibleTools,
+      groupedConversationFactory = { history, registry ->
+        conversationFactory(history, registry, true, true).also { instance.activeEphemeralConversations.add(it) }
+      },
+      initialGroupIds = initialGroupIds,
       onConversationClosed = { instance.activeEphemeralConversations.remove(it) },
       compactAtTokenCount = (contextLimit * 0.75).toInt(),
       compactToTokenCount = (contextLimit * 0.60).toInt(),
