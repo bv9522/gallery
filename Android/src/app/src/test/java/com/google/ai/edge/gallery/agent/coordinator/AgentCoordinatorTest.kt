@@ -105,19 +105,28 @@ class AgentCoordinatorTest {
   }
 
   @Test
-  fun unknownToolIsReturnedToModelAsRecoverableToolError() = runBlocking {
+  fun unknownToolIsReturnedWithoutDumpingTheApplicationRegistry() = runBlocking {
+    val internalTool = testTool("internal_only_capability")
     var modelTurn = 0
     val model = AgentModel { history ->
       modelTurn++
       if (modelTurn == 1) {
         AgentModelResponse.ToolCall("missing", JsonObject(), "unknown-1")
       } else {
-        assertTrue(history.last().content.contains("Unknown tool 'missing'"))
+        val error = history.last().content
+        assertTrue(error.contains("Unknown tool 'missing'"))
+        assertTrue(error.contains("discovery tools"))
+        assertFalse(error.contains("internal_only_capability"))
         AgentModelResponse.FinalAnswer("I could not find that tool.")
       }
     }
 
-    val result = AgentCoordinator(model, AgentToolRegistry(emptyList())).run("Do something.")
+    val result = AgentCoordinator(
+      model = model,
+      tools = AgentToolRegistry(listOf(internalTool)),
+      visibleToolNames = { setOf("missing") },
+    ).run("Do something.")
+
     assertEquals(AgentRunStatus.COMPLETED, result.status)
     assertEquals(1, result.toolCalls)
     assertEquals(2, result.modelTurns)
