@@ -218,7 +218,9 @@ class NativeAgentRuntimeExecutor(
         val contents = withContext(Dispatchers.IO) { buildUserContents(currentContext, request) }
         val routedGroup = AgentCapabilityGroups.route(request.query)
         val activeModel = ensureAgentModel(currentConfig, routedGroup)
-        if (routedGroup != null) activeModel.selectGroup(routedGroup)
+        if (routedGroup != null && !activeModel.selectGroup(routedGroup)) {
+          error("Could not safely activate capability group '$routedGroup'; the previous conversation remains active.")
+        }
         executionStage = "first inference"
         val currentCoordinator = checkNotNull(coordinator)
         coordinatorStarted = true
