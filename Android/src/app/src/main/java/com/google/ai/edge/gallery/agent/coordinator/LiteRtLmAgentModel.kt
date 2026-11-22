@@ -133,12 +133,51 @@ internal object AgentCapabilityActivationPolicy {
     }
     val callIds = toolResults.map { it.toolCallId!! }
     if (callIds.size != callIds.toSet().size) return null
-    val calls = conversationMessages.filter {
-      it.role == AgentMessage.Role.ASSISTANT &&
-        it.toolName == "activate_capability_group" &&
-        it.toolCallId != null && it.toolCallId in callIds
+
+    // The coordinator records the complete assistant tool-call batch before appending any
+    // corresponding tool results. Validate against that latest transaction, not merely against
+    // whichever matching activation IDs happen to be present in the supplied result subset.
+    val lastResultIndex = conversationMessages.indexOfLast {
+      it.role == AgentMessage.Role.TOOL
     }
-    if (calls.size != callIds.size) return null
+    if (lastResultIndex < 0) return null
+    var resultStart = lastResultIndex
+    while (resultStart > 0 &&
+      conversationMessages[resultStart - 1].role == AgentMessage.Role.TOOL
+    ) {
+      resultStart--
+    }
+    var callEnd = resultStart - 1
+    if (callEnd < 0 ||
+      conversationMessages[callEnd].role != AgentMessage.Role.ASSISTANT ||
+      conversationMessages[callEnd].toolCallId.isNullOrBlank()
+    ) {
+      return null
+    }
+    var callStart = callEnd
+    while (callStart > 0) {
+      val previous = conversationMessages[callStart - 1]
+      if (previous.role == AgentMessage.Role.ASSISTANT &&
+        !previous.toolCallId.isNullOrBlank()
+      ) {
+        callStart--
+      } else {
+        break
+      }
+    }
+    val batchActivationCalls = conversationMessages.subList(callStart, callEnd + 1)
+      .filter {
+        it.role == AgentMessage.Role.ASSISTANT &&
+          it.toolName == "activate_capability_group"
+      }
+    val expectedCallIds = batchActivationCalls.map { it.toolCallId ?: return null }
+    if (expectedCallIds.isEmpty() ||
+      expectedCallIds.size != callIds.size ||
+      expectedCallIds.toSet() != callIds.toSet()
+    ) {
+      return null
+    }
+    val calls = batchActivationCalls
     val groups = calls.map { call ->
       val id = call.toolArguments
         ?.get("group_id")
