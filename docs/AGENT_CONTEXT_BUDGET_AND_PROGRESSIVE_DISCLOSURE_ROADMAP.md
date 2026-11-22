@@ -1,9 +1,9 @@
 # Agent Context Budget and Progressive Capability Disclosure Roadmap
 
-**Status:** Architecture approved; implementation is measurement-first and not yet started.  
+**Status:** Architecture approved; PR #62 diagnostics and PR #63 MCP/skill progressive-disclosure implementation are in review. PR #63 passed the owner's local `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` tasks; CI, native-token comparison, and Galaxy S21 acceptance remain pending.  
 **Owner:** Brian (product direction and device acceptance); Cocochat (architecture and implementation).  
 **Scope:** Reduce Gemma's always-visible tool/schema and instruction footprint without deleting capabilities, weakening execution controls, or reducing the runtime's ability to dispatch approved operations.  
-**Implementation branch:** `diagnostics/agent-context-footprint` (stacked on the current Stage 10 implementation baseline). Keep PR #62 and PR #60 open and unmerged unless Brian explicitly approves integration.
+**Implementation branches:** PR #62 `diagnostics/agent-context-footprint`; PR #63 `phase-10h-mcp-skill-progressive-disclosure`; next native capability-group work on `phase-10i-native-capability-groups` (stacked on PR #63). Keep PR #62, PR #63, and PR #60 open and unmerged unless Brian explicitly approves integration.
 
 ## 1. Architectural decision
 
@@ -101,10 +101,10 @@ Use the results to prioritize the largest savings and identify schemas that shou
 
 ### Step 3 — Progressive disclosure for MCP and skills first
 
-- [ ] Replace the always-expanded MCP tool catalog in the system prompt with a compact MCP discovery/search/list surface.
-- [ ] Return only relevant MCP tool names, descriptions, and input schemas after discovery; preserve the existing guarded MCP execution path and exact argument validation.
-- [ ] Replace or slim always-on selected-skill metadata with compact skill discovery/search/list. Load full skill instructions only when the selected skill is needed.
-- [ ] Preserve skill/MCP availability, permission/consent behavior, execution bounds, and truthful unavailable/error results.
+- [x] Replace the always-expanded MCP tool catalog in the system prompt with a compact MCP discovery/search/list surface.
+- [x] Return only relevant MCP tool names, descriptions, and input schemas after discovery; preserve the existing guarded MCP execution path and exact argument validation.
+- [x] Replace or slim always-on selected-skill metadata with compact skill discovery/search/list. Load full skill instructions only when the selected skill is needed.
+- [x] Preserve skill/MCP availability, permission/consent behavior, execution bounds, and truthful unavailable/error results.
 - [ ] Compare native token count, tool selection, malformed calls, discovery latency, and successful execution against the baseline.
 
 ### Step 4 — Add native capability groups
@@ -167,12 +167,14 @@ Retain the hybrid design only if it yields material context savings without unac
 
 ## 7. Current state and immediate next action
 
-**Step 3 implementation status (PR #63):** MCP catalog expansion has been replaced by compact search/list discovery, with a separate read-only call that reveals the schema for one uniquely named enabled MCP tool. Skill metadata is discovered through a compact search/list tool, and full instructions remain behind the existing `load_skill` tool. Existing MCP execution and per-tool consent handling are unchanged. Unit tests cover discovery query matching, result limits, and description compaction. Automated validation and comparative native-token/reliability measurements remain pending.
+**Step 1 — diagnostics:** PR #62 is open as a draft. Its privacy-safe source diagnostics were exercised in the owner's local build, but target-device measurements, GitHub Actions validation, and S21 acceptance are not yet recorded here.
 
-## 7. Current state and immediate next action
+**Step 2 — controlled token-cost matrix:** Not yet measured. No character-to-token estimates are being treated as native token evidence.
 
-This document records the approved target architecture and staged plan. Step 3's MCP/skill progressive-disclosure implementation is proposed in PR #63; automated validation and comparative measurements are still pending.
+**Step 3 — MCP and skill progressive disclosure:** Implemented in PR #63. The initial system prompt now uses compact discovery guidance; MCP tool schemas are revealed one at a time, and full skill instructions remain behind `load_skill`. The owner reports that `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed successfully locally on PR #63 head commit `cdab65e907dbde576e2a894cd5075d0357c59419`. This is a local validation result, not GitHub Actions or S21 acceptance. Comparative token/reliability measurements remain pending.
 
-**Immediate sequence:** validate PR #63 → compare native token counts and tool-use reliability before/after MCP/skill discovery → complete the remaining controlled token-cost matrix → implement native capability groups and safe conversation switching → run execution/safety/reliability/performance regression.
+**Step 4 — native capability groups:** Next implementation batch is on `phase-10i-native-capability-groups`, stacked on PR #63. Scope: stable group/subgroup identifiers, complete app-side execution inventory independent of model-visible providers, deterministic intent routing, discovery/activation fallback, selected provider projection, and safe conversation replacement with complete-turn history replay. Implementation and automated proof are in progress; no completion is claimed yet.
+
+**Immediate sequence:** complete and validate native group/routing/switching foundations → prove execution registry independence, approval preservation, and complete-turn history replay → run the controlled native-token/reliability matrix → consolidate S21 acceptance. Do not install intermediate APKs; defer device acceptance until this cohesive implementation and automated checks are ready.
 
 The existing feature-by-feature device acceptance roadmap remains authoritative for capability acceptance. This document governs the separate agent-context and model-visible registry workstream.
