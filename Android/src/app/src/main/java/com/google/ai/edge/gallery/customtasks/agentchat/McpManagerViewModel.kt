@@ -279,15 +279,18 @@ constructor(
     return _uiState.value.mcpServers.any { it.mcpServer.url == url }
   }
 
-  /** Generates a textual prompt listing all enabled tools from all enabled MCP servers. */
-  fun getToolsPrompt(): String {
-    return _uiState.value.mcpServers
-      .filter { it.mcpServer.enabled }
-      .flatMap { it.mcpServer.toolsList }
-      .filter { it.enabled }
-      .joinToString("\n\n") { tool ->
-        "MCP tool name: \"${tool.name}\"\n- Description: ${tool.description}\n- Input schema: ${tool.inputSchema}"
-      }
+  /** Returns compact discovery guidance without expanding any MCP tool metadata or schemas. */
+  fun getMcpDiscoveryPrompt(): String {
+    val hasEnabledTools = _uiState.value.mcpServers.any { state ->
+      state.mcpServer.enabled && state.client != null && state.mcpServer.toolsList.any { it.enabled }
+    }
+    return if (hasEnabledTools) {
+      "MCP DISCOVERY\\nUse discover_mcp_tools with words describing the capability. " +
+        "Inspect only the matching tool schemas returned by discovery, then invoke a selected tool " +
+        "with run_mcp_tool. Discovery does not execute tools or grant consent."
+    } else {
+      ""
+    }
   }
 
   /** Generates a summary of enablement state for all servers and tools. */
