@@ -155,6 +155,33 @@ internal object AgentCapabilityActivationPolicy {
 }
 
 /** Pure history policy: compaction removes whole, completed turns only. */
+internal object AgentConversationHistoryPolicy {
+  /** Snapshot all retained turns in their original message order, including the active turn. */
+  fun replayMessages(turns: List<AgentConversationTurn>): List<Message> =
+    turns.flatMap { it.messages }
+}
+
+internal object AgentConversationReplacementPolicy {
+  data class Candidate<T>(val value: T?, val failure: Exception?)
+
+  /** A candidate is publishable only after creation and validation both succeed. */
+  fun <T> createValidated(
+    create: () -> T,
+    validate: (T) -> Unit,
+    closeRejected: (T) -> Unit,
+  ): Candidate<T> {
+    var candidate: T? = null
+    return try {
+      val value = create().also { candidate = it }
+      validate(value)
+      Candidate(value, null)
+    } catch (error: Exception) {
+      candidate?.let { rejected -> runCatching { closeRejected(rejected) } }
+      Candidate(null, error)
+    }
+  }
+}
+
 internal object AgentConversationCompactionPolicy {
   fun shouldCompact(tokenCount: Int, threshold: Int): Boolean = tokenCount >= threshold
 
@@ -241,25 +268,27 @@ class LiteRtLmAgentModel(
       activeGroupIds.addAll(groupIds)
       return true
     }
-    val retainedMessages = conversationTurns.flatMap { it.messages }
-    var candidate: Conversation? = null
+    val retainedMessages = AgentConversationHistoryPolicy.replayMessages(conversationTurns)
     var replacementTokenCount = -1
     val switchStartedAtNanos = System.nanoTime()
-    val replacement = try {
-      withContext(ioDispatcher) {
-        groupedConversationFactory(retainedMessages, projected).also {
-          candidate = it
-          replacementTokenCount = it.getTokenCount()
-        }
-      }
-    } catch (error: Exception) {
-      candidate?.let { failedCandidate ->
-        runCatching { onConversationClosed?.invoke(failedCandidate) }
-          .onFailure { Log.w(TAG, "Failed candidate cleanup callback failed.", it) }
-        runCatching { failedCandidate.close() }
-          .onFailure { Log.w(TAG, "Failed to close rejected capability conversation.", it) }
-      }
-      Log.w(TAG, "Capability conversation rebuild failed; retaining the active conversation.", error)
+    val candidate = withContext(ioDispatcher) {
+      AgentConversationReplacementPolicy.createValidated(
+        create = { groupedConversationFactory(retainedMessages, projected) },
+        validate = { replacementTokenCount = it.getTokenCount() },
+        closeRejected = { failedCandidate ->
+          runCatching { onConversationClosed?.invoke(failedCandidate) }
+            .onFailure { Log.w(TAG, "Failed candidate cleanup callback failed.", it) }
+          runCatching { failedCandidate.close() }
+            .onFailure { Log.w(TAG, "Failed to close rejected capability conversation.", it) }
+        },
+      )
+    }
+    val replacement = candidate.value ?: run {
+      Log.w(
+        TAG,
+        "Capability conversation rebuild failed; retaining the active conversation.",
+        candidate.failure,
+      )
       return false
     }
     val previous = conversation
@@ -445,34 +474,35 @@ class LiteRtLmAgentModel(
     while (tokenCount > compactToTokenCount) {
       val retainedTurns =
         AgentConversationCompactionPolicy.dropOldestCompletedTurn(conversationTurns) ?: break
-      val retainedMessages = retainedTurns.flatMap { it.messages }
-      var candidate: Conversation? = null
-      val replacementTokenCount = try {
-        val groupedFactory = groupedConversationFactory
-        val selectedRegistry = visibleToolRegistry
-        val replacement = if (groupedFactory != null && selectedRegistry != null) {
-          groupedFactory(retainedMessages, selectedRegistry)
-        } else {
-          conversationFactory(retainedMessages)
-        }
-        candidate = replacement
-        replacement.getTokenCount()
-      } catch (error: Exception) {
-        candidate?.let { failedCandidate ->
+      val retainedMessages = AgentConversationHistoryPolicy.replayMessages(retainedTurns)
+      val candidate = AgentConversationReplacementPolicy.createValidated(
+        create = {
+          val groupedFactory = groupedConversationFactory
+          val selectedRegistry = visibleToolRegistry
+          if (groupedFactory != null && selectedRegistry != null) {
+            groupedFactory(retainedMessages, selectedRegistry)
+          } else {
+            conversationFactory(retainedMessages)
+          }
+        },
+        validate = { it.getTokenCount() },
+        closeRejected = { failedCandidate ->
           runCatching { onConversationClosed?.invoke(failedCandidate) }
           runCatching { failedCandidate.close() }
-        }
+        },
+      )
+      val replacementTokenCount = candidate.value?.getTokenCount() ?: run {
         Log.w(
           TAG,
           "Native conversation rebuild or validation failed; retaining the existing conversation.",
-          error,
+          candidate.failure,
         )
         break
       }
       // Commit the replacement only after it has been created and its native token count read.
       // A failed candidate must never displace the last known-good conversation or drop history.
       val previous = conversation
-      conversation = candidate ?: error("Validated replacement conversation is missing.")
+      conversation = candidate.value ?: error("Validated replacement conversation is missing.")
       conversationTurns.removeAt(0)
       runCatching { onConversationClosed?.invoke(previous) }
         .onFailure { Log.w(TAG, "Previous conversation cleanup callback failed.", it) }
