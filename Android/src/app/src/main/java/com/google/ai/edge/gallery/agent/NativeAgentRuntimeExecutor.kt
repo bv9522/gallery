@@ -456,11 +456,18 @@ class NativeAgentRuntimeExecutor(
           )
           throw error
         }
+        val initialTokenCount = try {
+          created.currentTokenCount()
+        } catch (error: Exception) {
+          Log.w(TAG, "Unable to read initial native context token count.", error)
+          null
+        }
         Log.i(
           TAG,
           "Agent conversation created: model=${config.model.name}, " +
             "accelerator=${config.model.currentAccelerator}, " +
-            "constrainedDecoding=${config.enableConversationConstrainedDecoding}",
+            "constrainedDecoding=${config.enableConversationConstrainedDecoding}, " +
+            "initialTokenCount=${initialTokenCount ?: "unavailable"}",
         )
         agentModel = created
         coordinator = AgentCoordinator(created, created.toolRegistry(runtimeTools))
