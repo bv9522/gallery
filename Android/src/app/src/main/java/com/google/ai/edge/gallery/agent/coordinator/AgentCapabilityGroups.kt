@@ -91,6 +91,10 @@ object AgentCapabilityGroups {
       .filter { it.id in allowedGroups }
       .flatMap { it.toolNames }
       .toSet()
+    val missingTools = allowedNames - fullRegistry.names()
+    require(missingTools.isEmpty()) {
+      "Capability group registry is missing required tools: ${missingTools.sorted().joinToString(", ")}"
+    }
     return AgentToolRegistry(fullRegistry.all().filter { it.name in allowedNames })
   }
 
