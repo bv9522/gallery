@@ -409,7 +409,7 @@ class UnifiedShellExecutionTest {
 
 
   @Test
-  fun shellApprovalTimeoutAlsoBoundsActionChannelDelivery() = runBlocking {
+  fun shellApprovalTimeoutAlsoBoundsActionChannelDelivery(): Unit = runBlocking {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 0)
     val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10)
     val approved = policy.requestApproval(
