@@ -38,7 +38,6 @@ import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.proto.McpServers
 import com.google.ai.edge.gallery.skills.SkillManager
 import com.google.ai.edge.gallery.skills.SkillsProvider
-import com.google.ai.edge.gallery.skills.formatSelectedSkills
 import com.google.ai.edge.gallery.tools.RuntimeToolDispatcher
 import com.google.ai.edge.litertlm.Contents
 import dagger.Module
@@ -198,8 +197,16 @@ constructor(
       skillsJob.join()
       mcpJob.join()
 
-      // Determine base system prompt based on whether MCP tools are enabled.
-      val toolsPrompt = agentTools.mcpManagerViewModel.getToolsPrompt()
+      // Keep the initial context compact: discover skills and MCP tools on demand.
+      val toolsPrompt = agentTools.mcpManagerViewModel.getMcpDiscoveryPrompt()
+      val availableSkills = skillsProvider.getAvailableSkills()
+      val skillsPrompt =
+        if (availableSkills.isEmpty()) {
+          ""
+        } else {
+          "SKILL DISCOVERY\nUse discover_skills with words describing the task. " +
+            "Load full instructions only for a relevant skill by calling load_skill with its exact name."
+        }
       val baseSystemPrompt =
         getEffectiveBaseSystemPrompt(initialSystemPrompt, toolsPrompt.isNotEmpty())
 
@@ -210,7 +217,7 @@ constructor(
             template = baseSystemPrompt,
             substitutions =
               mapOf(
-                "___SKILLS___" to formatSelectedSkills(skillsProvider.getAvailableSkills()),
+                "___SKILLS___" to skillsPrompt,
                 "___TOOLS___" to toolsPrompt,
               ),
           )
