@@ -407,6 +407,19 @@ class UnifiedShellExecutionTest {
     Unit
   }
 
+
+  @Test
+  fun shellApprovalTimeoutAlsoBoundsActionChannelDelivery() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 0)
+    val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10)
+    val approved = policy.requestApproval(
+      ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+    )
+
+    assertFalse(approved)
+    channel.close()
+  }
+
   private fun arguments(backend: String, command: String) =
     JsonObject().apply {
       addProperty("backend", backend)
