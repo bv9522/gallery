@@ -71,4 +71,61 @@ class ChannelNativeCapabilityAuthorizerTest {
 
     assertFalse(authorizer.authorize(AndroidCapability.APP_LAUNCH, "Launch app"))
   }
+
+  @Test
+  fun dismissedApprovalReturnsFalse() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(Channel.UNLIMITED)
+    val authorizer = ChannelNativeCapabilityAuthorizer(channel)
+    val request = async {
+      authorizer.authorize(AndroidCapability.OPEN_URL, "Open https://example.com")
+    }
+
+    val action = channel.receive() as AskNativeCapabilityPermissionAction
+    // Dismissal and explicit denial share the same fail-closed result contract.
+    action.result.complete(false)
+
+    assertFalse(request.await())
+    channel.close()
+    Unit
+  }
+
+  @Test
+  fun approvalTimeoutReturnsFalseAndCompletesPendingAction() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(Channel.UNLIMITED)
+    val authorizer = ChannelNativeCapabilityAuthorizer(channel, approvalTimeoutMs = 20)
+
+    val request = async {
+      authorizer.authorize(AndroidCapability.OPEN_URL, "Open https://example.com")
+    }
+    val action = channel.receive() as AskNativeCapabilityPermissionAction
+
+    assertFalse(request.await())
+    assertTrue(action.result.isCompleted)
+    assertFalse(action.result.await())
+    channel.close()
+    Unit
+  }
+
+  @Test
+  fun callerCancellationPropagatesAndCompletesPendingApprovalAsDenied() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(Channel.UNLIMITED)
+    val authorizer = ChannelNativeCapabilityAuthorizer(channel, approvalTimeoutMs = 10_000)
+
+    val request = async {
+      authorizer.authorize(AndroidCapability.OPEN_URL, "Open https://example.com")
+    }
+    val action = channel.receive() as AskNativeCapabilityPermissionAction
+    request.cancel()
+
+    try {
+      request.await()
+      throw AssertionError("Expected caller cancellation to propagate.")
+    } catch (_: kotlinx.coroutines.CancellationException) {
+      assertTrue(action.result.isCompleted)
+      assertFalse(action.result.await())
+    }
+    channel.close()
+    Unit
+  }
+
 }
