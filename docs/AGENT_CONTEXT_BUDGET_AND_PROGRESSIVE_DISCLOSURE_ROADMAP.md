@@ -167,8 +167,12 @@ Retain the hybrid design only if it yields material context savings without unac
 
 ## 7. Current state and immediate next action
 
-This document records the approved target architecture and staged plan; it does not claim that progressive disclosure has been implemented.
+**Step 3 implementation status (PR #63):** MCP catalog expansion has been replaced by compact search/list discovery, with a separate read-only call that reveals the schema for one uniquely named enabled MCP tool. Skill metadata is discovered through a compact search/list tool, and full instructions remain behind the existing `load_skill` tool. Existing MCP execution and per-tool consent handling are unchanged. Unit tests cover discovery query matching, result limits, and description compaction. Automated validation and comparative native-token/reliability measurements remain pending.
 
-**Immediate sequence:** finish PR #62 validation → collect S21 native token diagnostics → establish the controlled token-cost matrix → prioritize MCP/skill progressive discovery → implement native groups and safe conversation switching → run execution/safety/reliability/performance regression.
+## 7. Current state and immediate next action
+
+This document records the approved target architecture and staged plan. Step 3's MCP/skill progressive-disclosure implementation is proposed in PR #63; automated validation and comparative measurements are still pending.
+
+**Immediate sequence:** validate PR #63 → compare native token counts and tool-use reliability before/after MCP/skill discovery → complete the remaining controlled token-cost matrix → implement native capability groups and safe conversation switching → run execution/safety/reliability/performance regression.
 
 The existing feature-by-feature device acceptance roadmap remains authoritative for capability acceptance. This document governs the separate agent-context and model-visible registry workstream.

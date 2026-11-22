@@ -108,7 +108,6 @@ import com.google.ai.edge.gallery.data.BuiltInTaskId
 import com.google.ai.edge.gallery.data.Model
 import com.google.ai.edge.gallery.data.Task
 import com.google.ai.edge.gallery.firebaseAnalytics
-import com.google.ai.edge.gallery.skills.formatSelectedSkills
 import com.google.ai.edge.gallery.tools.AskInfoToolAction
 import com.google.ai.edge.gallery.tools.AskMcpToolCallPermissionAction
 import com.google.ai.edge.gallery.tools.AskNativeCapabilityPermissionAction
@@ -1020,12 +1019,17 @@ private fun resetSessionWithCurrentSkillsAndMcps(
 ) {
   val model = modelManagerViewModel.uiState.value.selectedModel
   val litertMessages = initialMessages.mapNotNull { convertToLitertMessage(it) }
-  val toolsPrompt = agentTools.mcpManagerViewModel.getToolsPrompt()
+  val toolsPrompt = agentTools.mcpManagerViewModel.getMcpDiscoveryPrompt()
   val actualSystemPrompt = getEffectiveBaseSystemPrompt(curSystemPrompt, toolsPrompt.isNotEmpty())
 
   val selectedSkills =
     runBlocking(Dispatchers.Default) { skillManagerViewModel.skillManager.getAvailableSkills() }
-  val selectedSkillsPrompt = formatSelectedSkills(selectedSkills)
+  val selectedSkillsPrompt = if (selectedSkills.isEmpty()) {
+    ""
+  } else {
+    "SKILL DISCOVERY\nUse discover_skills with words describing the task. " +
+      "Load full instructions only for a relevant skill by calling load_skill with its exact name."
+  }
   val finalSystemPrompt =
     PromptExpander()
       .formatSystemInstructions(
@@ -1038,8 +1042,8 @@ private fun resetSessionWithCurrentSkillsAndMcps(
       )
   val promptComponentSizes = buildList {
     add(AgentPromptComponentSize.from("base_prompt_template", actualSystemPrompt))
-    add(AgentPromptComponentSize.from("selected_skills", selectedSkillsPrompt))
-    add(AgentPromptComponentSize.from("mcp_tools_prompt", toolsPrompt))
+    add(AgentPromptComponentSize.from("skill_discovery_prompt", selectedSkillsPrompt))
+    add(AgentPromptComponentSize.from("mcp_discovery_prompt", toolsPrompt))
     add(AgentPromptComponentSize.from("expanded_system_prompt", finalSystemPrompt))
     initialMessages.forEachIndexed { index, message ->
       val content = when (message) {

@@ -31,14 +31,14 @@ class LoadSkillTool(private val skillsProvider: SkillsProvider) : ToolDefinition
   override var executionContext: ToolExecutionContext? = null
 
   /** Loads skill. */
-  @Tool(description = "Loads a skill.")
+  @Tool(description = "Loads the full instructions for one enabled skill after it has been discovered.")
   fun loadSkill(
     @ToolParam(description = "The name of the skill to load.") skillName: String
   ): Map<String, String> {
     return runBlocking(Dispatchers.Default) {
       val skill = skillsProvider.loadSkill(skillName)
       val skillContent = skill?.getSkillContent() ?: "Skill not found"
-      Log.d(TAG, "load skill. Skill content:\n$skillContent")
+      Log.d(TAG, "Loaded skill: name=$skillName, instructionChars=${skillContent.length}")
       if (skill != null) {
         executionContext
           ?.actionChannel

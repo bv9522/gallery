@@ -42,10 +42,10 @@ class RunMcpTool(
   override var executionContext: ToolExecutionContext? = null
 
   /** Runs MCP tool */
-  @Tool(description = "Run a MCP tool")
+  @Tool(description = "Invokes a selected MCP tool. Use the input JSON schema returned by get_mcp_tool_schema; configured user-consent checks still apply.")
   fun runMcpTool(
     @ToolParam(description = "The name of the tool to run.") toolName: String,
-    @ToolParam(description = "The parameters passed to tool as input") input: String,
+    @ToolParam(description = "JSON arguments matching the selected tool schema, serialized as a string.") input: String,
   ): Map<String, String> {
     Log.d(TAG, "Run MCP tool:\n- name: $toolName\n- input: $input")
     return runBlocking(Dispatchers.IO) {
