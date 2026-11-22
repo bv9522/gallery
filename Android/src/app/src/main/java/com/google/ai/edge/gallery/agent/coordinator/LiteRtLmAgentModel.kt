@@ -274,7 +274,7 @@ class LiteRtLmAgentModel(
     val candidate = withContext(ioDispatcher) {
       AgentConversationReplacementPolicy.createValidated(
         create = { groupedConversationFactory(retainedMessages, projected) },
-        validate = { replacementTokenCount = it.getTokenCount() },
+        validate = { validatedTokenCount = it.getTokenCount() },
         closeRejected = { failedCandidate ->
           runCatching { onConversationClosed?.invoke(failedCandidate) }
             .onFailure { Log.w(TAG, "Failed candidate cleanup callback failed.", it) }
@@ -475,7 +475,7 @@ class LiteRtLmAgentModel(
       val retainedTurns =
         AgentConversationCompactionPolicy.dropOldestCompletedTurn(conversationTurns) ?: break
       val retainedMessages = AgentConversationHistoryPolicy.replayMessages(retainedTurns)
-      var replacementTokenCount = -1
+      var validatedTokenCount = -1
       val candidate = AgentConversationReplacementPolicy.createValidated(
         create = {
           val groupedFactory = groupedConversationFactory
@@ -492,7 +492,7 @@ class LiteRtLmAgentModel(
           runCatching { failedCandidate.close() }
         },
       )
-      val replacementTokenCount = candidate.value?.let { replacementTokenCount } ?: run {
+      val replacementTokenCount = candidate.value?.let { validatedTokenCount } ?: run {
         Log.w(
           TAG,
           "Native conversation rebuild or validation failed; retaining the existing conversation.",
