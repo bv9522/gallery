@@ -174,7 +174,7 @@ object LlmChatModelHelper : LlmModelHelper {
     val conversation = try {
       conversationFactory(emptyList(), true)
     } catch (creationError: Exception) {
-      Log.e(TAG, "Agent conversation creation/prefill failed; collecting schema-only diagnostics.", creationError)
+      Log.e(TAG, "Agent conversation creation/prefill failed; collecting schema-only diagnostics (${creationError.javaClass.simpleName}).")
       // A non-prefilled diagnostic conversation exposes LiteRT-LM's fully expanded schemas without
       // attempting to tokenize the oversized prompt. This runs only after the normal creation fails.
       runCatching {
@@ -185,7 +185,7 @@ object LlmChatModelHelper : LlmModelHelper {
           diagnosticConversation.close()
         }
       }.onFailure { diagnosticError ->
-        Log.w(TAG, "Unable to create a schema-only diagnostic conversation.", diagnosticError)
+        Log.w(TAG, "Unable to create a schema-only diagnostic conversation (${diagnosticError.javaClass.simpleName}).")
       }
       throw creationError
     }
