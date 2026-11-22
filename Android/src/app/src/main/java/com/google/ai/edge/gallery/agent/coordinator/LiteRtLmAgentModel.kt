@@ -371,8 +371,13 @@ class LiteRtLmAgentModel(
         AgentConversationCompactionPolicy.dropOldestCompletedTurn(conversationTurns) ?: break
       val retainedMessages = retainedTurns.flatMap { it.messages }
       val replacement = try {
-        groupedConversationFactory?.invoke(retainedMessages, visibleToolRegistry ?: fullToolRegistry ?: return@withContext)
-          ?: conversationFactory(retainedMessages)
+        val groupedFactory = groupedConversationFactory
+        val selectedRegistry = visibleToolRegistry
+        if (groupedFactory != null && selectedRegistry != null) {
+          groupedFactory(retainedMessages, selectedRegistry)
+        } else {
+          conversationFactory(retainedMessages)
+        }
       } catch (error: Exception) {
         Log.w(TAG, "Native conversation rebuild failed; retaining the existing conversation.", error)
         break
