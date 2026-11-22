@@ -369,6 +369,44 @@ class UnifiedShellExecutionTest {
     }
   }
 
+
+  @Test
+  fun channelApprovalCancellationPropagatesAndCompletesPendingRequestAsDenied() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
+    val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10_000)
+    val request = ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+    val pending = async { policy.requestApproval(request) }
+    val action = channel.receive() as AskShellCommandPermissionAction
+
+    pending.cancel()
+    try {
+      pending.await()
+      throw AssertionError("Expected approval cancellation to propagate.")
+    } catch (_: CancellationException) {
+      assertTrue(action.result.isCompleted)
+      assertFalse(action.result.await())
+    }
+    channel.close()
+    Unit
+  }
+
+  @Test
+  fun channelApprovalDismissalFailsClosed() = runBlocking {
+    val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
+    val policy = ChannelShellExecutionApprovalPolicy(channel)
+    val request = async {
+      policy.requestApproval(
+        ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+      )
+    }
+    val action = channel.receive() as AskShellCommandPermissionAction
+    action.result.complete(false)
+
+    assertFalse(request.await())
+    channel.close()
+    Unit
+  }
+
   private fun arguments(backend: String, command: String) =
     JsonObject().apply {
       addProperty("backend", backend)
