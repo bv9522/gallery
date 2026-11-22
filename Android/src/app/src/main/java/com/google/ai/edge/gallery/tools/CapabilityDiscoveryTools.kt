@@ -18,7 +18,6 @@ package com.google.ai.edge.gallery.tools
 
 import com.google.ai.edge.gallery.mcp.McpServersProvider
 import com.google.ai.edge.gallery.proto.McpTool
-import com.google.ai.edge.gallery.proto.Skill
 import com.google.ai.edge.gallery.skills.SkillsProvider
 import com.google.ai.edge.litertlm.Tool
 import com.google.ai.edge.litertlm.ToolParam
