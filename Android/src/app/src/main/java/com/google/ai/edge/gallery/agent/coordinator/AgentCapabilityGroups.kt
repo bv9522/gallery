@@ -173,7 +173,7 @@ class ActivateCapabilityGroupTool : AgentTool {
     add("properties", JsonObject().apply {
       add("group_id", JsonObject().apply {
         addProperty("type", "string")
-        addProperty("enum", AgentCapabilityGroups.definitions.map { it.id }
+        add("enum", AgentCapabilityGroups.definitions.map { it.id }
           .filter { it != AgentCapabilityGroups.CORE }
           .let { values -> com.google.gson.JsonArray().also { array -> values.forEach { value -> array.add(value) } } })
         addProperty("description", "Exact group_id returned by discover_capability_groups.")
