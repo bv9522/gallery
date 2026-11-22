@@ -28,6 +28,7 @@ import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmAgentModel
 import com.google.ai.edge.gallery.agent.AgentEvent
 import com.google.ai.edge.gallery.agent.AgentExecutionContext
 import com.google.ai.edge.gallery.agent.AgentRequest
+import com.google.ai.edge.gallery.agent.AgentPromptComponentSize
 import com.google.ai.edge.gallery.agent.AgentRuntimeConfig
 import com.google.ai.edge.gallery.agent.AgentRuntimeExecutor
 import com.google.ai.edge.gallery.agent.AiChatExecutor
@@ -50,7 +51,9 @@ import com.google.ai.edge.gallery.di.IoDispatcher
 import com.google.ai.edge.gallery.proto.ChatSessionProto
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageAudioClip
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessage
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageError
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageFile
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageFile
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageLoading
@@ -106,6 +109,18 @@ open class LlmChatViewModelBase(
   private val sessionStoppedByModel = mutableMapOf<String, Boolean>()
   // Active session transition job to ensure transitions (restore, new session, reset) do not race.
   private var sessionTransitionJob: Job? = null
+
+  private fun promptComponentSizesForMessages(
+    messages: List<ChatMessage>,
+  ): List<AgentPromptComponentSize> =
+    messages.mapIndexedNotNull { index, message ->
+      val content = when (message) {
+        is ChatMessageText -> message.content
+        is ChatMessageFile -> message.content
+        else -> null
+      }
+      content?.let { AgentPromptComponentSize.from("initial_message_${index + 1}", it) }
+    }
 
   private fun Model.InitializationStatus.llmMetricsTracker(): MetricsTracker? =
     ((this as? Model.InitializationStatus.Initialized)?.instance as? LlmModelInstance)
@@ -289,11 +304,12 @@ open class LlmChatViewModelBase(
         // The messages of the current turn (its attached files followed by its text, if any) have
         // already been added to the chat, but they are sent with this request rather than seeded.
         val currentTurnMessageCount = files.size + (if (input.isNotEmpty()) 1 else 0)
-        val initialMessages =
+        val seedMessages =
           (uiState.value.messagesByModel[model.name] ?: emptyList())
             .filter { it is ChatMessageText || it is ChatMessageFile }
             .dropLast(currentTurnMessageCount)
-            .mapNotNull { convertToLitertMessage(it) }
+        val initialMessages = seedMessages.mapNotNull { convertToLitertMessage(it) }
+        val promptComponentSizes = promptComponentSizesForMessages(seedMessages)
         val config =
           AgentRuntimeConfig(
             model = model,
@@ -302,6 +318,7 @@ open class LlmChatViewModelBase(
             supportAudio = model.supportAudio,
             systemInstruction = _uiSystemPrompt.value.ifEmpty { null },
             initialMessages = initialMessages,
+            promptComponentSizes = promptComponentSizes,
           )
         runtimeExecutor.resetSession(config = config)
         if (initialMessages.isNotEmpty()) {
@@ -532,6 +549,7 @@ open class LlmChatViewModelBase(
     onDone: () -> Unit = {},
     enableConversationConstrainedDecoding: Boolean = false,
     initialMessages: List<Message> = listOf(),
+    promptComponentSizes: List<AgentPromptComponentSize> = emptyList(),
     clearHistory: Boolean = true,
   ) {
     currentTaskId = task.id
@@ -549,6 +567,7 @@ open class LlmChatViewModelBase(
           onDone = onDone,
           enableConversationConstrainedDecoding = enableConversationConstrainedDecoding,
           initialMessages = initialMessages,
+          promptComponentSizes = promptComponentSizes,
           clearHistory = clearHistory,
         )
       }
@@ -564,6 +583,7 @@ open class LlmChatViewModelBase(
     onDone: () -> Unit = {},
     enableConversationConstrainedDecoding: Boolean = false,
     initialMessages: List<Message> = listOf(),
+    promptComponentSizes: List<AgentPromptComponentSize> = emptyList(),
     clearHistory: Boolean = true,
   ) {
     setIsResettingSession(true)
@@ -586,6 +606,7 @@ open class LlmChatViewModelBase(
           enableConversationConstrainedDecoding = enableConversationConstrainedDecoding,
           systemInstruction = systemInstruction,
           initialMessages = initialMessages,
+          promptComponentSizes = promptComponentSizes,
         )
       runtimeExecutor.resetSession(config = config)
       if (!clearHistory && initialMessages.isNotEmpty()) {
@@ -664,6 +685,7 @@ open class LlmChatViewModelBase(
             supportImage = supportImage,
             supportAudio = supportAudio,
             initialMessages = litertMessages,
+            promptComponentSizes = promptComponentSizesForMessages(messages),
             clearHistory = false,
             onDone = onDone,
           )
