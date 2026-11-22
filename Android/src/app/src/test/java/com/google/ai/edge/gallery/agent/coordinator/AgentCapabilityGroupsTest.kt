@@ -113,8 +113,8 @@ class AgentCapabilityGroupsTest {
     assertTrue(result.content.contains("Unknown capability group"))
   }
 
-  private fun testTool(name: String) = object : AgentTool {
-    override val name = name
+  private fun testTool(toolName: String) = object : AgentTool {
+    override val name = toolName
     override val description = "Test capability."
     override suspend fun execute(arguments: JsonObject) = AgentToolResult("ok")
   }
