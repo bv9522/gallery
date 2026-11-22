@@ -108,6 +108,17 @@ internal data class AgentConversationTurn(
  * A partial or fabricated result must never activate only a subset of a requested batch.
  */
 internal object AgentCapabilityActivationPolicy {
+  fun markActivationFailure(
+    toolResults: List<AgentMessage>,
+    note: String,
+  ): List<AgentMessage> = toolResults.map { result ->
+    if (result.toolName == "activate_capability_group") {
+      result.copy(content = result.content + note, toolSucceeded = false)
+    } else {
+      result
+    }
+  }
+
   fun requestedGroups(
     conversationMessages: List<AgentMessage>,
     toolResults: List<AgentMessage>,
@@ -297,6 +308,7 @@ class LiteRtLmAgentModel(
         } else {
           buildLiteRtToolResponseMessage(toolMessages)
         }
+      var replayToolMessages = toolMessages
       val activationResults = toolMessages.filter {
         it.toolName == "activate_capability_group"
       }
@@ -309,13 +321,11 @@ class LiteRtLmAgentModel(
           switchGroupsLocked(activeGroupIds + requestedGroups)
         if (!activated) {
           val note = "\\nCapability group activation failed; the previous toolset remains active."
-          message = buildLiteRtToolResponseMessage(toolMessages.map { result ->
-            if (result.toolName == "activate_capability_group") {
-              result.copy(content = result.content + note, toolSucceeded = false)
-            } else {
-              result
-            }
-          })
+          replayToolMessages = AgentCapabilityActivationPolicy.markActivationFailure(
+            toolMessages,
+            note,
+          )
+          message = buildLiteRtToolResponseMessage(replayToolMessages)
         }
       }
       // Replay history deliberately omits transient image/audio payloads. Tool screenshot bytes
@@ -333,7 +343,7 @@ class LiteRtLmAgentModel(
         }
       } else {
         Message.tool(
-          Contents.of(toolMessages.map { toolResult ->
+          Contents.of(replayToolMessages.map { toolResult ->
             val name = toolResult.toolName ?: error("Tool result is missing its tool name.")
             val replayText = if (toolResult.toolImageBytes != null) {
               toolResult.content +
