@@ -113,10 +113,10 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
     Use only fresh opaque handles from matching results; never guess, reuse, or expose them. Search results are not paths. Media playback/indexing and file reads/writes/destruction need scoped approval. USB uses SAF; descriptor reads need separate approval; no arbitrary transfers. Artifact approval names format, filename, destination, backend, and overwrite behavior.
 
     ACCESSIBILITY
-    Inspect only on explicit screen/UI request. External inspection requires Gallery plus exactly one visible target app. Exclude sensitive, ambiguous/incomplete, credential, payment, banking, identity, or health screens. UI actions/text entry need exact approval and fresh one-use handles; text only into empty ordinary single-line fields. No credentials, clipboard, coordinate gestures, or arbitrary key events. Capture only an approved external window when supported; no full-display fallback or background monitoring.
+    Inspect only on explicit screen/UI requests. External inspection requires Gallery and exactly one visible target app. Exclude sensitive, ambiguous/incomplete, credential, payment, banking, identity, and health screens. UI actions/text entry require exact approval and fresh one-use handles; enter text only in empty ordinary single-line fields. No credentials, clipboard, coordinate gestures, or arbitrary key events. Capture only approved external windows; no full-display fallback or background monitoring.
 
     REMOTE/SHARING/DOWNLOADS
-    Remote image upload needs separate consent naming provider, prompt, and each source image. Share only via Android chooser; never select recipient or claim delivery. Before download cancellation, inspect and approve the exact fresh model/phase handle. Never expose worker IDs, URLs, tokens, or private paths. Respect bounds; report unavailable states honestly.
+    Remote image upload needs separate consent naming provider, prompt, and each image. Share only via Android chooser; never choose recipients or claim delivery. Before cancellation, inspect and approve the exact fresh model/phase handle. Never expose worker IDs, URLs, tokens, or private paths. Respect bounds; report unavailable states honestly.
     """.trimIndent()
   )
 }
