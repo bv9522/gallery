@@ -109,10 +109,10 @@ Use the results to prioritize the largest savings and identify schemas that shou
 
 ### Step 4 — Add native capability groups
 
-- [ ] Define stable group/subgroup IDs and map every existing native and legacy Gallery tool to exactly one model-visible group (or explicitly document shared/core status).
+- [x] Define stable native group IDs and map every native capability tool to one model-visible group or the permanent core. The compact Gallery legacy adapters (`discover_skills`, `load_skill`, `discover_mcp_tools`, `get_mcp_tool_schema`, `run_mcp_tool`, `run_js_tool`, and `run_intent`) remain shared/always-visible in this phase; their potentially large skill/MCP catalogs are still progressively disclosed. A separately filtered legacy dispatcher remains follow-up work.
 - [ ] Build the complete application-side dispatcher independently from the filtered model-visible provider list.
-- [ ] Implement deterministic intent-to-group routing and model-driven discovery fallback.
-- [ ] Create conversations with only the permanent core plus selected group providers.
+- [x] Implement deterministic intent-to-group routing and model-driven discovery fallback.
+- [x] Create conversations with the permanent native core plus selected native group providers; compact Gallery legacy adapters remain shared and always-visible.
 - [ ] Implement safe conversation rebuilding, history replay, current-turn preservation, resource release, and bounded failure recovery.
 - [ ] Split monolithic schemas (especially broad Android control operations) into cohesive subgroups where measurements and Gemma reliability support the split.
 - [ ] Keep all existing capability implementations and runtime policy controls available; this is progressive disclosure, not feature removal.
@@ -173,7 +173,7 @@ Retain the hybrid design only if it yields material context savings without unac
 
 **Step 3 — MCP and skill progressive disclosure:** Implemented in PR #63. The initial system prompt now uses compact discovery guidance; MCP tool schemas are revealed one at a time, and full skill instructions remain behind `load_skill`. The owner reports that `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed successfully locally on PR #63 head commit `cdab65e907dbde576e2a894cd5075d0357c59419`. This is a local validation result, not GitHub Actions or S21 acceptance. Comparative token/reliability measurements remain pending.
 
-**Step 4 — native capability groups:** Next implementation batch is on `phase-10i-native-capability-groups`, stacked on PR #63. Scope: stable group/subgroup identifiers, complete app-side execution inventory independent of model-visible providers, deterministic intent routing, discovery/activation fallback, selected provider projection, and safe conversation replacement with complete-turn history replay. Implementation and automated proof are in progress; no completion is claimed yet.
+**Step 4 — native capability groups:** In progress on `phase-10i-native-capability-groups` / draft PR #64, stacked on PR #63. Implemented: stable native group IDs; deterministic routing; read-only discovery and activation requests; selected native provider projection; full native execution registry retained app-side; coordinator rejection of hidden native tool calls; and conversation replacement that validates the new conversation before closing the previous one. Compact Gallery legacy adapters remain shared/always-visible while the MCP/skill catalogs are progressively disclosed; independently filtering their execution dispatcher is still follow-up work. Unit tests cover routing, projection, read-only discovery/activation semantics, and hidden-tool rejection. Automated build/test validation, end-to-end history-switch proof, native-token comparison, and S21 acceptance remain pending.
 
 **Immediate sequence:** complete and validate native group/routing/switching foundations → prove execution registry independence, approval preservation, and complete-turn history replay → run the controlled native-token/reliability matrix → consolidate S21 acceptance. Do not install intermediate APKs; defer device acceptance until this cohesive implementation and automated checks are ready.
 
