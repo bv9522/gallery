@@ -28,6 +28,7 @@ import com.google.ai.edge.gallery.agent.coordinator.AgentRunResult
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
 import com.google.ai.edge.gallery.agent.coordinator.ChannelShellExecutionApprovalPolicy
 import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmAgentModel
+import com.google.ai.edge.gallery.agent.coordinator.LegacyGalleryToolDispatcher
 import com.google.ai.edge.gallery.agent.coordinator.ShizukuShellTransport
 import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionBackend
 import com.google.ai.edge.gallery.agent.coordinator.ShellExecutionRouter
@@ -453,6 +454,8 @@ class NativeAgentRuntimeExecutor(
             "utf8Bytes=${initialMessageSizes.sumOf { it.utf8ByteCount }}",
         )
         val galleryToolProviders = agentTools.getLiteRtToolProviders()
+        // Keep the full legacy dispatcher app-side, independent of conversation tool schemas.
+        val legacyDispatcher = LegacyGalleryToolDispatcher(galleryToolProviders)
         val initialGroups = initialGroupId?.let { setOf(it) } ?: emptySet()
         val visibleTools = AgentCapabilityGroups.project(runtimeTools, initialGroups)
         Log.i(
@@ -487,7 +490,7 @@ class NativeAgentRuntimeExecutor(
         agentModel = created
         coordinator = AgentCoordinator(
           model = created,
-          tools = created.toolRegistry(runtimeTools),
+          tools = legacyDispatcher.registry(runtimeTools),
           visibleToolNames = created::visibleToolNames,
         )
         createdNow = true
