@@ -251,14 +251,30 @@ class LiteRtLmAgentModel(
           buildLiteRtToolResponseMessage(toolMessages)
         }
       if (toolMessages.any { it.toolName == "activate_capability_group" }) {
-        val requestedGroup = messages.lastOrNull {
-          it.role == AgentMessage.Role.ASSISTANT && it.toolName == "activate_capability_group"
-        }?.toolArguments?.get("group_id")?.takeIf { it.isJsonPrimitive }?.asString
-        val activated = requestedGroup?.let { switchGroupsLocked(activeGroupIds + it) } ?: false
+        val activationCallIds = toolMessages
+          .filter { it.toolName == "activate_capability_group" }
+          .mapNotNull { it.toolCallId }
+          .toSet()
+        val requestedGroups = messages
+          .filter {
+            it.role == AgentMessage.Role.ASSISTANT &&
+              it.toolName == "activate_capability_group" &&
+              it.toolCallId in activationCallIds
+          }
+          .mapNotNull {
+            it.toolArguments?.get("group_id")?.takeIf { value -> value.isJsonPrimitive }?.asString
+          }
+          .toSet()
+        val activated = requestedGroups.isNotEmpty() &&
+          switchGroupsLocked(activeGroupIds + requestedGroups)
         if (!activated) {
           val note = "\\nCapability group activation failed; the previous toolset remains active."
           message = buildLiteRtToolResponseMessage(toolMessages.map { result ->
-            if (result.toolName == "activate_capability_group") result.copy(content = result.content + note, toolSucceeded = false) else result
+            if (result.toolName == "activate_capability_group") {
+              result.copy(content = result.content + note, toolSucceeded = false)
+            } else {
+              result
+            }
           })
         }
       }
