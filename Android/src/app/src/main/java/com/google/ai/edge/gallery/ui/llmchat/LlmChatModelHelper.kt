@@ -147,23 +147,49 @@ object LlmChatModelHelper : LlmModelHelper {
       }
     // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
     // Serialize access because LiteRT-LM exposes this setting as a process-wide mutable flag.
-    val conversationFactory: (List<Message>) -> Conversation = { retainedHistory ->
+    val toolProviders = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders
+    val conversationFactory: (List<Message>, Boolean, Boolean) -> Conversation = { retainedHistory, prefill, includeInitialMessages ->
       withConversationConstrainedDecoding(enableConversationConstrainedDecoding) {
         instance.engine.createConversation(
           ConversationConfig(
             samplerConfig = samplerConfig,
             systemInstruction =
               systemInstruction?.takeIf { it.isNotBlank() }?.let { Contents.of(it) },
-            tools = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders,
-            initialMessages = initialMessages + retainedHistory,
+            tools = toolProviders,
+            initialMessages = if (includeInitialMessages) initialMessages + retainedHistory else emptyList(),
             automaticToolCalling = false,
             // Make getTokenCount() authoritative immediately after a history rebuild.
-            prefillPrefaceOnInit = true,
+            prefillPrefaceOnInit = prefill,
           )
         )
       }
     }
-    val conversation = conversationFactory(emptyList())
+    Log.i(
+      TAG,
+      "Creating agent conversation: nativeToolCount=${tools.all().size}, " +
+        "additionalToolProviderCount=${additionalToolProviders.size}, " +
+        "initialMessageCount=${initialMessages.size}, " +
+        "systemInstructionChars=${systemInstruction?.length ?: 0}",
+    )
+    val conversation = try {
+      conversationFactory(emptyList(), true, true)
+    } catch (creationError: Exception) {
+      Log.e(TAG, "Agent conversation creation/prefill failed; collecting schema-only diagnostics (${creationError.javaClass.simpleName}).")
+      // A non-prefilled diagnostic conversation exposes LiteRT-LM's fully expanded schemas without
+      // attempting to tokenize the oversized prompt. This runs only after the normal creation fails.
+      runCatching {
+        val diagnosticConversation = conversationFactory(emptyList(), false, false)
+        try {
+          logAgentToolSchemaSizes(diagnosticConversation)
+        } finally {
+          diagnosticConversation.close()
+        }
+      }.onFailure { diagnosticError ->
+        Log.w(TAG, "Unable to create a schema-only diagnostic conversation (${diagnosticError.javaClass.simpleName}).")
+      }
+      throw creationError
+    }
+    logAgentToolSchemaSizes(conversation)
     instance.activeEphemeralConversations.add(conversation)
     val contextLimit = model.getIntConfigValue(
       key = ConfigKeys.MAX_TOKENS,
@@ -172,12 +198,39 @@ object LlmChatModelHelper : LlmModelHelper {
     return LiteRtLmAgentModel(
       conversation = conversation,
       conversationFactory = { history ->
-        conversationFactory(history).also { instance.activeEphemeralConversations.add(it) }
+        conversationFactory(history, true, true).also { instance.activeEphemeralConversations.add(it) }
       },
       onConversationClosed = { instance.activeEphemeralConversations.remove(it) },
       compactAtTokenCount = (contextLimit * 0.75).toInt(),
       compactToTokenCount = (contextLimit * 0.60).toInt(),
     )
+  }
+
+  private fun logAgentToolSchemaSizes(conversation: Conversation) {
+    runCatching {
+      val descriptions = conversation.toolManager.getToolsDescription()
+      var totalCharacters = 0
+      var totalUtf8Bytes = 0
+      descriptions.forEach { description ->
+        val serialized = description.toString()
+        val function = description.asJsonObject.getAsJsonObject("function")
+        val name = function?.get("name")?.asString ?: "unknown"
+        val bytes = serialized.toByteArray(Charsets.UTF_8).size
+        totalCharacters += serialized.length
+        totalUtf8Bytes += bytes
+        Log.i(
+          TAG,
+          "Agent tool schema: name=$name, chars=${serialized.length}, utf8Bytes=$bytes",
+        )
+      }
+      Log.i(
+        TAG,
+        "Agent tool schema totals: count=${descriptions.size()}, " +
+          "chars=$totalCharacters, utf8Bytes=$totalUtf8Bytes",
+      )
+    }.onFailure { error ->
+      Log.w(TAG, "Unable to inspect registered agent tool schemas (${error.javaClass.simpleName}).")
+    }
   }
 
   // Indexed by model name.

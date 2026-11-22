@@ -100,6 +100,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.R
+import com.google.ai.edge.gallery.agent.AgentPromptComponentSize
 import com.google.ai.edge.gallery.agent.PromptExpander
 import com.google.ai.edge.gallery.common.LOCAL_URL_BASE
 import com.google.ai.edge.gallery.data.AgentSkillsURLs
@@ -131,6 +132,7 @@ import com.google.ai.edge.gallery.ui.common.tts.TtsPlaybackViewModel
 import com.google.ai.edge.gallery.ui.common.GalleryWebView
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessage
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageCollapsableProgressPanel
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageFile
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageImage
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageText
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageType
@@ -1023,16 +1025,33 @@ private fun resetSessionWithCurrentSkillsAndMcps(
 
   val selectedSkills =
     runBlocking(Dispatchers.Default) { skillManagerViewModel.skillManager.getAvailableSkills() }
+  val selectedSkillsPrompt = formatSelectedSkills(selectedSkills)
   val finalSystemPrompt =
     PromptExpander()
       .formatSystemInstructions(
         template = actualSystemPrompt,
         substitutions =
           mapOf(
-            "___SKILLS___" to formatSelectedSkills(selectedSkills),
+            "___SKILLS___" to selectedSkillsPrompt,
             "___TOOLS___" to toolsPrompt,
           ),
       )
+  val promptComponentSizes = buildList {
+    add(AgentPromptComponentSize.from("base_prompt_template", actualSystemPrompt))
+    add(AgentPromptComponentSize.from("selected_skills", selectedSkillsPrompt))
+    add(AgentPromptComponentSize.from("mcp_tools_prompt", toolsPrompt))
+    add(AgentPromptComponentSize.from("expanded_system_prompt", finalSystemPrompt))
+    initialMessages.forEachIndexed { index, message ->
+      val content = when (message) {
+        is ChatMessageText -> message.content
+        is ChatMessageFile -> message.content
+        else -> null
+      }
+      if (content != null) {
+        add(AgentPromptComponentSize.from("initial_message_${index + 1}", content))
+      }
+    }
+  }
 
   viewModel.resetSession(
     task = task,
@@ -1044,6 +1063,7 @@ private fun resetSessionWithCurrentSkillsAndMcps(
     onDone = { onDone(model) },
     enableConversationConstrainedDecoding = true,
     initialMessages = litertMessages,
+    promptComponentSizes = promptComponentSizes,
     clearHistory = clearHistory,
   )
 }

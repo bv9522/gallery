@@ -47,4 +47,6 @@ data class AgentRuntimeConfig(
   val enableConversationConstrainedDecoding: Boolean = false,
   val systemInstruction: String? = null,
   val initialMessages: List<Message> = listOf(),
+  /** Size-only prompt diagnostics; never contains prompt or message text. */
+  val promptComponentSizes: List<AgentPromptComponentSize> = emptyList(),
 )

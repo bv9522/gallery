@@ -203,6 +203,7 @@ class NativeAgentRuntimeExecutor(
       activeJob.set(job)
       emit(AgentEvent.LoopInitiated(request))
       var coordinatorStarted = false
+      var executionStage = "conversation creation/prefill"
       try {
         val currentConfig = checkNotNull(config) { "Agent Chat has not been initialized." }
         val requestedSessionId = request.metadata[AgentRequest.SESSION_ID] as? String
@@ -213,6 +214,7 @@ class NativeAgentRuntimeExecutor(
         val currentContext = checkNotNull(this@NativeAgentRuntimeExecutor.context)
         val contents = withContext(Dispatchers.IO) { buildUserContents(currentContext, request) }
         ensureAgentModel(currentConfig)
+        executionStage = "first inference"
         val currentCoordinator = checkNotNull(coordinator)
         coordinatorStarted = true
         @Suppress("UNCHECKED_CAST")
@@ -240,6 +242,7 @@ class NativeAgentRuntimeExecutor(
         discardAgentConversation()
         throw cancelled
       } catch (error: Exception) {
+        Log.e(TAG, "Agent execution failed during $executionStage (${error.javaClass.simpleName}).")
         if (coordinatorStarted) discardAgentConversation()
         emit(AgentEvent.Error(error.message ?: error.javaClass.simpleName))
       } finally {
@@ -333,7 +336,8 @@ class NativeAgentRuntimeExecutor(
 
   private suspend fun ensureAgentModel(config: AgentRuntimeConfig): LiteRtLmAgentModel =
     withContext(Dispatchers.IO) {
-      synchronized(stateLock) {
+      var createdNow = false
+      val model = synchronized(stateLock) {
         agentModel?.let { return@synchronized it }
         val router = checkNotNull(shellRouter) { "Shell execution backends are not initialized." }
         val actionChannel = config.actionChannel ?: agentTools.sendActionChannel
@@ -412,24 +416,77 @@ class NativeAgentRuntimeExecutor(
             ),
           )
         )
-        val created = com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
-          model = config.model,
-          tools = runtimeTools,
-          systemInstruction = buildAgentSystemInstruction(config.systemInstruction),
-          additionalToolProviders = agentTools.getLiteRtToolProviders(),
-          initialMessages = config.initialMessages,
-          enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
+        val safetyPolicy = buildAgentSystemInstruction(null)
+        val systemInstruction = buildAgentSystemInstruction(config.systemInstruction)
+        Log.i(
+          TAG,
+          "Agent prompt sizes: gallerySystemInstructionChars=${config.systemInstruction?.length ?: 0}, " +
+            "safetyPolicyChars=${safetyPolicy.length}, combinedSystemChars=${systemInstruction.length}, " +
+            "initialMessageCount=${config.initialMessages.size}",
         )
+        config.promptComponentSizes.forEach { component ->
+          Log.i(
+            TAG,
+            "Agent prompt component: name=${component.name}, chars=${component.characterCount}, " +
+              "utf8Bytes=${component.utf8ByteCount}",
+          )
+        }
+        val initialMessageSizes = config.promptComponentSizes.filter {
+          it.name.startsWith("initial_message_")
+        }
+        Log.i(
+          TAG,
+          "Agent initial message sizes: count=${initialMessageSizes.size}, " +
+            "chars=${initialMessageSizes.sumOf { it.characterCount }}, " +
+            "utf8Bytes=${initialMessageSizes.sumOf { it.utf8ByteCount }}",
+        )
+        val galleryToolProviders = agentTools.getLiteRtToolProviders()
+        Log.i(
+          TAG,
+          "Agent tool provider counts: native=${runtimeTools.all().size}, gallery=${galleryToolProviders.size}",
+        )
+        val created = try {
+          com.google.ai.edge.gallery.ui.llmchat.LlmChatModelHelper.createAgentModel(
+            model = config.model,
+            tools = runtimeTools,
+            systemInstruction = systemInstruction,
+            additionalToolProviders = galleryToolProviders,
+            initialMessages = config.initialMessages,
+            enableConversationConstrainedDecoding = config.enableConversationConstrainedDecoding,
+          )
+        } catch (error: Exception) {
+          Log.e(
+            TAG,
+            "LiteRT-LM conversation creation/prefill failed before first inference. " +
+              "initialMessageCount=${config.initialMessages.size}, " +
+              "systemChars=${systemInstruction.length}, " +
+              "nativeToolCount=${runtimeTools.all().size}, " +
+              "galleryToolProviderCount=${galleryToolProviders.size}, " +
+              "errorType=${error.javaClass.simpleName}",
+          )
+          throw error
+        }
+        agentModel = created
+        coordinator = AgentCoordinator(created, created.toolRegistry(runtimeTools))
+        createdNow = true
+        created
+      }
+      if (createdNow) {
+        val initialTokenCount = try {
+          model.currentTokenCount()
+        } catch (error: Exception) {
+          Log.w(TAG, "Unable to read initial native context token count (${error.javaClass.simpleName}).")
+          null
+        }
         Log.i(
           TAG,
           "Agent conversation created: model=${config.model.name}, " +
             "accelerator=${config.model.currentAccelerator}, " +
-            "constrainedDecoding=${config.enableConversationConstrainedDecoding}",
+            "constrainedDecoding=${config.enableConversationConstrainedDecoding}, " +
+            "initialTokenCount=${initialTokenCount ?: "unavailable"}",
         )
-        agentModel = created
-        coordinator = AgentCoordinator(created, created.toolRegistry(runtimeTools))
-        created
       }
+      model
     }
 
   private fun discardAgentConversation() {
