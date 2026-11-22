@@ -492,7 +492,8 @@ class LiteRtLmAgentModel(
           runCatching { failedCandidate.close() }
         },
       )
-      val replacementTokenCount = candidate.value?.let { validatedTokenCount } ?: run {
+      val replacement = candidate.value
+      if (replacement == null) {
         Log.w(
           TAG,
           "Native conversation rebuild or validation failed; retaining the existing conversation.",
@@ -500,10 +501,11 @@ class LiteRtLmAgentModel(
         )
         break
       }
+      val replacementTokenCount = validatedTokenCount
       // Commit the replacement only after it has been created and its native token count read.
       // A failed candidate must never displace the last known-good conversation or drop history.
       val previous = conversation
-      conversation = candidate.value ?: error("Validated replacement conversation is missing.")
+      conversation = replacement
       conversationTurns.removeAt(0)
       runCatching { onConversationClosed?.invoke(previous) }
         .onFailure { Log.w(TAG, "Previous conversation cleanup callback failed.", it) }
