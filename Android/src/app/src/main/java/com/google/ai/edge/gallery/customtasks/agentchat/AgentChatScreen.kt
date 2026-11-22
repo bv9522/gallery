@@ -1027,7 +1027,7 @@ private fun resetSessionWithCurrentSkillsAndMcps(
   val selectedSkillsPrompt = if (selectedSkills.isEmpty()) {
     ""
   } else {
-    "SKILL DISCOVERY\\nUse discover_skills with words describing the task. " +
+    "SKILL DISCOVERY\nUse discover_skills with words describing the task. " +
       "Load full instructions only for a relevant skill by calling load_skill with its exact name."
   }
   val finalSystemPrompt =
