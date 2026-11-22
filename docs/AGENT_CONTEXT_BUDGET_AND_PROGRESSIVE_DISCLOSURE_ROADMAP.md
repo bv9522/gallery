@@ -1,6 +1,6 @@
 # Agent Context Budget and Progressive Capability Disclosure Roadmap
 
-**Status:** Architecture approved; PR #62 diagnostics and PR #63 MCP/skill progressive-disclosure implementation are in review. PR #63 passed the owner's local `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` tasks; CI, native-token comparison, and Galaxy S21 acceptance remain pending.  
+**Status:** Architecture approved; PR #62 diagnostics, PR #63 MCP/skill progressive disclosure, and draft PR #64 native capability groups are open for review. PR #63 passed the owner's local `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` tasks; PR #64 automated validation, native-token comparison, and Galaxy S21 acceptance remain pending.  
 **Owner:** Brian (product direction and device acceptance); Cocochat (architecture and implementation).  
 **Scope:** Reduce Gemma's always-visible tool/schema and instruction footprint without deleting capabilities, weakening execution controls, or reducing the runtime's ability to dispatch approved operations.  
 **Implementation branches:** PR #62 `diagnostics/agent-context-footprint`; PR #63 `phase-10h-mcp-skill-progressive-disclosure`; next native capability-group work on `phase-10i-native-capability-groups` (stacked on PR #63). Keep PR #62, PR #63, and PR #60 open and unmerged unless Brian explicitly approves integration.
@@ -120,9 +120,9 @@ Use the results to prioritize the largest savings and identify schemas that shou
 ### Step 5 — Prove execution, safety, and history integrity
 
 - [ ] Every previously implemented tool remains dispatchable through the full application-side registry, including Gallery legacy tools not currently visible to Gemma.
-- [ ] Unexposed tools cannot be invoked by fabricated model tool calls; the coordinator rejects unknown/unavailable model-visible tool IDs safely.
-- [ ] Group activation never bypasses or pre-approves a sensitive operation.
-- [ ] Discovery does not request Android permissions, read sensitive data, or mutate device state.
+- [x] Unexposed native tools cannot be invoked by fabricated model tool calls; the coordinator rejects tools outside the active model-visible allowlist before provider invocation. Gallery legacy adapters remain shared/visible.
+- [x] Group activation never bypasses or pre-approves a sensitive operation; activation only requests a schema projection and does not invoke providers or grant consent.
+- [x] Capability-group discovery is a static, read-only catalog lookup; it does not request Android permissions, read sensitive data, or mutate device state.
 - [ ] Approval denial/dismissal/timeout/cancellation remains fail-closed before provider invocation.
 - [ ] Permission revocation and provider unavailability are rechecked at execution time.
 - [ ] Conversation switching preserves complete history/tool transactions, does not duplicate side effects, and handles failed rebuilds without losing the last valid session.
