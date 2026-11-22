@@ -31,7 +31,7 @@ class LoadSkillTool(private val skillsProvider: SkillsProvider) : ToolDefinition
   override var executionContext: ToolExecutionContext? = null
 
   /** Loads skill. */
-  @Tool(description = "Loads a skill.")
+  @Tool(description = "Loads the full instructions for one enabled skill after it has been discovered.")
   fun loadSkill(
     @ToolParam(description = "The name of the skill to load.") skillName: String
   ): Map<String, String> {
