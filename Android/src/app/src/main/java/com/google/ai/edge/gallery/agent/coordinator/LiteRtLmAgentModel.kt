@@ -165,19 +165,34 @@ internal object AgentCapabilityActivationPolicy {
         break
       }
     }
-    val batchActivationCalls = conversationMessages.subList(callStart, callEnd + 1)
-      .filter {
-        it.role == AgentMessage.Role.ASSISTANT &&
-          it.toolName == "activate_capability_group"
+    val batchCalls = conversationMessages.subList(callStart, callEnd + 1).filter {
+      it.role == AgentMessage.Role.ASSISTANT && !it.toolCallId.isNullOrBlank()
+    }
+    val batchResults = conversationMessages.subList(resultStart, lastResultIndex + 1)
+    val batchCallIds = batchCalls.map { it.toolCallId ?: return null }
+    val batchResultIds = batchResults.map { result ->
+      if (result.role != AgentMessage.Role.TOOL || result.toolCallId.isNullOrBlank()) {
+        return null
       }
-    val expectedCallIds = batchActivationCalls.map { it.toolCallId ?: return null }
-    if (expectedCallIds.isEmpty() ||
-      expectedCallIds.size != callIds.size ||
-      expectedCallIds.toSet() != callIds.toSet()
+      result.toolCallId
+    }
+    if (batchCallIds.isEmpty() ||
+      batchCallIds.size != batchCallIds.toSet().size ||
+      batchResultIds.size != batchResultIds.toSet().size ||
+      batchCallIds.size != batchResultIds.size ||
+      batchCallIds.toSet() != batchResultIds.toSet()
     ) {
       return null
     }
-    val calls = batchActivationCalls
+
+    val calls = batchCalls.filter { it.toolName == "activate_capability_group" }
+    val expectedActivationIds = calls.map { it.toolCallId ?: return null }
+    if (expectedActivationIds.isEmpty() ||
+      expectedActivationIds.size != callIds.size ||
+      expectedActivationIds.toSet() != callIds.toSet()
+    ) {
+      return null
+    }
     val groups = calls.map { call ->
       val id = call.toolArguments
         ?.get("group_id")
