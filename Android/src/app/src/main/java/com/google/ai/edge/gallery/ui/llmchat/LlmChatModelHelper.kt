@@ -169,11 +169,13 @@ object LlmChatModelHelper : LlmModelHelper {
     }
     Log.i(
       TAG,
-      "Creating agent conversation: nativeToolCount=${tools.all().size}, " +
+      "Creating agent conversation: nativeFullToolCount=${tools.all().size}, " +
+        "nativeVisibleToolCount=${visibleTools.all().size}, " +
         "additionalToolProviderCount=${additionalToolProviders.size}, " +
         "initialMessageCount=${initialMessages.size}, " +
         "systemInstructionChars=${systemInstruction?.length ?: 0}",
     )
+    val conversationCreationStartedAtNanos = System.nanoTime()
     val conversation = try {
       conversationFactory(emptyList(), visibleTools, true, true)
     } catch (creationError: Exception) {
@@ -192,6 +194,11 @@ object LlmChatModelHelper : LlmModelHelper {
       }
       throw creationError
     }
+    Log.i(
+      TAG,
+      "Agent conversation ready: nativeVisibleToolCount=${visibleTools.all().size}, " +
+        "conversationCreationLatencyMs=${(System.nanoTime() - conversationCreationStartedAtNanos) / 1_000_000}",
+    )
     logAgentToolSchemaSizes(conversation)
     instance.activeEphemeralConversations.add(conversation)
     val contextLimit = model.getIntConfigValue(
