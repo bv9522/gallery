@@ -468,7 +468,7 @@ class NativeAgentRuntimeExecutor(
         val initialTokenCount = try {
           created.currentTokenCount()
         } catch (error: Exception) {
-          Log.w(TAG, "Unable to read initial native context token count.", error)
+          Log.w(TAG, "Unable to read initial native context token count (${error.javaClass.simpleName}).")
           null
         }
         Log.i(
