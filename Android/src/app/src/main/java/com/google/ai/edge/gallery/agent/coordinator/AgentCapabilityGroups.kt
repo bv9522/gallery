@@ -86,6 +86,9 @@ object AgentCapabilityGroups {
 
   /** The core is always visible; unknown tools are not silently promoted into the model surface. */
   fun project(fullRegistry: AgentToolRegistry, selectedGroupIds: Set<String>): AgentToolRegistry {
+    require(selectedGroupIds.all { find(it) != null && it != CORE }) {
+      "Selected capability groups must be known non-core group IDs."
+    }
     val allowedGroups = selectedGroupIds + CORE
     val allowedNames = definitions
       .filter { it.id in allowedGroups }
