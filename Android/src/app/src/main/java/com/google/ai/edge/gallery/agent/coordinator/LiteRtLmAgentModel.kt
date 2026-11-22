@@ -125,7 +125,7 @@ internal object AgentCapabilityActivationPolicy {
     val calls = conversationMessages.filter {
       it.role == AgentMessage.Role.ASSISTANT &&
         it.toolName == "activate_capability_group" &&
-        it.toolCallId in callIds
+        it.toolCallId != null && it.toolCallId in callIds
     }
     if (calls.size != callIds.size) return null
     val groups = calls.map { call ->
@@ -134,7 +134,7 @@ internal object AgentCapabilityActivationPolicy {
         ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
         ?.asString
         ?: return null
-      if (AgentCapabilityGroups.find(id)?.id == null || id == AgentCapabilityGroups.CORE) {
+      if (AgentCapabilityGroups.find(id) == null || id == AgentCapabilityGroups.CORE) {
         return null
       }
       id
