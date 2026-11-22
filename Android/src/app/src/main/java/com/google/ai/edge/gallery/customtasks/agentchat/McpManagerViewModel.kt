@@ -285,7 +285,7 @@ constructor(
       state.mcpServer.enabled && state.client != null && state.mcpServer.toolsList.any { it.enabled }
     }
     return if (hasEnabledTools) {
-      "MCP DISCOVERY\\nUse discover_mcp_tools with words describing the capability. " +
+      "MCP DISCOVERY\nUse discover_mcp_tools with words describing the capability. " +
         "Inspect only the matching tool schemas returned by discovery, then invoke a selected tool " +
         "with run_mcp_tool. Discovery does not execute tools or grant consent."
     } else {
