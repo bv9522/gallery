@@ -163,7 +163,15 @@ object LlmChatModelHelper : LlmModelHelper {
         )
       }
     }
+    Log.i(
+      TAG,
+      "Creating agent conversation: nativeToolCount=${tools.all().size}, " +
+        "additionalToolProviderCount=${additionalToolProviders.size}, " +
+        "initialMessageCount=${initialMessages.size}, " +
+        "systemInstructionChars=${systemInstruction?.length ?: 0}",
+    )
     val conversation = conversationFactory(emptyList())
+    logAgentToolSchemaSizes(conversation)
     instance.activeEphemeralConversations.add(conversation)
     val contextLimit = model.getIntConfigValue(
       key = ConfigKeys.MAX_TOKENS,
@@ -178,6 +186,33 @@ object LlmChatModelHelper : LlmModelHelper {
       compactAtTokenCount = (contextLimit * 0.75).toInt(),
       compactToTokenCount = (contextLimit * 0.60).toInt(),
     )
+  }
+
+  private fun logAgentToolSchemaSizes(conversation: Conversation) {
+    runCatching {
+      val descriptions = conversation.toolManager.getToolsDescription()
+      var totalCharacters = 0
+      var totalUtf8Bytes = 0
+      descriptions.forEach { description ->
+        val serialized = description.toString()
+        val function = description.asJsonObject.getAsJsonObject("function")
+        val name = function?.get("name")?.asString ?: "unknown"
+        val bytes = serialized.toByteArray(Charsets.UTF_8).size
+        totalCharacters += serialized.length
+        totalUtf8Bytes += bytes
+        Log.i(
+          TAG,
+          "Agent tool schema: name=$name, chars=${serialized.length}, utf8Bytes=$bytes",
+        )
+      }
+      Log.i(
+        TAG,
+        "Agent tool schema totals: count=${descriptions.size}, " +
+          "chars=$totalCharacters, utf8Bytes=$totalUtf8Bytes",
+      )
+    }.onFailure { error ->
+      Log.w(TAG, "Unable to inspect registered agent tool schemas.", error)
+    }
   }
 
   // Indexed by model name.
