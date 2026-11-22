@@ -192,7 +192,9 @@ class LiteRtLmAgentModel(
     }
     val retainedMessages = conversationTurns.flatMap { it.messages }
     val replacement = try {
-      factory(retainedMessages, projected).also { it.getTokenCount() }
+      withContext(ioDispatcher) {
+        factory(retainedMessages, projected).also { it.getTokenCount() }
+      }
     } catch (error: Exception) {
       Log.w(TAG, "Capability conversation rebuild failed; retaining the active conversation.", error)
       return false
