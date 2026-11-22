@@ -274,7 +274,7 @@ class LiteRtLmAgentModel(
     val candidate = withContext(ioDispatcher) {
       AgentConversationReplacementPolicy.createValidated(
         create = { groupedConversationFactory(retainedMessages, projected) },
-        validate = { validatedTokenCount = it.getTokenCount() },
+        validate = { replacementTokenCount = it.getTokenCount() },
         closeRejected = { failedCandidate ->
           runCatching { onConversationClosed?.invoke(failedCandidate) }
             .onFailure { Log.w(TAG, "Failed candidate cleanup callback failed.", it) }
@@ -486,7 +486,7 @@ class LiteRtLmAgentModel(
             conversationFactory(retainedMessages)
           }
         },
-        validate = { replacementTokenCount = it.getTokenCount() },
+        validate = { validatedTokenCount = it.getTokenCount() },
         closeRejected = { failedCandidate ->
           runCatching { onConversationClosed?.invoke(failedCandidate) }
           runCatching { failedCandidate.close() }
