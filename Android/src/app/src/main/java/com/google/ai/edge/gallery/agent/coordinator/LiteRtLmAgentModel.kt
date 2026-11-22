@@ -203,8 +203,10 @@ class LiteRtLmAgentModel(
       }
     } catch (error: Exception) {
       candidate?.let { failedCandidate ->
-        onConversationClosed?.invoke(failedCandidate)
+        runCatching { onConversationClosed?.invoke(failedCandidate) }
+          .onFailure { Log.w(TAG, "Failed candidate cleanup callback failed.", it) }
         runCatching { failedCandidate.close() }
+          .onFailure { Log.w(TAG, "Failed to close rejected capability conversation.", it) }
       }
       Log.w(TAG, "Capability conversation rebuild failed; retaining the active conversation.", error)
       return false
@@ -214,7 +216,8 @@ class LiteRtLmAgentModel(
     visibleToolRegistry = projected
     activeGroupIds.clear()
     activeGroupIds.addAll(groupIds)
-    onConversationClosed?.invoke(previous)
+    runCatching { onConversationClosed?.invoke(previous) }
+      .onFailure { Log.w(TAG, "Previous capability conversation cleanup callback failed.", it) }
     runCatching { previous.close() }
       .onFailure { Log.w(TAG, "Failed to close previous capability conversation.", it) }
     Log.i(
