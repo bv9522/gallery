@@ -225,7 +225,7 @@ object LlmChatModelHelper : LlmModelHelper {
       }
       Log.i(
         TAG,
-        "Agent tool schema totals: count=${descriptions.size}, " +
+        "Agent tool schema totals: count=${descriptions.size()}, " +
           "chars=$totalCharacters, utf8Bytes=$totalUtf8Bytes",
       )
     }.onFailure { error ->
