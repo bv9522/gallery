@@ -182,7 +182,7 @@ class LiteRtLmAgentModel(
 
   private suspend fun switchGroupsLocked(groupIds: Set<String>): Boolean {
     val full = fullToolRegistry ?: return false
-    val factory = groupedConversationFactory ?: return false
+    if (groupedConversationFactory == null) return false
     if (groupIds.any { AgentCapabilityGroups.find(it) == null || it == AgentCapabilityGroups.CORE }) return false
     val projected = AgentCapabilityGroups.project(full, groupIds)
     if (projected.names() == visibleToolRegistry?.names()) {
@@ -263,7 +263,7 @@ class LiteRtLmAgentModel(
           .filter {
             it.role == AgentMessage.Role.ASSISTANT &&
               it.toolName == "activate_capability_group" &&
-              it.toolCallId in activationCallIds
+              it.toolCallId != null && it.toolCallId in activationCallIds
           }
           .mapNotNull {
             it.toolArguments?.get("group_id")?.takeIf { value -> value.isJsonPrimitive }?.asString
