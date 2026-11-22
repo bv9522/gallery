@@ -64,7 +64,7 @@ object AgentCapabilityGroups {
       "Storage and artifacts",
       "Gallery SAF document trees, USB storage through SAF, and bounded document or image artifacts.",
       setOf("file", "files", "folder", "directory", "usb", "storage", "saf", "pdf", "docx", "xlsx", "pptx", "zip", "spreadsheet", "document", "artifact", "external drive"),
-      setOf("document_tree", "artifact_generation"),
+      setOf("document_tree", "artifact_create"),
     ),
     Definition(
       TERMUX_API,
@@ -167,7 +167,7 @@ class ActivateCapabilityGroupTool : AgentTool {
         addProperty("type", "string")
         addProperty("enum", AgentCapabilityGroups.definitions.map { it.id }
           .filter { it != AgentCapabilityGroups.CORE }
-          .let { com.google.gson.JsonArray().apply { it.forEach(::add) } })
+          .let { values -> com.google.gson.JsonArray().also { array -> values.forEach { value -> array.add(value) } } })
         addProperty("description", "Exact group_id returned by discover_capability_groups.")
       })
     })
