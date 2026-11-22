@@ -22,6 +22,7 @@ import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.JsonObject
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -824,6 +825,62 @@ class AndroidNativeCapabilityToolTest {
       cancelledHandles += handle
       onResult(handle == snapshot.handle)
     }
+  }
+
+
+  @Test
+  fun permissionRevocationIsRecheckedOnEveryToolExecution() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val first = tool.execute(arguments("read_notifications"))
+    assertTrue(first.isSuccessful)
+    assertEquals(1, adapter.discoveryCalls.count { it == "read_notifications" })
+
+    adapter.availability[AndroidCapability.NOTIFICATION_READ] =
+      ProviderAvailability.PERMISSION_REQUIRED
+    val afterRevocation = tool.execute(arguments("read_notifications"))
+
+    assertFalse(afterRevocation.isSuccessful)
+    assertTrue(afterRevocation.content.contains("Notification-listener"))
+    assertEquals(1, adapter.discoveryCalls.count { it == "read_notifications" })
+  }
+
+  @Test
+  fun providerUnavailabilityIsRecheckedBeforeEveryOperation() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val first = tool.execute(arguments("read_notifications"))
+    assertTrue(first.isSuccessful)
+
+    adapter.availability[AndroidCapability.NOTIFICATION_READ] =
+      ProviderAvailability.SERVICE_STOPPED
+    val afterProviderStops = tool.execute(arguments("read_notifications"))
+
+    assertFalse(afterProviderStops.isSuccessful)
+    assertEquals(1, adapter.discoveryCalls.count { it == "read_notifications" })
+  }
+
+  @Test
+  fun runtimePermissionRequestCancellationPropagatesAndCompletesAsDenied() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val requester = ChannelNativeRuntimePermissionRequester(actions, timeoutMs = 10_000L)
+    val request = async {
+      requester.request("android.permission.BLUETOOTH_CONNECT")
+    }
+    val action = actions.receive() as RequestPermissionToolAction
+    request.cancel()
+
+    try {
+      request.await()
+      throw AssertionError("Expected permission-request cancellation to propagate.")
+    } catch (_: kotlinx.coroutines.CancellationException) {
+      assertTrue(action.result.isCompleted)
+      assertFalse(action.result.await())
+    }
+    actions.close()
+    Unit
   }
 
   private class FakeNativeCapabilityOperations : NativeCapabilityOperations {
