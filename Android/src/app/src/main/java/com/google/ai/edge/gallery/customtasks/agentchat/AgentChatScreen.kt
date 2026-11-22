@@ -1042,8 +1042,8 @@ private fun resetSessionWithCurrentSkillsAndMcps(
       )
   val promptComponentSizes = buildList {
     add(AgentPromptComponentSize.from("base_prompt_template", actualSystemPrompt))
-    add(AgentPromptComponentSize.from("selected_skills", selectedSkillsPrompt))
-    add(AgentPromptComponentSize.from("mcp_tools_prompt", toolsPrompt))
+    add(AgentPromptComponentSize.from("skill_discovery_prompt", selectedSkillsPrompt))
+    add(AgentPromptComponentSize.from("mcp_discovery_prompt", toolsPrompt))
     add(AgentPromptComponentSize.from("expanded_system_prompt", finalSystemPrompt))
     initialMessages.forEachIndexed { index, message ->
       val content = when (message) {
