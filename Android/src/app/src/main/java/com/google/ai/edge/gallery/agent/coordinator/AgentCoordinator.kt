@@ -41,6 +41,8 @@ class AgentCoordinator(
   private val tools: AgentToolRegistry,
   private val maxModelTurns: Int = DEFAULT_MAX_MODEL_TURNS,
   private val resultBudget: AgentToolResultBudget = AgentToolResultBudget(),
+  /** Dynamic model-visible allowlist; the full registry remains available for dispatch. */
+  private val visibleToolNames: (() -> Set<String>)? = null,
 ) {
   private val runMutex = Mutex()
   private val conversationMessages = mutableListOf<AgentMessage>()
@@ -163,6 +165,13 @@ class AgentCoordinator(
   }
 
   private suspend fun executeToolCall(call: AgentModelResponse.ToolCall): AgentToolResult {
+    val visibleNames = visibleToolNames?.invoke()
+    if (visibleNames != null && call.name !in visibleNames) {
+      return AgentToolResult(
+        content = "Tool '" + call.name + "' is not currently exposed for this task. Discover and activate its capability group first.",
+        isSuccessful = false,
+      )
+    }
     val tool = tools.find(call.name)
       ?: return AgentToolResult(
         content = "Unknown tool '" + call.name + "'. Available tools: " +
