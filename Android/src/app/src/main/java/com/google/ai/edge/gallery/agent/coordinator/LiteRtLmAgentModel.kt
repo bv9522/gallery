@@ -400,30 +400,39 @@ class LiteRtLmAgentModel(
       val retainedTurns =
         AgentConversationCompactionPolicy.dropOldestCompletedTurn(conversationTurns) ?: break
       val retainedMessages = retainedTurns.flatMap { it.messages }
-      val replacement = try {
+      var candidate: Conversation? = null
+      val replacementTokenCount = try {
         val groupedFactory = groupedConversationFactory
         val selectedRegistry = visibleToolRegistry
-        if (groupedFactory != null && selectedRegistry != null) {
+        val replacement = if (groupedFactory != null && selectedRegistry != null) {
           groupedFactory(retainedMessages, selectedRegistry)
         } else {
           conversationFactory(retainedMessages)
         }
-      } catch (error: Exception) {
-        Log.w(TAG, "Native conversation rebuild failed; retaining the existing conversation.", error)
-        break
-      }
-      val previous = conversation
-      conversation = replacement
-      conversationTurns.removeAt(0)
-      onConversationClosed?.invoke(previous)
-      runCatching { previous.close() }
-        .onFailure { Log.w(TAG, "Failed to close compacted native conversation.", it) }
-      tokenCount = try {
+        candidate = replacement
         replacement.getTokenCount()
       } catch (error: Exception) {
-        Log.w(TAG, "Unable to read rebuilt context token count.", error)
+        candidate?.let { failedCandidate ->
+          runCatching { onConversationClosed?.invoke(failedCandidate) }
+          runCatching { failedCandidate.close() }
+        }
+        Log.w(
+          TAG,
+          "Native conversation rebuild or validation failed; retaining the existing conversation.",
+          error,
+        )
         break
       }
+      // Commit the replacement only after it has been created and its native token count read.
+      // A failed candidate must never displace the last known-good conversation or drop history.
+      val previous = conversation
+      conversation = candidate ?: error("Validated replacement conversation is missing.")
+      conversationTurns.removeAt(0)
+      runCatching { onConversationClosed?.invoke(previous) }
+        .onFailure { Log.w(TAG, "Previous conversation cleanup callback failed.", it) }
+      runCatching { previous.close() }
+        .onFailure { Log.w(TAG, "Failed to close compacted native conversation.", it) }
+      tokenCount = replacementTokenCount
       Log.i(
         TAG,
         "Native context compacted: tokenCount=$tokenCount, retainedTurns=${conversationTurns.size}",
