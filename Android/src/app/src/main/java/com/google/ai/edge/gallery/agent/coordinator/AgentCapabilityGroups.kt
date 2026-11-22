@@ -101,7 +101,7 @@ object AgentCapabilityGroups {
     return AgentToolRegistry(fullRegistry.all().filter { it.name in allowedNames })
   }
 
-  /** Deterministic, side-effect-free routing. A tie or no match deliberately falls back to core. */
+  /** Deterministic, side-effect-free routing. A tie or no match selects no new group. */
   fun route(userText: String): String? {
     val normalized = userText.lowercase()
     val scored = definitions
