@@ -167,6 +167,10 @@ Retain the hybrid design only if it yields material context savings without unac
 
 ## 7. Current state and immediate next action
 
+**Step 3 implementation status (PR #63):** MCP catalog expansion has been replaced by compact search/list discovery, with a separate read-only call that reveals the schema for one uniquely named enabled MCP tool. Skill metadata is discovered through a compact search/list tool, and full instructions remain behind the existing `load_skill` tool. Existing MCP execution and per-tool consent handling are unchanged. Unit tests cover discovery query matching, result limits, and description compaction. Automated validation and comparative native-token/reliability measurements remain pending.
+
+## 8. Current state and immediate next action
+
 This document records the approved target architecture and staged plan; it does not claim that progressive disclosure has been implemented.
 
 **Immediate sequence:** finish PR #62 validation → collect S21 native token diagnostics → establish the controlled token-cost matrix → prioritize MCP/skill progressive discovery → implement native groups and safe conversation switching → run execution/safety/reliability/performance regression.
