@@ -21,6 +21,7 @@ import com.google.ai.edge.litertlm.Message
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -74,35 +75,28 @@ class AgentConversationCompactionPolicyTest {
 
   @Test
   fun replaySnapshotPreservesEveryMessageAndIncludesTheActiveTurn() {
+    val firstUser = Message.user("first request")
+    val firstAnswer = Message.model(Contents.of("first answer"), emptyList(), emptyMap())
+    val secondUser = Message.user("second request")
+    val toolCall = Message.model(Contents.of("tool call"), emptyList(), emptyMap())
+    val toolResult = Message.tool(Contents.of("tool result"))
     val completed = AgentConversationTurn(
-      messages = mutableListOf(
-        Message.user("first request"),
-        Message.model(Contents.of("first answer"), emptyList(), emptyMap()),
-      ),
+      messages = mutableListOf(firstUser, firstAnswer),
       complete = true,
     )
     val active = AgentConversationTurn(
-      messages = mutableListOf(
-        Message.user("second request"),
-        Message.model(Contents.of("tool call"), emptyList(), emptyMap()),
-        Message.tool(Contents.of("tool result")),
-      ),
+      messages = mutableListOf(secondUser, toolCall, toolResult),
       complete = false,
     )
 
     val replay = AgentConversationHistoryPolicy.replayMessages(listOf(completed, active))
 
     assertEquals(5, replay.size)
-    assertEquals(
-      listOf(
-        Message.user("first request").toString(),
-        Message.model(Contents.of("first answer"), emptyList(), emptyMap()).toString(),
-        Message.user("second request").toString(),
-        Message.model(Contents.of("tool call"), emptyList(), emptyMap()).toString(),
-        Message.tool(Contents.of("tool result")).toString(),
-      ),
-      replay.map { it.toString() },
-    )
+    assertSame(firstUser, replay[0])
+    assertSame(firstAnswer, replay[1])
+    assertSame(secondUser, replay[2])
+    assertSame(toolCall, replay[3])
+    assertSame(toolResult, replay[4])
   }
 
   @Test
@@ -125,15 +119,17 @@ class AgentConversationCompactionPolicyTest {
       var closed = false
     }
     val previous = Candidate()
+    val rejected = Candidate()
     var active = previous
     val candidate = AgentConversationReplacementPolicy.createValidated(
-      create = { Candidate() },
+      create = { rejected },
       validate = { error("simulated token-count validation failure") },
       closeRejected = { it.closed = true },
     )
     candidate.value?.let { active = it }
 
-    assertTrue(active === previous)
+    assertSame(previous, active)
+    assertTrue(rejected.closed)
     assertTrue(candidate.failure?.message.orEmpty().contains("validation failure"))
   }
 
