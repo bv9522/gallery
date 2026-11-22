@@ -73,6 +73,71 @@ class AgentConversationCompactionPolicyTest {
   }
 
   @Test
+  fun replaySnapshotPreservesEveryMessageAndIncludesTheActiveTurn() {
+    val completed = AgentConversationTurn(
+      messages = mutableListOf(
+        Message.user("first request"),
+        Message.model(Contents.of("first answer"), emptyList(), emptyMap()),
+      ),
+      complete = true,
+    )
+    val active = AgentConversationTurn(
+      messages = mutableListOf(
+        Message.user("second request"),
+        Message.model(Contents.of("tool call"), emptyList(), emptyMap()),
+        Message.tool(Contents.of("tool result")),
+      ),
+      complete = false,
+    )
+
+    val replay = AgentConversationHistoryPolicy.replayMessages(listOf(completed, active))
+
+    assertEquals(5, replay.size)
+    assertEquals(
+      listOf(
+        Message.user("first request").toString(),
+        Message.model(Contents.of("first answer"), emptyList(), emptyMap()).toString(),
+        Message.user("second request").toString(),
+        Message.model(Contents.of("tool call"), emptyList(), emptyMap()).toString(),
+        Message.tool(Contents.of("tool result")).toString(),
+      ),
+      replay.map { it.toString() },
+    )
+  }
+
+  @Test
+  fun failedConversationCreationLeavesNoCandidateToPublish() {
+    var published = "previous"
+    val candidate = AgentConversationReplacementPolicy.createValidated(
+      create = { error("simulated rebuild failure") },
+      validate = { },
+      closeRejected = { throw AssertionError("No candidate should be closed.") },
+    )
+    candidate.value?.let { published = it }
+
+    assertEquals("previous", published)
+    assertTrue(candidate.failure?.message.orEmpty().contains("simulated rebuild failure"))
+  }
+
+  @Test
+  fun failedCandidateValidationClosesCandidateAndKeepsPreviousConversation() {
+    class Candidate {
+      var closed = false
+    }
+    val previous = Candidate()
+    var active = previous
+    val candidate = AgentConversationReplacementPolicy.createValidated(
+      create = { Candidate() },
+      validate = { error("simulated token-count validation failure") },
+      closeRejected = { it.closed = true },
+    )
+    candidate.value?.let { active = it }
+
+    assertTrue(active === previous)
+    assertTrue(candidate.failure?.message.orEmpty().contains("validation failure"))
+  }
+
+  @Test
   fun recognizesNativeInputTokenOverflowWithoutMatchingUnrelatedErrors() {
     assertTrue(
       AgentConversationCompactionPolicy.isContextOverflow(
