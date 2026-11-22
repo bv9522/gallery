@@ -419,7 +419,7 @@ class NativeAgentRuntimeExecutor(
         val systemInstruction = buildAgentSystemInstruction(config.systemInstruction)
         Log.i(
           TAG,
-          "Agent prompt sizes: baseSystemChars=${config.systemInstruction?.length ?: 0}, " +
+          "Agent prompt sizes: gallerySystemInstructionChars=${config.systemInstruction?.length ?: 0}, " +
             "safetyPolicyChars=${safetyPolicy.length}, combinedSystemChars=${systemInstruction.length}, " +
             "initialMessageCount=${config.initialMessages.size}",
         )
@@ -430,6 +430,15 @@ class NativeAgentRuntimeExecutor(
               "utf8Bytes=${component.utf8ByteCount}",
           )
         }
+        val initialMessageSizes = config.promptComponentSizes.filter {
+          it.name.startsWith("initial_message_")
+        }
+        Log.i(
+          TAG,
+          "Agent initial message sizes: count=${initialMessageSizes.size}, " +
+            "chars=${initialMessageSizes.sumOf { it.characterCount }}, " +
+            "utf8Bytes=${initialMessageSizes.sumOf { it.utf8ByteCount }}",
+        )
         val galleryToolProviders = agentTools.getLiteRtToolProviders()
         Log.i(
           TAG,
