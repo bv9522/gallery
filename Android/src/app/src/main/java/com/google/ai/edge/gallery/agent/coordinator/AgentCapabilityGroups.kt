@@ -50,14 +50,14 @@ object AgentCapabilityGroups {
       "Android controls",
       "Android device information and supported system, connectivity, and communication controls.",
       setOf("bluetooth", "wifi", "wi-fi", "notification", "notifications", "telephony", "phone", "sms", "call", "device setting", "brightness", "volume", "airplane mode", "battery"),
-      setOf("android_native_capability"),
+      setOf("android_control"),
     ),
     Definition(
       SCREEN_MEDIA,
       "Screen and media",
       "Approved screen inspection, active media sessions, media operations, and Android sharing.",
       setOf("screen", "screenshot", "accessibility", "media session", "media playback", "music", "share", "sharing", "cast"),
-      setOf("active_media_session", "accessibility_screen_inspection", "share_content"),
+      setOf("media_sessions", "screen_inspect", "share_content"),
     ),
     Definition(
       STORAGE_ARTIFACTS,
