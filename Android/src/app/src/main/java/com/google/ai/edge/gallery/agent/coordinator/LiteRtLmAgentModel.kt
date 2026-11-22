@@ -236,7 +236,7 @@ class LiteRtLmAgentModel(
     val switchStartedAtNanos = System.nanoTime()
     val replacement = try {
       withContext(ioDispatcher) {
-        factory(retainedMessages, projected).also {
+        groupedConversationFactory(retainedMessages, projected).also {
           candidate = it
           replacementTokenCount = it.getTokenCount()
         }
