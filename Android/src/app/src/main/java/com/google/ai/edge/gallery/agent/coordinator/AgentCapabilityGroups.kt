@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.agent.coordinator
 
 import com.google.gson.JsonObject
+import java.util.Locale
 
 /**
  * Stable model-visible capability group identifiers. The complete registry remains application
@@ -103,7 +104,7 @@ object AgentCapabilityGroups {
 
   /** Deterministic, side-effect-free routing. A tie or no match selects no new group. */
   fun route(userText: String): String? {
-    val normalized = userText.lowercase()
+    val normalized = userText.lowercase(Locale.ROOT)
     val scored = definitions
       .filter { it.id != CORE }
       .map { group ->
@@ -138,14 +139,14 @@ class DiscoverCapabilityGroupsTool : AgentTool {
   }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
-    val query = arguments.get("query")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty().lowercase()
+    val query = arguments.get("query")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty().lowercase(Locale.ROOT)
     val terms = query.split(Regex("\\s+")).filter { it.isNotBlank() }
     val matches = AgentCapabilityGroups.definitions
       .filter { it.id != AgentCapabilityGroups.CORE }
       .map { group ->
         group to terms.count { term ->
-          group.title.lowercase().contains(term) ||
-            group.description.lowercase().contains(term) ||
+          group.title.lowercase(Locale.ROOT).contains(term) ||
+            group.description.lowercase(Locale.ROOT).contains(term) ||
             group.keywords.any { it.contains(term) || term.contains(it) }
         }
       }
