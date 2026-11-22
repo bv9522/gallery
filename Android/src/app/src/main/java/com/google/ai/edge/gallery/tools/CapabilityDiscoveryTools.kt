@@ -84,7 +84,7 @@ class DiscoverMcpToolsTool(private val mcpServersProvider: McpServersProvider) :
       query = query,
       searchableText = { "${it.name} ${it.description}" },
     )
-    val rendered = matches.joinToString("\\n") { tool ->
+    val rendered = matches.joinToString("\n") { tool ->
       "- ${tool.name}: ${compactDiscoveryDescription(tool.description)}"
     }
     return mapOf(
