@@ -242,7 +242,7 @@ class NativeAgentRuntimeExecutor(
         discardAgentConversation()
         throw cancelled
       } catch (error: Exception) {
-        Log.e(TAG, "Agent execution failed during $executionStage.", error)
+        Log.e(TAG, "Agent execution failed during $executionStage (${error.javaClass.simpleName}).")
         if (coordinatorStarted) discardAgentConversation()
         emit(AgentEvent.Error(error.message ?: error.javaClass.simpleName))
       } finally {
@@ -451,8 +451,8 @@ class NativeAgentRuntimeExecutor(
               "initialMessageCount=${config.initialMessages.size}, " +
               "systemChars=${systemInstruction.length}, " +
               "nativeToolCount=${runtimeTools.all().size}, " +
-              "galleryToolProviderCount=${galleryToolProviders.size}",
-            error,
+              "galleryToolProviderCount=${galleryToolProviders.size}, " +
+              "errorType=${error.javaClass.simpleName}",
           )
           throw error
         }
