@@ -156,6 +156,9 @@ class LiteRtLmAgentModel(
     )
   }
 
+  /** Returns the native token count for the current prefetched conversation. */
+  suspend fun currentTokenCount(): Int = mutex.withLock { conversation.getTokenCount() }
+
   override suspend fun generate(messages: List<AgentMessage>): AgentModelResponse =
     mutex.withLock {
       check(!closed) { "Agent conversation is closed." }
@@ -415,13 +418,24 @@ class LiteRtLmAgentModel(
      * Builds description-only LiteRT-LM providers. Their execute methods deliberately fail closed:
      * automatic execution is forbidden and the AgentCoordinator is the only tool dispatcher.
      */
-    fun toolProviders(registry: AgentToolRegistry): List<ToolProvider> =
-      registry.all().map { agentTool ->
+    fun toolProviders(registry: AgentToolRegistry): List<ToolProvider> {
+      val tools = registry.all()
+      var totalCharacters = 0
+      var totalUtf8Bytes = 0
+      val providers = tools.map { agentTool ->
         val definition = JsonObject().apply {
           addProperty("name", agentTool.name)
           addProperty("description", agentTool.description)
           add("parameters", agentTool.parametersSchema.deepCopy())
         }
+        val serialized = definition.toString()
+        val bytes = serialized.toByteArray(Charsets.UTF_8).size
+        totalCharacters += serialized.length
+        totalUtf8Bytes += bytes
+        Log.i(
+          TAG,
+          "Native agent tool schema: name=${agentTool.name}, chars=${serialized.length}, utf8Bytes=$bytes",
+        )
         tool(
           object : OpenApiTool {
             override fun getToolDescriptionJsonString(): String = definition.toString()
@@ -433,5 +447,11 @@ class LiteRtLmAgentModel(
           }
         )
       }
+      Log.i(
+        TAG,
+        "Native agent tool schema totals: count=${tools.size}, chars=$totalCharacters, utf8Bytes=$totalUtf8Bytes",
+      )
+      return providers
+    }
   }
 }
