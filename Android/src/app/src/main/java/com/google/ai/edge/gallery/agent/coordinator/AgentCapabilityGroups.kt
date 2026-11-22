@@ -50,7 +50,7 @@ object AgentCapabilityGroups {
       ANDROID_CONTROLS,
       "Android controls",
       "Android device information and supported system, connectivity, and communication controls.",
-      setOf("bluetooth", "wifi", "wi-fi", "notification", "notifications", "telephony", "phone", "sms", "call", "device setting", "brightness", "volume", "airplane mode", "battery"),
+      setOf("bluetooth", "wifi", "wi-fi", "notification", "notifications", "telephony", "phone", "sms", "call", "device setting", "device info", "system control", "brightness", "volume", "airplane mode", "battery", "biometric", "biometrics", "keystore"),
       setOf("android_control"),
     ),
     Definition(
@@ -71,7 +71,7 @@ object AgentCapabilityGroups {
       TERMUX_API,
       "Termux:API",
       "Bounded Termux:API sensor, location, NFC, infrared, camera, and related device APIs.",
-      setOf("termux api", "sensor", "accelerometer", "gyroscope", "magnetometer", "light sensor", "proximity", "location", "gps", "nfc", "infrared", "ir blaster", "camera"),
+      setOf("termux api", "sensor", "accelerometer", "gyroscope", "magnetometer", "light sensor", "proximity", "location", "gps", "wifi", "wi-fi", "wifi scan", "network scan", "nfc", "infrared", "ir blaster", "camera"),
       setOf("termux_api"),
     ),
   )
