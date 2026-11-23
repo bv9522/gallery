@@ -392,7 +392,8 @@ class AndroidNativeCapabilityTool internal constructor(
         "reason", "key_alias", "plaintext", "iv_base64", "ciphertext_base64",
         "device_address", "service_uuid", "characteristic_uuid", "value_base64",
         "query", "speech_text", "content_uri", "package_name", "url",
-        "notification_id", "channel_id",
+        "notification_id", "channel_id", "stream", "volume", "level", "duration_ms",
+        "timeout_ms", "media_kind", "search_mode",
       )
       getAsJsonObject("properties").entrySet().forEach { (key, value) ->
         if (key !in descriptionKeys) value.asJsonObject.remove("description")
