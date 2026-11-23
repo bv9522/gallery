@@ -56,7 +56,7 @@ class LegacyGalleryToolDispatcherTest {
     assertEquals("native", result.content)
   }
 
-  private class TestLegacyToolSet : ToolSet {
+  class TestLegacyToolSet : ToolSet {
     @Tool(description = "Echo a value for dispatcher tests.")
     fun echo(@ToolParam(description = "Value to echo.") value: String): String = "echo:$value"
   }
