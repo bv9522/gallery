@@ -220,7 +220,13 @@ class NativeAgentRuntimeExecutor(
         val routedGroup = AgentCapabilityGroups.route(request.query)
         val activeModel = ensureAgentModel(currentConfig, routedGroup)
         if (routedGroup != null && !activeModel.selectGroup(routedGroup)) {
-          error("Could not safely activate capability group '$routedGroup'; the previous conversation remains active.")
+          val reason = activeModel.lastGroupSwitchFailureReason() ?: "conversation_rebuild_failed"
+          val detail = if (reason == "context_limit") {
+            "The selected capability schemas exceed the model's available input-token budget."
+          } else {
+            "The conversation could not be safely rebuilt."
+          }
+          error("Could not activate capability group '$routedGroup' ($reason). $detail The previous conversation remains active.")
         }
         executionStage = "first inference"
         val currentCoordinator = checkNotNull(coordinator)
