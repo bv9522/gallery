@@ -271,6 +271,7 @@ class LiteRtLmAgentModel(
   private val conversationTurns = mutableListOf<AgentConversationTurn>()
   private var visibleToolRegistry: AgentToolRegistry? = initialVisibleToolRegistry
   private val activeGroupIds = initialGroupIds.toMutableSet()
+  @Volatile private var groupSwitchFailureReason: String? = null
   @Volatile private var closed = false
   private val registeredToolSummaries: List<String> =
     conversation.toolManager.getToolsDescription().mapNotNull { entry ->
@@ -301,6 +302,9 @@ class LiteRtLmAgentModel(
     entry.asJsonObject.getAsJsonObject("function")?.get("name")?.asString
   }.toSet()
 
+  /** Machine-readable reason for the most recent failed group switch, if any. */
+  fun lastGroupSwitchFailureReason(): String? = groupSwitchFailureReason
+
   /** Deterministic routing selects one group; no match leaves the current projection unchanged. */
   suspend fun selectGroup(groupId: String): Boolean = mutex.withLock {
     switchGroupsLocked(setOf(groupId))
@@ -312,9 +316,19 @@ class LiteRtLmAgentModel(
   }
 
   private suspend fun switchGroupsLocked(groupIds: Set<String>): Boolean {
-    val full = fullToolRegistry ?: return false
-    if (groupedConversationFactory == null) return false
-    if (groupIds.any { AgentCapabilityGroups.find(it) == null || it == AgentCapabilityGroups.CORE }) return false
+    groupSwitchFailureReason = null
+    val full = fullToolRegistry ?: run {
+      groupSwitchFailureReason = "registry_unavailable"
+      return false
+    }
+    if (groupedConversationFactory == null) {
+      groupSwitchFailureReason = "conversation_factory_unavailable"
+      return false
+    }
+    if (groupIds.any { AgentCapabilityGroups.find(it) == null || it == AgentCapabilityGroups.CORE }) {
+      groupSwitchFailureReason = "invalid_group"
+      return false
+    }
     val projected = AgentCapabilityGroups.project(full, groupIds)
     if (projected.names() == visibleToolRegistry?.names()) {
       activeGroupIds.clear()
@@ -337,10 +351,18 @@ class LiteRtLmAgentModel(
       )
     }
     val replacement = candidate.value ?: run {
+      val failure = candidate.failure
+      groupSwitchFailureReason = if (
+        failure != null && AgentConversationCompactionPolicy.isContextOverflow(failure)
+      ) {
+        "context_limit"
+      } else {
+        "conversation_rebuild_failed"
+      }
       Log.w(
         TAG,
-        "Capability conversation rebuild failed; retaining the active conversation.",
-        candidate.failure,
+        "Capability conversation rebuild failed (reason=$groupSwitchFailureReason); retaining the active conversation.",
+        failure,
       )
       return false
     }
@@ -402,7 +424,13 @@ class LiteRtLmAgentModel(
         val activated = !requestedGroups.isNullOrEmpty() &&
           switchGroupsLocked(activeGroupIds + requestedGroups)
         if (!activated) {
-          val note = "\nCapability group activation failed; the previous toolset remains active."
+          val reason = groupSwitchFailureReason ?: "invalid_activation_request"
+          val note = when (reason) {
+            "context_limit" ->
+              "\nActivation failed: context_limit. The selected capability schemas exceed the model's available input-token budget; no permission or operation approval was requested. The previous toolset remains active."
+            else ->
+              "\nActivation failed: $reason. No permission or operation approval was requested; the previous toolset remains active."
+          }
           replayToolMessages = AgentCapabilityActivationPolicy.markActivationFailure(
             toolMessages,
             note,
