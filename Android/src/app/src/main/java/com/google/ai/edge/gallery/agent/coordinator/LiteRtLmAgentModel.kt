@@ -109,9 +109,9 @@ internal data class AgentConversationTurn(
 internal object AgentCapabilityActivationPolicy {
   fun failureNote(reason: String): String = when (reason) {
     "context_limit" ->
-      "\\nActivation failed: context_limit. The selected capability schemas exceed the model's available input-token budget. This is a context-size failure, not a permission denial; the previous toolset remains active."
+      "\nActivation failed: context_limit. The selected capability schemas exceed the model's available input-token budget. This is a context-size failure, not a permission denial; the previous toolset remains active."
     else ->
-      "\\nActivation failed: $reason. The previous toolset remains active; no operation was executed or approved."
+      "\nActivation failed: $reason. The previous toolset remains active; no operation was executed or approved."
   }
 
   fun markActivationFailure(
