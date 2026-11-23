@@ -141,6 +141,8 @@ class AndroidNativeCapabilityTool internal constructor(
   private val mediaOperations: GalleryMediaLibraryOperations? = null,
   private val mediaPlaybackRequester: NativeMediaPlaybackRequester? = null,
   private val mediaPlaybackAuthorizer: NativeCapabilityAuthorizer? = null,
+  private val allowedOperations: Set<String> = emptySet(),
+  private val toolName: String = "android_control",
 ) : AgentTool {
   private val issuedDownloadSnapshots = ConcurrentHashMap<String, AgentDownloadSnapshot>()
 
@@ -150,6 +152,8 @@ class AndroidNativeCapabilityTool internal constructor(
     registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
     downloadOperations: AgentDownloadOperations? = null,
     mediaOperations: GalleryMediaLibraryOperations? = null,
+    allowedOperations: Set<String> = emptySet(),
+    toolName: String = "android_control",
   ) : this(
     AndroidNativeCapabilityAdapter(
       context = context.applicationContext,
@@ -166,11 +170,21 @@ class AndroidNativeCapabilityTool internal constructor(
     mediaOperations,
     ChannelNativeMediaPlaybackRequester(actionChannel),
     ChannelNativeCapabilityAuthorizer(actionChannel),
+    allowedOperations,
+    toolName,
   )
 
-  override val name: String = "android_control"
-  override val description: String =
-    "Native Android operations. Use the operation enum and matching arguments. Status reports provider availability, not live readings. Sensitive reads, mutations, captures, recordings, notifications, Bluetooth/GATT actions, and USB descriptor reads require scoped approval; runtime permissions are requested only after approval. Read notifications, calls, or SMS only on explicit request. Calls/SMS open system UI and are never sent silently. Use fresh handles. USB mass storage uses document_tree/SAF; no arbitrary USB transfers. Never executes shell commands."
+  override val name: String = toolName
+  override val description: String = when (toolName) {
+    "android_device_info" -> "Read-only Android device, battery, audio, display, app, and provider information."
+    "android_system_controls" -> "Supported Android system controls. Mutations require scoped approval; never executes shell commands."
+    "android_connectivity" -> "Bluetooth, BLE/GATT, and USB device inspection. Sensitive operations require scoped approval; USB storage uses SAF."
+    "android_communications" -> "Contacts, calls, SMS, and notifications. Read sensitive records only on explicit request; calls and SMS open system UI and are never sent silently."
+    "android_security" -> "Biometric authentication and app-scoped Android Keystore operations. Require scoped approval and preserve key protections."
+    "android_media" -> "Gallery media search/index/playback and bounded capture/recording. Use fresh handles; playback and capture require scoped approval."
+    "android_downloads" -> "Inspect active Gallery downloads and request cancellation using a fresh one-time handle and explicit approval."
+    else -> "Native Android operations. Use the operation enum and matching arguments. Sensitive reads and mutations require scoped approval. Never executes shell commands."
+  }
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -430,12 +444,65 @@ class AndroidNativeCapabilityTool internal constructor(
         if (description == null) value.asJsonObject.remove("description")
         else value.asJsonObject.addProperty("description", description)
       }
+    }.also { schema ->
+      if (allowedOperations.isNotEmpty()) {
+        val argumentNamesByOperation = mapOf(
+          "cancel_download" to setOf("download_handle"),
+          "media_search" to setOf("query", "media_kind", "search_mode", "limit"),
+          "media_play" to setOf("media_handle"),
+          "volume_status" to setOf("stream"),
+          "set_display_brightness" to setOf("level"),
+          "vibrate" to setOf("duration_ms"),
+          "set_wake_lock" to setOf("held", "duration_ms"),
+          "set_volume" to setOf("stream", "volume"),
+          "set_flashlight" to setOf("enabled"),
+          "launch_app" to setOf("package_name"),
+          "open_url" to setOf("url"),
+          "dial_phone" to setOf("phone_number"),
+          "compose_sms" to setOf("phone_number", "sms_message"),
+          "biometric_auth" to setOf("reason"),
+          "keystore_create" to setOf("key_alias"),
+          "keystore_delete" to setOf("key_alias"),
+          "keystore_encrypt" to setOf("key_alias", "plaintext"),
+          "keystore_decrypt" to setOf("key_alias", "iv_base64", "ciphertext_base64"),
+          "bluetooth_le_scan" to setOf("duration_ms"),
+          "bluetooth_gatt_services" to setOf("device_address", "timeout_ms"),
+          "bluetooth_gatt_read" to setOf("device_address", "service_uuid", "characteristic_uuid", "timeout_ms"),
+          "bluetooth_gatt_write" to setOf("device_address", "service_uuid", "characteristic_uuid", "value_base64", "timeout_ms"),
+          "contacts_search" to setOf("query", "limit"),
+          "speak_text" to setOf("speech_text"),
+          "clipboard_write" to setOf("text"),
+          "post_notification" to setOf("title", "message", "channel_id"),
+          "cancel_posted_notification" to setOf("notification_id"),
+          "schedule_notification" to setOf("title", "message", "hour", "minute", "year", "month", "day", "repeat_daily"),
+          "cancel_scheduled_notification" to setOf("notification_id"),
+          "create_notification_channel" to setOf("channel_id", "channel_name", "importance"),
+          "usb_read_descriptors" to setOf("usb_handle"),
+          "record_audio" to setOf("duration_ms"),
+          "set_wallpaper" to setOf("content_uri", "target"),
+        )
+        val properties = schema.getAsJsonObject("properties")
+        val operationEnum = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+        val allowed = operationEnum.map { it.asString }.filter { it in allowedOperations }
+        require(allowed.size == allowedOperations.size) {
+          "Capability tool '$toolName' contains an unknown operation."
+        }
+        operationEnum.clear()
+        allowed.forEach { operationEnum.add(it) }
+        val visibleArguments = allowed.flatMap { argumentNamesByOperation[it].orEmpty() }.toSet()
+        properties.entrySet().map { it.key }
+          .filter { it != "operation" && it !in visibleArguments }
+          .forEach { properties.remove(it) }
+      }
     }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
     AndroidControlArguments.validate(arguments)?.let { return failure(it) }
     val operation = arguments.string("operation")
       ?: return failure("Missing required string argument: operation.")
+    if (allowedOperations.isNotEmpty() && operation !in allowedOperations) {
+      return failure("Operation '$operation' is not available through capability tool '$toolName'.")
+    }
 
     return try {
       when (operation) {
