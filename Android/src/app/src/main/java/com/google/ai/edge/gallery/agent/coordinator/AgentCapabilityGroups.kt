@@ -25,7 +25,13 @@ import java.util.Locale
  */
 object AgentCapabilityGroups {
   const val CORE = "core"
-  const val ANDROID_CONTROLS = "android_controls"
+  const val ANDROID_DEVICE_INFO = "android_device_info"
+  const val ANDROID_SYSTEM_CONTROLS = "android_system_controls"
+  const val ANDROID_CONNECTIVITY = "android_connectivity"
+  const val ANDROID_COMMUNICATIONS = "android_communications"
+  const val ANDROID_SECURITY = "android_security"
+  const val ANDROID_MEDIA = "android_media"
+  const val ANDROID_DOWNLOADS = "android_downloads"
   const val SCREEN_MEDIA = "screen_media"
   const val STORAGE_ARTIFACTS = "storage_artifacts"
   const val TERMUX_API = "termux_api"
@@ -36,6 +42,7 @@ object AgentCapabilityGroups {
     val description: String,
     val keywords: Set<String>,
     val toolNames: Set<String>,
+    val operationNames: Set<String> = emptySet(),
   )
 
   val definitions = listOf(
@@ -47,34 +54,78 @@ object AgentCapabilityGroups {
       setOf("execute_shell", "discover_capability_groups", "activate_capability_group"),
     ),
     Definition(
-      ANDROID_CONTROLS,
-      "Android controls",
-      "Android device information and supported system, connectivity, and communication controls.",
-      setOf("bluetooth", "wifi", "wi-fi", "notification", "notifications", "telephony", "phone", "sms", "call", "device setting", "device info", "system control", "brightness", "volume", "airplane mode", "battery", "biometric", "biometrics", "keystore"),
-      setOf("android_control"),
+      ANDROID_DEVICE_INFO, "Android device information",
+      "Read device, battery, audio, display, app, and provider status.",
+      setOf("device info", "device status", "battery", "audio devices", "display status", "installed apps", "telephony info"),
+      setOf(ANDROID_DEVICE_INFO),
+      setOf("status", "device_info", "telephony_info", "battery_status", "volume_status", "audio_devices", "display_brightness", "wake_lock_status", "list_apps"),
+    ),
+    Definition(
+      ANDROID_SYSTEM_CONTROLS, "Android system controls",
+      "Control supported brightness, volume, flashlight, clipboard, wake lock, apps, links, speech, and wallpaper.",
+      setOf("brightness", "volume", "flashlight", "vibrate", "wake lock", "clipboard", "launch app", "open url", "wifi settings", "wallpaper", "speak text"),
+      setOf(ANDROID_SYSTEM_CONTROLS),
+      setOf("set_display_brightness", "vibrate", "set_wake_lock", "set_volume", "set_flashlight", "launch_app", "open_url", "wifi_open_settings", "clipboard_read", "clipboard_write", "speak_text", "set_wallpaper"),
+    ),
+    Definition(
+      ANDROID_CONNECTIVITY, "Android connectivity",
+      "Inspect Bluetooth devices, BLE/GATT services, and connected USB devices and descriptors.",
+      setOf("bluetooth", "bluetooth le", "gatt", "usb devices", "usb descriptors", "connectivity"),
+      setOf(ANDROID_CONNECTIVITY),
+      setOf("bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read", "bluetooth_gatt_write", "usb_devices", "usb_read_descriptors"),
+    ),
+    Definition(
+      ANDROID_COMMUNICATIONS, "Android communications",
+      "Search contacts and access calls, SMS, and notification operations with explicit scoped approval.",
+      setOf("contacts", "contact search", "phone", "dial", "sms", "text message", "call log", "notifications", "notification channel"),
+      setOf(ANDROID_COMMUNICATIONS),
+      setOf("dial_phone", "compose_sms", "contacts_search", "post_notification", "list_posted_notifications", "cancel_posted_notification", "schedule_notification", "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels", "create_notification_channel", "read_notifications", "read_call_log", "read_sms_inbox"),
+    ),
+    Definition(
+      ANDROID_SECURITY, "Android security",
+      "Use biometric authentication and the app-scoped Android Keystore.",
+      setOf("biometric", "biometrics", "keystore", "encrypt", "decrypt", "cryptographic key"),
+      setOf(ANDROID_SECURITY),
+      setOf("biometric_auth", "keystore_create", "keystore_list", "keystore_delete", "keystore_encrypt", "keystore_decrypt"),
+    ),
+    Definition(
+      ANDROID_MEDIA, "Android media library",
+      "Search and index Gallery media, play selected videos, record audio, and capture photos.",
+      setOf("media search", "photo capture", "take photo", "record audio", "media index", "gallery media"),
+      setOf(ANDROID_MEDIA),
+      setOf("media_search", "media_index", "media_play", "record_audio", "capture_photo"),
+    ),
+    Definition(
+      ANDROID_DOWNLOADS, "Gallery downloads",
+      "Inspect active Gallery model downloads and request cancellation of a selected download.",
+      setOf("download status", "active downloads", "cancel download", "model download"),
+      setOf(ANDROID_DOWNLOADS),
+      setOf("download_status", "cancel_download"),
     ),
     Definition(
       SCREEN_MEDIA,
       "Screen and media",
-      "Approved screen inspection, active media sessions, media operations, and Android sharing.",
-      setOf("screen", "screenshot", "accessibility", "media session", "media playback", "music", "share", "sharing", "cast"),
+      "Approved screen inspection, active media sessions, and Android sharing.",
+      setOf("screen", "screenshot", "accessibility", "media session", "music", "share", "sharing", "cast"),
       setOf("media_sessions", "screen_inspect", "share_content"),
     ),
     Definition(
       STORAGE_ARTIFACTS,
       "Storage and artifacts",
-      "Gallery SAF document trees, USB storage through SAF, and bounded document or image artifacts.",
-      setOf("file", "files", "folder", "directory", "usb", "storage", "saf", "pdf", "docx", "xlsx", "pptx", "zip", "spreadsheet", "document", "artifact", "external drive"),
+      "Gallery SAF document trees, USB mass storage through SAF, and bounded document or image artifacts.",
+      setOf("file", "files", "folder", "directory", "usb storage", "external drive", "saf", "pdf", "docx", "xlsx", "pptx", "zip", "spreadsheet", "document", "artifact"),
       setOf("document_tree", "artifact_create"),
     ),
     Definition(
       TERMUX_API,
       "Termux:API",
       "Bounded Termux:API sensor, location, NFC, infrared, camera, and related device APIs.",
-      setOf("termux api", "sensor", "accelerometer", "gyroscope", "magnetometer", "light sensor", "proximity", "location", "gps", "wifi", "wi-fi", "wifi scan", "network scan", "nfc", "infrared", "ir blaster", "camera"),
+      setOf("termux api", "sensor", "accelerometer", "gyroscope", "magnetometer", "light sensor", "proximity", "location", "gps", "wifi scan", "network scan", "nfc", "infrared", "ir blaster"),
       setOf("termux_api"),
     ),
   )
+
+  val androidNativeGroups = definitions.filter { it.operationNames.isNotEmpty() }
 
   private val byId = definitions.associateBy { it.id }
   private val toolToGroup = definitions.flatMap { group ->
