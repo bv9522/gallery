@@ -384,19 +384,51 @@ class AndroidNativeCapabilityTool internal constructor(
       add("required", JsonArray().apply { add("operation") })
       addProperty("additionalProperties", false)
 
-      // Keep the complete operation/argument contract and formal constraints, but avoid
-      // repeating long prose descriptions for every optional field in this broad schema.
-      // High-risk opaque handles and exact user-supplied values retain their guidance.
-      val descriptionKeys = setOf(
-        "usb_handle", "media_handle", "download_handle", "phone_number", "sms_message",
-        "reason", "key_alias", "plaintext", "iv_base64", "ciphertext_base64",
-        "device_address", "service_uuid", "characteristic_uuid", "value_base64",
-        "query", "speech_text", "content_uri", "package_name", "url",
-        "notification_id", "channel_id", "stream", "volume", "level", "duration_ms",
-        "timeout_ms", "media_kind", "search_mode",
+      // Preserve argument meaning and safety guidance while replacing verbose prose with
+      // concise descriptions. Formal JSON-schema bounds/enums remain unchanged.
+      val compactDescriptions = mapOf(
+        "usb_handle" to "Fresh one-shot handle from usb_devices.",
+        "media_handle" to "Fresh opaque handle from media_search.",
+        "media_kind" to "media_search filter; default ANY.",
+        "search_mode" to "AUTO combined; NAME filenames; VISUAL semantic search.",
+        "download_handle" to "Fresh handle from download_status.",
+        "phone_number" to "For dial_phone/compose_sms; 3–20 digits, optional + and common punctuation.",
+        "sms_message" to "Exact SMS composer text; max 1600 chars; never auto-sent.",
+        "reason" to "Reason for standalone strong biometric authentication; max 160 chars.",
+        "key_alias" to "Gallery keystore alias: 1–32 lowercase letters, digits, underscores, or hyphens.",
+        "plaintext" to "Plaintext for biometric-protected AES-256 encryption; max 4096 chars.",
+        "iv_base64" to "GCM IV from keystore_encrypt, unwrapped Base64.",
+        "ciphertext_base64" to "Ciphertext from keystore_encrypt, unwrapped Base64.",
+        "stream" to "Audio stream for volume_status/set_volume; default MUSIC.",
+        "volume" to "Target volume within the selected stream's range.",
+        "level" to "Display brightness from 0 to 255.",
+        "duration_ms" to "Duration: vibration 1–1000 ms; wake lock 1–300000 ms; BLE scan 1000–10000 ms (default 5000); recording 1000–30000 ms (default 5000).",
+        "content_uri" to "Gallery-readable image URI from capture_photo or the user picker.",
+        "package_name" to "Exact package name from list_apps.",
+        "url" to "Absolute HTTP(S) URL with a host.",
+        "device_address" to "Bluetooth MAC from bonded-device or LE-scan results.",
+        "timeout_ms" to "GATT timeout 5000–20000 ms; default 15000.",
+        "service_uuid" to "Service UUID from bluetooth_gatt_services.",
+        "characteristic_uuid" to "Characteristic UUID from bluetooth_gatt_services.",
+        "value_base64" to "bluetooth_gatt_write value: 1–512 bytes, unwrapped Base64.",
+        "query" to "contacts_search (1–80 chars) or media_search (1–120 chars).",
+        "limit" to "Maximum results: 1–20; default 10.",
+        "text" to "Clipboard text; max 2048 chars.",
+        "speech_text" to "Exact Gallery TTS text; max 1000 chars.",
+        "title" to "Notification title; 1–100 chars.",
+        "message" to "Notification body; 1–1000 chars.",
+        "hour" to "Local 24-hour clock hour, 0–23.",
+        "minute" to "Local minute, 0–59.",
+        "repeat_daily" to "Repeat daily at the specified local time.",
+        "channel_id" to "Existing channel ID; defaults to Gallery task channel.",
+        "channel_name" to "Notification channel display name.",
+        "notification_id" to "Numeric posted ID or scheduled-notification UUID.",
+        "importance" to "Channel importance: 2 LOW, 3 DEFAULT, or 4 HIGH.",
       )
       getAsJsonObject("properties").entrySet().forEach { (key, value) ->
-        if (key !in descriptionKeys) value.asJsonObject.remove("description")
+        val description = compactDescriptions[key]
+        if (description == null) value.asJsonObject.remove("description")
+        else value.asJsonObject.addProperty("description", description)
       }
     }
 
