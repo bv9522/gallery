@@ -33,6 +33,27 @@ import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
   @Test
+  fun focusedNativeToolExposesOnlyItsOperationsAndArguments() = runBlocking {
+    val tool = AndroidNativeCapabilityTool(
+      adapter = FakeNativeCapabilityOperations(),
+      allowedOperations = setOf("bluetooth_le_scan"),
+      toolName = "android_connectivity",
+    )
+    val properties = tool.parametersSchema.getAsJsonObject("properties")
+    val operations = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+      .map { it.asString }
+
+    assertEquals(listOf("bluetooth_le_scan"), operations)
+    assertTrue(properties.has("duration_ms"))
+    assertFalse(properties.has("plaintext"))
+    assertFalse(properties.has("phone_number"))
+
+    val rejected = tool.execute(JsonObject().apply { addProperty("operation", "device_info") })
+    assertFalse(rejected.isSuccessful)
+    assertTrue(rejected.content.contains("not available through capability tool"))
+  }
+
+  @Test
   fun androidControlSchemaKeepsEveryOperationAndSafetyCriticalArgumentGuidanceCompactly() {
     val schema = AndroidNativeCapabilityTool(adapter = FakeNativeCapabilityOperations()).parametersSchema
     val properties = schema.getAsJsonObject("properties")
