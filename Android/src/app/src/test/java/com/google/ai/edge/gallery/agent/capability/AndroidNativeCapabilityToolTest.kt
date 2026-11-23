@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.agent.coordinator.AgentCapabilityGroups
 import com.google.ai.edge.gallery.data.AgentDownloadOperations
 import com.google.ai.edge.gallery.data.AgentDownloadSnapshot
 import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
@@ -51,6 +52,23 @@ class AndroidNativeCapabilityToolTest {
     val rejected = tool.execute(JsonObject().apply { addProperty("operation", "device_info") })
     assertFalse(rejected.isSuccessful)
     assertTrue(rejected.content.contains("not available through capability tool"))
+  }
+
+  @Test
+  fun everyFocusedNativeSchemaStaysCompactAndContainsOnlyItsAssignedOperations() {
+    AgentCapabilityGroups.androidNativeGroups.forEach { group ->
+      val schema = AndroidNativeCapabilityTool(
+        adapter = FakeNativeCapabilityOperations(),
+        allowedOperations = group.operationNames,
+        toolName = group.id,
+      ).parametersSchema
+      val properties = schema.getAsJsonObject("properties")
+      val exposed = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+        .map { it.asString }
+
+      assertEquals("Unexpected operations in ${group.id}", group.operationNames, exposed.toSet())
+      assertTrue("${group.id} schema is not compact: ${schema.toString().length} chars", schema.toString().length < 4_500)
+    }
   }
 
   @Test
