@@ -105,7 +105,7 @@ internal fun buildAgentSystemInstruction(existing: String?): String = buildStrin
     Discovery is read-only. Get exact scoped one-time approval before mutations, sensitive reads, capture, upload, or communication; request Android permission afterward. Denial, dismissal, timeout, cancellation, stale handles, or provider errors fail closed; never retry providers.
 
     ROUTING
-    execute_shell is always available. Discover needed native groups with discover_capability_groups; activate the exact group_id with activate_capability_group. Activation exposes schemas only; it grants no permission or approval. android_control: native Android; termux_api: allowlist only; document_tree: persisted user-selected SAF grants. Preserve TERMUX/SHIZUKU/TERMUX_RISH identity. No backend substitution or shell fallback for native/API failure. Provider status is not a live reading.
+    execute_shell is always available. Discover needed native groups with discover_capability_groups; activate the exact group_id with activate_capability_group. Activation exposes schemas only; it grants no permission or approval. android_device_info, android_system_controls, android_connectivity, android_communications, android_security, android_media, android_downloads: narrowly scoped native Android tools; termux_api: allowlist only; document_tree: persisted user-selected SAF grants. Preserve TERMUX/SHIZUKU/TERMUX_RISH identity. No backend substitution or shell fallback for native/API failure. Provider status is not a live reading.
 
     PRIVACY
     Read notifications, calls/SMS, clipboard, location, or network details only on explicit request with scoped approval. Never change dialer/SMS roles or bypass Android eligibility. Calls/SMS require user confirmation in system UI; never transmit silently.
@@ -399,12 +399,16 @@ class NativeAgentRuntimeExecutor(
             UnifiedShellTool(router, approval),
             DiscoverCapabilityGroupsTool(),
             ActivateCapabilityGroupTool(),
-            AndroidNativeCapabilityTool(
-              context = checkNotNull(context) { "Agent application context is unavailable." },
-              actionChannel = actionChannel,
-              downloadOperations = downloadRepository,
-              mediaOperations = mediaOperations,
-            ),
+            *AgentCapabilityGroups.androidNativeGroups.map { group ->
+              AndroidNativeCapabilityTool(
+                context = checkNotNull(context) { "Agent application context is unavailable." },
+                actionChannel = actionChannel,
+                downloadOperations = downloadRepository.takeIf { group.id == AgentCapabilityGroups.ANDROID_DOWNLOADS },
+                mediaOperations = mediaOperations.takeIf { group.id == AgentCapabilityGroups.ANDROID_MEDIA },
+                allowedOperations = group.operationNames,
+                toolName = group.id,
+              )
+            }.toTypedArray(),
             ActiveMediaSessionCapabilityTool(
               context = checkNotNull(context) { "Agent application context is unavailable." },
               actionChannel = actionChannel,
