@@ -251,6 +251,10 @@ internal object AgentConversationCompactionPolicy {
       message.contains("input token ids are too long") ||
         message.contains("exceeding the maximum number of tokens")
     }
+
+  fun groupSwitchFailureReason(error: Throwable?): String =
+    if (error != null && isContextOverflow(error)) "context_limit"
+    else "conversation_rebuild_failed"
 }
 
 class LiteRtLmAgentModel(
@@ -352,13 +356,8 @@ class LiteRtLmAgentModel(
     }
     val replacement = candidate.value ?: run {
       val failure = candidate.failure
-      groupSwitchFailureReason = if (
-        failure != null && AgentConversationCompactionPolicy.isContextOverflow(failure)
-      ) {
-        "context_limit"
-      } else {
-        "conversation_rebuild_failed"
-      }
+      groupSwitchFailureReason =
+        AgentConversationCompactionPolicy.groupSwitchFailureReason(failure)
       Log.w(
         TAG,
         "Capability conversation rebuild failed (reason=$groupSwitchFailureReason); retaining the active conversation.",
