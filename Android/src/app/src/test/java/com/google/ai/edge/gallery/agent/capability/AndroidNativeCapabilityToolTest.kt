@@ -33,6 +33,27 @@ import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
   @Test
+  fun androidControlSchemaKeepsEveryOperationAndSafetyCriticalArgumentGuidanceCompactly() {
+    val schema = AndroidNativeCapabilityTool(adapter = FakeNativeCapabilityOperations()).parametersSchema
+    val properties = schema.getAsJsonObject("properties")
+    val operations = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+      .map { it.asString }
+
+    assertTrue(operations.containsAll(listOf(
+      "device_info", "bluetooth_gatt_write", "read_notifications", "read_call_log",
+      "read_sms_inbox", "usb_read_descriptors", "capture_photo", "keystore_decrypt",
+      "media_search", "media_play",
+    )))
+    assertTrue(operations.size >= 45)
+    assertFalse(properties.getAsJsonObject("volume").has("description"))
+    assertTrue(properties.getAsJsonObject("usb_handle").has("description"))
+    assertTrue(properties.getAsJsonObject("phone_number").has("description"))
+    assertTrue(properties.getAsJsonObject("sms_message").has("description"))
+    assertTrue(properties.getAsJsonObject("media_handle").has("description"))
+    assertTrue(schema.toString().length < 6_000)
+  }
+
+  @Test
   fun usbDescriptorReadRequiresExplicitOperationAndFreshHandle() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
     val tool = AndroidNativeCapabilityTool(adapter = adapter)
