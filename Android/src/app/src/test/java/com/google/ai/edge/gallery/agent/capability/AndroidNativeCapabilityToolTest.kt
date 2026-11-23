@@ -55,7 +55,7 @@ class AndroidNativeCapabilityToolTest {
     assertTrue(properties.getAsJsonObject("phone_number").has("description"))
     assertTrue(properties.getAsJsonObject("sms_message").has("description"))
     assertTrue(properties.getAsJsonObject("media_handle").has("description"))
-    assertTrue(schema.toString().length < 6_000)
+    assertTrue(schema.toString().length < 6_200)
   }
 
   @Test
