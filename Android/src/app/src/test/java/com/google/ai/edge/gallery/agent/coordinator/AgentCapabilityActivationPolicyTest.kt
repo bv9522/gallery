@@ -140,6 +140,24 @@ class AgentCapabilityActivationPolicyTest {
   }
 
   @Test
+  fun contextLimitActivationFailureIsNotMisreportedAsPermissionDenial() {
+    val note = AgentCapabilityActivationPolicy.failureNote("context_limit")
+
+    assertTrue(note.contains("context_limit"))
+    assertTrue(note.contains("input-token budget"))
+    assertTrue(note.contains("not a permission denial"))
+    assertFalse(note.contains("permission not granted"))
+  }
+
+  @Test
+  fun otherActivationFailuresKeepASeparateReason() {
+    val note = AgentCapabilityActivationPolicy.failureNote("conversation_rebuild_failed")
+
+    assertTrue(note.contains("conversation_rebuild_failed"))
+    assertTrue(note.contains("no operation was executed or approved"))
+  }
+
+  @Test
   fun failedActivationResultIsAlsoTheResultRetainedForHistoryReplay() {
     val activation = activationResult("activate-1")
     val unrelated = AgentMessage(
