@@ -45,7 +45,12 @@ class AndroidNativeCapabilityToolTest {
       "media_search", "media_play",
     )))
     assertTrue(operations.size >= 45)
-    assertFalse(properties.getAsJsonObject("volume").has("description"))
+    assertTrue(properties.getAsJsonObject("volume").get("description").asString.contains("selected stream"))
+    assertTrue(properties.getAsJsonObject("duration_ms").has("description"))
+    assertEquals(2, properties.getAsJsonObject("importance").get("minimum").asInt)
+    assertEquals(4, properties.getAsJsonObject("importance").get("maximum").asInt)
+    assertEquals(0, properties.getAsJsonObject("hour").get("minimum").asInt)
+    assertEquals(23, properties.getAsJsonObject("hour").get("maximum").asInt)
     assertTrue(properties.getAsJsonObject("usb_handle").has("description"))
     assertTrue(properties.getAsJsonObject("phone_number").has("description"))
     assertTrue(properties.getAsJsonObject("sms_message").has("description"))
