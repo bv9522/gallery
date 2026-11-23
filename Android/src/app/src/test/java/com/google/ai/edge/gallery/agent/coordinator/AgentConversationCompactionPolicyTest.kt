@@ -134,6 +134,35 @@ class AgentConversationCompactionPolicyTest {
   }
 
   @Test
+  fun classifiesContextOverflowSeparatelyFromOtherConversationRebuildFailures() {
+    assertEquals(
+      "context_limit",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(
+        IllegalArgumentException("INVALID_ARGUMENT: Input token ids are too long.")
+      ),
+    )
+    assertEquals(
+      "context_limit",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(
+        IllegalStateException(
+          "Conversation failed",
+          IllegalArgumentException("Exceeding the maximum number of tokens"),
+        )
+      ),
+    )
+    assertEquals(
+      "conversation_rebuild_failed",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(
+        IllegalStateException("The model file could not be opened."),
+      ),
+    )
+    assertEquals(
+      "conversation_rebuild_failed",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(null),
+    )
+  }
+
+  @Test
   fun recognizesNativeInputTokenOverflowWithoutMatchingUnrelatedErrors() {
     assertTrue(
       AgentConversationCompactionPolicy.isContextOverflow(
