@@ -170,7 +170,7 @@ class AndroidNativeCapabilityTool internal constructor(
 
   override val name: String = "android_control"
   override val description: String =
-    "Native Android device and capability operations. Use status for provider availability (not live readings); use the declared operation enum. Ordinary non-sensitive reads are read-only. Sensitive reads and all mutations, captures, recordings, notifications, Bluetooth/GATT actions, and USB descriptor reads require scoped approval; request permissions only after approval. Read notifications, call history, or SMS only on explicit user request. Calls/SMS open the system dialer/composer and are never sent silently. Use fresh returned handles. USB mass storage uses document_tree/SAF; no arbitrary USB transfers. This tool never executes shell commands."
+    "Native Android operations. Use the operation enum and matching arguments. Status reports provider availability, not live readings. Sensitive reads, mutations, captures, recordings, notifications, Bluetooth/GATT actions, and USB descriptor reads require scoped approval; runtime permissions are requested only after approval. Read notifications, calls, or SMS only on explicit request. Calls/SMS open system UI and are never sent silently. Use fresh handles. USB mass storage uses document_tree/SAF; no arbitrary USB transfers. Never executes shell commands."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -383,6 +383,20 @@ class AndroidNativeCapabilityTool internal constructor(
       })
       add("required", JsonArray().apply { add("operation") })
       addProperty("additionalProperties", false)
+
+      // Keep the complete operation/argument contract and formal constraints, but avoid
+      // repeating long prose descriptions for every optional field in this broad schema.
+      // High-risk opaque handles and exact user-supplied values retain their guidance.
+      val descriptionKeys = setOf(
+        "usb_handle", "media_handle", "download_handle", "phone_number", "sms_message",
+        "reason", "key_alias", "plaintext", "iv_base64", "ciphertext_base64",
+        "device_address", "service_uuid", "characteristic_uuid", "value_base64",
+        "query", "speech_text", "content_uri", "package_name", "url",
+        "notification_id", "channel_id",
+      )
+      getAsJsonObject("properties").entrySet().forEach { (key, value) ->
+        if (key !in descriptionKeys) value.asJsonObject.remove("description")
+      }
     }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
