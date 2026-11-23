@@ -27,7 +27,7 @@ class AgentCapabilityGroupsTest {
   @Test
   fun deterministicRouterSelectsSpecificGroupsAndLeavesAmbiguousRequestsInCore() {
     assertEquals(
-      AgentCapabilityGroups.ANDROID_CONTROLS,
+      AgentCapabilityGroups.ANDROID_CONNECTIVITY,
       AgentCapabilityGroups.route("Turn on Bluetooth."),
     )
     assertEquals(
@@ -42,7 +42,7 @@ class AgentCapabilityGroupsTest {
       AgentCapabilityGroups.TERMUX_API,
       AgentCapabilityGroups.route("Use Termux API to scan nearby Wi-Fi networks."),
     )
-    assertEquals(AgentCapabilityGroups.ANDROID_CONTROLS, AgentCapabilityGroups.route("Authenticate with biometrics."))
+    assertEquals(AgentCapabilityGroups.ANDROID_SECURITY, AgentCapabilityGroups.route("Authenticate with biometrics."))
     assertEquals(null, AgentCapabilityGroups.route("Wi-Fi status"))
     assertEquals(null, AgentCapabilityGroups.route("What is the capital of France?"))
     assertEquals(null, AgentCapabilityGroups.route("Inspect the screen and save a PDF."))
@@ -55,7 +55,7 @@ class AgentCapabilityGroupsTest {
         testTool("execute_shell"),
         testTool("discover_capability_groups"),
         testTool("activate_capability_group"),
-        testTool("android_control"),
+        *AgentCapabilityGroups.androidNativeGroups.map { testTool(it.id) }.toTypedArray(),
         testTool("media_sessions"),
         testTool("screen_inspect"),
         testTool("share_content"),
@@ -111,6 +111,30 @@ class AgentCapabilityGroupsTest {
   }
 
   @Test
+  fun everyNativeAndroidOperationBelongsToExactlyOneFocusedGroup() {
+    val allOperations = AgentCapabilityGroups.androidNativeGroups.flatMap { it.operationNames }
+    assertEquals(55, allOperations.size)
+    assertEquals(allOperations.size, allOperations.toSet().size)
+    assertEquals(
+      setOf(
+        "status", "download_status", "cancel_download", "device_info", "telephony_info", "dial_phone",
+        "compose_sms", "biometric_auth", "keystore_create", "keystore_list", "keystore_delete",
+        "keystore_encrypt", "keystore_decrypt", "battery_status", "volume_status", "audio_devices",
+        "display_brightness", "set_display_brightness", "vibrate", "wake_lock_status", "set_wake_lock",
+        "list_apps", "set_volume", "set_flashlight", "launch_app", "open_url", "wifi_open_settings",
+        "bluetooth_bonded_devices", "bluetooth_le_scan", "bluetooth_gatt_services", "bluetooth_gatt_read",
+        "bluetooth_gatt_write", "contacts_search", "clipboard_read", "clipboard_write", "post_notification",
+        "list_posted_notifications", "cancel_posted_notification", "schedule_notification",
+        "list_scheduled_notifications", "cancel_scheduled_notification", "list_notification_channels",
+        "create_notification_channel", "read_notifications", "read_call_log", "read_sms_inbox",
+        "usb_devices", "usb_read_descriptors", "record_audio", "capture_photo", "set_wallpaper",
+        "speak_text", "media_search", "media_index", "media_play",
+      ),
+      allOperations.toSet(),
+    )
+  }
+
+  @Test
   fun discoveryIsReadOnlyAndReturnsOnlyCompactGroupMetadata() = runBlocking {
     val result = DiscoverCapabilityGroupsTool().execute(
       JsonObject().apply { addProperty("query", "pdf") }
@@ -130,7 +154,13 @@ class AgentCapabilityGroupsTest {
 
     assertTrue(result.isSuccessful)
     listOf(
-      AgentCapabilityGroups.ANDROID_CONTROLS,
+      AgentCapabilityGroups.ANDROID_DEVICE_INFO,
+      AgentCapabilityGroups.ANDROID_SYSTEM_CONTROLS,
+      AgentCapabilityGroups.ANDROID_CONNECTIVITY,
+      AgentCapabilityGroups.ANDROID_COMMUNICATIONS,
+      AgentCapabilityGroups.ANDROID_SECURITY,
+      AgentCapabilityGroups.ANDROID_MEDIA,
+      AgentCapabilityGroups.ANDROID_DOWNLOADS,
       AgentCapabilityGroups.SCREEN_MEDIA,
       AgentCapabilityGroups.STORAGE_ARTIFACTS,
       AgentCapabilityGroups.TERMUX_API,
@@ -144,7 +174,7 @@ class AgentCapabilityGroupsTest {
     )
 
     assertTrue(result.isSuccessful)
-    assertTrue(result.content.contains(AgentCapabilityGroups.ANDROID_CONTROLS))
+    assertTrue(result.content.contains(AgentCapabilityGroups.ANDROID_DEVICE_INFO))
     assertTrue(result.content.contains(AgentCapabilityGroups.TERMUX_API))
   }
 
