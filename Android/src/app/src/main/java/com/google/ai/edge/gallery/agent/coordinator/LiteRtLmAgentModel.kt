@@ -107,6 +107,13 @@ internal data class AgentConversationTurn(
  * A partial or fabricated result must never activate only a subset of a requested batch.
  */
 internal object AgentCapabilityActivationPolicy {
+  fun failureNote(reason: String): String = when (reason) {
+    "context_limit" ->
+      "\\nActivation failed: context_limit. The selected capability schemas exceed the model's available input-token budget. This is a context-size failure, not a permission denial; the previous toolset remains active."
+    else ->
+      "\\nActivation failed: $reason. The previous toolset remains active; no operation was executed or approved."
+  }
+
   fun markActivationFailure(
     toolResults: List<AgentMessage>,
     note: String,
@@ -427,12 +434,7 @@ class LiteRtLmAgentModel(
           switchGroupsLocked(activeGroupIds + requestedGroups)
         if (!activated) {
           val reason = groupSwitchFailureReason ?: "invalid_activation_request"
-          val note = when (reason) {
-            "context_limit" ->
-              "\nActivation failed: context_limit. The selected capability schemas exceed the model's available input-token budget; no permission or operation approval was requested. The previous toolset remains active."
-            else ->
-              "\nActivation failed: $reason. No permission or operation approval was requested; the previous toolset remains active."
-          }
+          val note = AgentCapabilityActivationPolicy.failureNote(reason)
           replayToolMessages = AgentCapabilityActivationPolicy.markActivationFailure(
             toolMessages,
             note,
