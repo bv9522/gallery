@@ -125,7 +125,7 @@ object AgentCapabilityGroups {
 class DiscoverCapabilityGroupsTool : AgentTool {
   override val name = "discover_capability_groups"
   override val description =
-    "Search the available capability groups by task keywords. Read-only; does not activate or execute anything."
+    "List available capability groups, or search by task keywords. Broad or unmatched queries return the compact full catalog. Read-only; does not activate or execute anything."
   override val parametersSchema = JsonObject().apply {
     addProperty("type", "object")
     add("properties", JsonObject().apply {
@@ -141,7 +141,7 @@ class DiscoverCapabilityGroupsTool : AgentTool {
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
     val query = arguments.get("query")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty().lowercase(Locale.ROOT)
     val terms = query.split(Regex("\\s+")).filter { it.isNotBlank() }
-    val matches = AgentCapabilityGroups.definitions
+    val rankedGroups = AgentCapabilityGroups.definitions
       .filter { it.id != AgentCapabilityGroups.CORE }
       .map { group ->
         group to terms.count { term ->
@@ -150,7 +150,11 @@ class DiscoverCapabilityGroupsTool : AgentTool {
             group.keywords.any { it.contains(term) || term.contains(it) }
         }
       }
-      .filter { terms.isEmpty() || it.second > 0 }
+    val matchingGroups = rankedGroups.filter { it.second > 0 }
+    // This catalog is intentionally small. Broad/list requests and unmatched queries should
+    // reveal the catalog rather than falsely reporting that no capabilities exist.
+    val candidates = if (terms.isEmpty() || matchingGroups.isEmpty()) rankedGroups else matchingGroups
+    val matches = candidates
       .sortedByDescending { it.second }
       .take(5)
       .map { (group, _) ->
