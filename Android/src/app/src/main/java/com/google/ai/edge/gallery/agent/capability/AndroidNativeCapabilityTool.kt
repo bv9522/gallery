@@ -487,7 +487,7 @@ class AndroidNativeCapabilityTool internal constructor(
         require(allowed.size == allowedOperations.size) {
           "Capability tool '$toolName' contains an unknown operation."
         }
-        operationEnum.clear()
+        while (operationEnum.size() > 0) operationEnum.remove(operationEnum.size() - 1)
         allowed.forEach { operationEnum.add(it) }
         val visibleArguments = allowed.flatMap { argumentNamesByOperation[it].orEmpty() }.toSet()
         properties.entrySet().map { it.key }
