@@ -123,6 +123,32 @@ class AgentCapabilityGroupsTest {
   }
 
   @Test
+  fun broadListQueryReturnsEveryAvailableCapabilityGroup() = runBlocking {
+    val result = DiscoverCapabilityGroupsTool().execute(
+      JsonObject().apply { addProperty("query", "List the available capability groups") }
+    )
+
+    assertTrue(result.isSuccessful)
+    listOf(
+      AgentCapabilityGroups.ANDROID_CONTROLS,
+      AgentCapabilityGroups.SCREEN_MEDIA,
+      AgentCapabilityGroups.STORAGE_ARTIFACTS,
+      AgentCapabilityGroups.TERMUX_API,
+    ).forEach { groupId -> assertTrue("Missing group $groupId", result.content.contains(groupId)) }
+  }
+
+  @Test
+  fun unmatchedDiscoveryQueryFallsBackToCompactCatalog() = runBlocking {
+    val result = DiscoverCapabilityGroupsTool().execute(
+      JsonObject().apply { addProperty("query", "quantum computing") }
+    )
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains(AgentCapabilityGroups.ANDROID_CONTROLS))
+    assertTrue(result.content.contains(AgentCapabilityGroups.TERMUX_API))
+  }
+
+  @Test
   fun activationOnlyRequestsSchemaExposureAndNeverGrantsApproval() = runBlocking {
     val tool = ActivateCapabilityGroupTool()
     val result = tool.execute(
