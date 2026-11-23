@@ -205,9 +205,10 @@ class DiscoverCapabilityGroupsTool : AgentTool {
     // This catalog is intentionally small. Broad/list requests and unmatched queries should
     // reveal the catalog rather than falsely reporting that no capabilities exist.
     val candidates = if (terms.isEmpty() || matchingGroups.isEmpty()) rankedGroups else matchingGroups
+    val resultLimit = if (terms.isEmpty() || matchingGroups.isEmpty()) candidates.size else 5
     val matches = candidates
       .sortedByDescending { it.second }
-      .take(5)
+      .take(resultLimit)
       .map { (group, _) ->
         """{"group_id":"${group.id}","name":"${group.title}","description":"${group.description}"}"""
       }
