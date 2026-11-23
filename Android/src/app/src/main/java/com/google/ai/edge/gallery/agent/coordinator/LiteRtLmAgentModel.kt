@@ -420,6 +420,9 @@ class LiteRtLmAgentModel(
           conversationMessages = messages,
           toolResults = activationResults,
         )
+        if (requestedGroups.isNullOrEmpty()) {
+          groupSwitchFailureReason = "invalid_activation_request"
+        }
         val activated = !requestedGroups.isNullOrEmpty() &&
           switchGroupsLocked(activeGroupIds + requestedGroups)
         if (!activated) {
