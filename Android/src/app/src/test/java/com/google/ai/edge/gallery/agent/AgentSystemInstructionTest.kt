@@ -48,6 +48,8 @@ class AgentSystemInstructionTest {
     assertTrue(instruction.contains("No backend substitution or shell fallback"))
     assertTrue(instruction.contains("only on explicit request"))
     assertTrue(instruction.contains("fresh opaque handles"))
+    assertTrue(instruction.contains("exact scoped one-time approval"))
+    assertTrue(instruction.contains("exactly one visible target app"))
     assertTrue(instruction.contains("separate consent naming provider"))
   }
 
