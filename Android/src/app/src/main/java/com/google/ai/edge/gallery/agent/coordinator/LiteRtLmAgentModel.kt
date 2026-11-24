@@ -28,7 +28,10 @@ import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonNull
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import java.io.Closeable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -83,8 +86,27 @@ internal object LiteRtLmResponseProtocol {
 }
 
 /**
+ * Wraps every result in one stable JSON envelope. Existing JSON objects/arrays retain their
+ * native JSON value types; plain-text results remain strings rather than being guessed as numbers.
+ */
+internal fun serializeToolResultForModel(
+  toolName: String,
+  content: String,
+  succeeded: Boolean?,
+): String {
+  val parsed = runCatching { JsonParser.parseString(content) }.getOrNull()
+    ?.takeIf { it.isJsonObject || it.isJsonArray }
+    ?: JsonPrimitive(content)
+  return JsonObject().apply {
+    addProperty("tool", toolName)
+    if (succeeded == null) add("success", JsonNull.INSTANCE) else addProperty("success", succeeded)
+    add("result", parsed)
+  }.toString()
+}
+
+/**
  * Builds one LiteRT-LM tool-role message containing each tool response and any associated
- * multimodal image parts. Image parts precede their textual tool response.
+ * multimodal image parts. Image parts precede their structured JSON tool response.
  */
 internal fun buildLiteRtToolResponseMessage(toolMessages: List<AgentMessage>): Message {
   require(toolMessages.isNotEmpty()) { "A tool response message must not be empty." }
@@ -92,7 +114,12 @@ internal fun buildLiteRtToolResponseMessage(toolMessages: List<AgentMessage>): M
     val name = message.toolName ?: error("Tool result is missing its tool name.")
     buildList<Content> {
       message.toolImageBytes?.let { add(Content.ImageBytes(it)) }
-      add(Content.ToolResponse(name, message.content))
+      add(
+        Content.ToolResponse(
+          name,
+          serializeToolResultForModel(name, message.content, message.toolSucceeded),
+        )
+      )
     }
   }
   return Message.tool(Contents.of(contents))
@@ -484,7 +511,10 @@ class LiteRtLmAgentModel(
             } else {
               toolResult.content
             }
-            Content.ToolResponse(name, replayText)
+            Content.ToolResponse(
+              name,
+              serializeToolResultForModel(name, replayText, toolResult.toolSucceeded),
+            )
           })
         )
       }
