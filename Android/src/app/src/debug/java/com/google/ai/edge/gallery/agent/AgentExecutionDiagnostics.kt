@@ -56,12 +56,12 @@ internal object AgentExecutionDiagnostics {
     add(LogMessageLevel.Error, "Runtime", "Failure stage=$stage, category=$category")
   }
 
-  fun recordModelInput(modelTurn: Int, visibleTools: List<String>, nativeInputTokens: Int?) {
+  fun recordModelInput(modelTurn: Int, visibleTools: List<String>, nativeContextTokensBeforeInference: Int?) {
     synchronized(lock) { currentVisibleTools = visibleTools.toSet() }
     add(
       LogMessageLevel.Info,
       "Model input",
-      "turn=$modelTurn, visibleTools=${visibleTools.size} [${visibleTools.joinToString()}], nativeInputTokens=${nativeInputTokens ?: "unavailable"}",
+      "turn=$modelTurn, visibleTools=${visibleTools.size} [${visibleTools.joinToString()}], nativeContextTokensBeforeInference=${nativeContextTokensBeforeInference ?: "unavailable"}",
     )
   }
 
@@ -71,6 +71,7 @@ internal object AgentExecutionDiagnostics {
     contentChars: Int,
     channelNames: List<String>,
     unparsedToolMarkers: Boolean,
+    nativeContextTokensAfterResponse: Int? = null,
   ) {
     val calls = structuredCalls.joinToString { call ->
       val safeName = synchronized(lock) {
@@ -85,7 +86,7 @@ internal object AgentExecutionDiagnostics {
     add(
       level,
       "Model output",
-      "turn=$modelTurn, structuredToolCalls=${structuredCalls.size} [${calls}], contentChars=$contentChars, channels=[${safeChannels.joinToString()}], unparsedToolMarkers=$markerStatus",
+      "turn=$modelTurn, structuredToolCalls=${structuredCalls.size} [${calls}], contentChars=$contentChars, channels=[${safeChannels.joinToString()}], unparsedToolMarkers=$markerStatus, nativeContextTokensAfterResponse=${nativeContextTokensAfterResponse ?: "unavailable"}",
     )
   }
 
@@ -114,6 +115,7 @@ internal object AgentExecutionDiagnostics {
     val failureCategory = if (succeeded) null else classifyFailure(failureText.orEmpty())
     val details = buildList {
       add("route=$route")
+      if (route == "ANDROID_NATIVE") add("identity=GALLERY_APP_UID")
       add("args=[${safeKeys.joinToString()}]")
       backend?.let { add("backend=$it") }
       operation?.let { add("operation=$it") }
