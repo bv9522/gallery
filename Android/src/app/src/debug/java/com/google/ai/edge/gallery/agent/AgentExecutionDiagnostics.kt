@@ -17,6 +17,7 @@
 package com.google.ai.edge.gallery.agent
 
 import com.google.ai.edge.gallery.data.Model
+import com.google.ai.edge.gallery.agent.coordinator.AgentCapabilityGroups
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageCollapsableProgressPanel
 import com.google.ai.edge.gallery.ui.common.chat.LogMessage
 import com.google.ai.edge.gallery.ui.common.chat.LogMessageLevel
@@ -32,10 +33,13 @@ internal object AgentExecutionDiagnostics {
   private val lock = Any()
   private var activeEntries: MutableList<Entry>? = null
   private var latest: Snapshot? = null
+  private var currentVisibleTools: Set<String> = emptySet()
+  private val nativeOperations by lazy { AgentCapabilityGroups.definitions.flatMap { it.operationNames }.toSet() }
 
   fun begin() = synchronized(lock) {
     activeEntries = mutableListOf()
     latest = null
+    currentVisibleTools = emptySet()
   }
 
   fun recordRuntimeStage(stage: String, detail: String = "") {
@@ -53,6 +57,7 @@ internal object AgentExecutionDiagnostics {
   }
 
   fun recordModelInput(modelTurn: Int, visibleTools: List<String>, nativeInputTokens: Int?) {
+    synchronized(lock) { currentVisibleTools = visibleTools.toSet() }
     add(
       LogMessageLevel.Info,
       "Model input",
@@ -67,13 +72,20 @@ internal object AgentExecutionDiagnostics {
     channelNames: List<String>,
     unparsedToolMarkers: Boolean,
   ) {
-    val calls = structuredCalls.joinToString { "${it.name}(keys=${it.argumentKeys.joinToString()})" }
+    val calls = structuredCalls.joinToString { call ->
+      val safeName = synchronized(lock) {
+        if (call.name in currentVisibleTools) call.name else "unrecognized_tool"
+      }
+      val safeKeys = call.argumentKeys.mapNotNull(::safeIdentifier).distinct().take(20)
+      "$safeName(keys=${safeKeys.joinToString()})"
+    }
+    val safeChannels = channelNames.mapNotNull(::safeIdentifier).distinct().take(10)
     val markerStatus = if (unparsedToolMarkers) "present" else "absent"
     val level = if (unparsedToolMarkers && structuredCalls.isEmpty()) LogMessageLevel.Warning else LogMessageLevel.Info
     add(
       level,
       "Model output",
-      "turn=$modelTurn, structuredToolCalls=${structuredCalls.size} [${calls}], contentChars=$contentChars, channels=[${channelNames.joinToString()}], unparsedToolMarkers=$markerStatus",
+      "turn=$modelTurn, structuredToolCalls=${structuredCalls.size} [${calls}], contentChars=$contentChars, channels=[${safeChannels.joinToString()}], unparsedToolMarkers=$markerStatus",
     )
   }
 
@@ -93,12 +105,16 @@ internal object AgentExecutionDiagnostics {
       toolName.contains("skill", ignoreCase = true) || toolName == "load_skill" -> "SKILLS"
       else -> "GALLERY_TOOL"
     }
+    val safeName = synchronized(lock) {
+      if (toolName in currentVisibleTools) toolName else "unrecognized_tool"
+    }
     val backend = safeArgument(arguments, "backend")?.takeIf { it in setOf("TERMUX", "SHIZUKU", "TERMUX_RISH") }
-    val operation = safeArgument(arguments, "operation")
+    val operation = safeArgument(arguments, "operation")?.takeIf { it in nativeOperations }
+    val safeKeys = arguments.keySet().mapNotNull(::safeIdentifier).distinct().take(20)
     val failureCategory = if (succeeded) null else classifyFailure(failureText.orEmpty())
     val details = buildList {
       add("route=$route")
-      add("args=[${arguments.keySet().sorted().joinToString()}]")
+      add("args=[${safeKeys.joinToString()}]")
       backend?.let { add("backend=$it") }
       operation?.let { add("operation=$it") }
       add("state=$dispatchState")
@@ -106,7 +122,7 @@ internal object AgentExecutionDiagnostics {
       add("durationMs=$durationMs")
       failureCategory?.let { add("failure=$it") }
     }.joinToString(", ")
-    add(if (succeeded) LogMessageLevel.Info else LogMessageLevel.Warning, "Tool dispatch", "$toolName — $details")
+    add(if (succeeded) LogMessageLevel.Info else LogMessageLevel.Warning, "Tool dispatch", "$safeName — $details")
   }
 
   fun recordProjection(
@@ -145,8 +161,11 @@ internal object AgentExecutionDiagnostics {
 
   private fun safeArgument(arguments: JsonObject, name: String): String? {
     val value = arguments.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: return null
-    return value.takeIf { it.matches(Regex("[A-Za-z0-9_.-]{1,80}")) }
+    return safeIdentifier(value)
   }
+
+  private fun safeIdentifier(value: String): String? =
+    value.takeIf { it.matches(Regex("[A-Za-z0-9_.-]{1,80}")) }
 
   private fun classifyFailure(text: String): String = when {
     text.contains("approval", ignoreCase = true) && text.contains("denied", ignoreCase = true) -> "approval_denied"
