@@ -17,6 +17,13 @@
 package com.google.ai.edge.gallery.agent
 
 import com.google.gson.JsonObject
+import com.google.ai.edge.gallery.agent.coordinator.AgentCoordinator
+import com.google.ai.edge.gallery.agent.coordinator.AgentModel
+import com.google.ai.edge.gallery.agent.coordinator.AgentModelResponse
+import com.google.ai.edge.gallery.agent.coordinator.AgentTool
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolResult
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -53,6 +60,42 @@ class AgentExecutionDiagnosticsTest {
     assertTrue(trace.contains("args=[backend, command, operation]"))
     assertFalse(trace.contains("PRIVATE_COMMAND_VALUE"))
     assertFalse(trace.contains("PRIVATE_RESULT_VALUE"))
+  }
+
+  @Test
+  fun coordinatorDispatchTraceShowsNativeRouteAndExecutionOutcome() = runBlocking {
+    val nativeTool = object : AgentTool {
+      override val name = "android_device_info"
+      override val description = "Read device information."
+      override suspend fun execute(arguments: JsonObject) = AgentToolResult("PRIVATE_DEVICE_RESULT")
+    }
+    var turn = 0
+    val model = AgentModel {
+      turn++
+      if (turn == 1) {
+        AgentModelResponse.ToolCall(
+          "android_device_info",
+          JsonObject().apply { addProperty("operation", "battery_status") },
+          "diagnostic-call",
+        )
+      } else {
+        AgentModelResponse.FinalAnswer("Completed.")
+      }
+    }
+    AgentExecutionDiagnostics.begin()
+    AgentExecutionDiagnostics.recordModelInput(1, listOf("android_device_info"), 100)
+    val result = AgentCoordinator(model, AgentToolRegistry(listOf(nativeTool))).run("Check battery.")
+    AgentExecutionDiagnostics.finish(if (result.isSuccessful) "completed" else "failed")
+
+    val snapshot = AgentExecutionDiagnostics.consume()
+    assertNotNull(snapshot)
+    val trace = snapshot!!.entries.joinToString(" ") { it.third }
+    assertTrue(result.isSuccessful)
+    assertTrue(trace.contains("route=ANDROID_NATIVE"))
+    assertTrue(trace.contains("identity=GALLERY_APP_UID"))
+    assertTrue(trace.contains("operation=battery_status"))
+    assertTrue(trace.contains("durationMs="))
+    assertFalse(trace.contains("PRIVATE_DEVICE_RESULT"))
   }
 
   @Test
