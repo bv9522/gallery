@@ -24,6 +24,7 @@ import org.junit.Test
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Role
 import com.google.ai.edge.litertlm.ToolCall
+import com.google.gson.JsonParser
 
 class LiteRtLmResponseProtocolTest {
   @Test
@@ -46,7 +47,41 @@ class LiteRtLmResponseProtocolTest {
     assertSame(screenshot, image.bytes)
     val response = message.contents.contents[1] as Content.ToolResponse
     assertEquals("screen_inspect", response.name)
-    assertEquals("Screenshot attached.", response.response)
+    val envelope = JsonParser.parseString(response.response).asJsonObject
+    assertEquals("screen_inspect", envelope.get("tool").asString)
+    assertTrue(envelope.get("success").isJsonNull)
+    assertEquals("Screenshot attached.", envelope.get("result").asString)
+  }
+
+  @Test
+  fun toolResultEnvelopePreservesStructuredJsonNumbersBooleansAndUnits() {
+    val serialized = serializeToolResultForModel(
+      toolName = "android_device_info",
+      content = """{"battery_percent":55,"temperature_celsius":26.0,"charging":false,"units":{"temperature_celsius":"°C"}}""",
+      succeeded = true,
+    )
+    val envelope = JsonParser.parseString(serialized).asJsonObject
+    val result = envelope.getAsJsonObject("result")
+
+    assertEquals("android_device_info", envelope.get("tool").asString)
+    assertTrue(envelope.get("success").asBoolean)
+    assertTrue(result.get("battery_percent").asJsonPrimitive.isNumber)
+    assertEquals(55, result.get("battery_percent").asInt)
+    assertTrue(result.get("temperature_celsius").asJsonPrimitive.isNumber)
+    assertEquals(26.0, result.get("temperature_celsius").asDouble, 0.0001)
+    assertTrue(result.get("charging").asJsonPrimitive.isBoolean)
+    assertFalse(result.get("charging").asBoolean)
+    assertEquals("°C", result.getAsJsonObject("units").get("temperature_celsius").asString)
+  }
+
+  @Test
+  fun plainTextToolResultsRemainStringsInsteadOfBeingGuessedAsNumbers() {
+    val serialized = serializeToolResultForModel("shell", "55", succeeded = true)
+    val envelope = JsonParser.parseString(serialized).asJsonObject
+
+    assertTrue(envelope.get("result").isJsonPrimitive)
+    assertTrue(envelope.get("result").asJsonPrimitive.isString)
+    assertEquals("55", envelope.get("result").asString)
   }
 
   @Test
