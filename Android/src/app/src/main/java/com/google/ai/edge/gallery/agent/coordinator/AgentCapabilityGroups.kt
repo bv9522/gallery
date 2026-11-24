@@ -202,10 +202,14 @@ class DiscoverCapabilityGroupsTool : AgentTool {
         }
       }
     val matchingGroups = rankedGroups.filter { it.second > 0 }
-    // This catalog is intentionally small. Broad/list requests and unmatched queries should
-    // reveal the catalog rather than falsely reporting that no capabilities exist.
-    val candidates = if (terms.isEmpty() || matchingGroups.isEmpty()) rankedGroups else matchingGroups
-    val resultLimit = if (terms.isEmpty() || matchingGroups.isEmpty()) candidates.size else 5
+    // Explicit catalog requests must bypass keyword ranking: generic words such as "the"
+    // and "available" can otherwise create incidental matches and hide valid groups.
+    val isCatalogRequest = Regex(
+      """\b(?:list|show|display|enumerate)\b.*\b(?:all|available|capability groups?|groups?|catalog)\b|\b(?:all|available)\s+(?:capability\s+)?groups?\b"""
+    ).containsMatchIn(query)
+    val showCatalog = terms.isEmpty() || isCatalogRequest || matchingGroups.isEmpty()
+    val candidates = if (showCatalog) rankedGroups else matchingGroups
+    val resultLimit = if (showCatalog) candidates.size else 5
     val matches = candidates
       .sortedByDescending { it.second }
       .take(resultLimit)

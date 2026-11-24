@@ -27,7 +27,7 @@ class AgentCapabilityActivationPolicyTest {
   @Test
   fun acceptsEveryMatchingSuccessfulActivationInABatch() {
     val calls = listOf(
-      activationCall("activate-1", AgentCapabilityGroups.ANDROID_CONTROLS),
+      activationCall("activate-1", AgentCapabilityGroups.ANDROID_SYSTEM_CONTROLS),
       activationCall("activate-2", AgentCapabilityGroups.STORAGE_ARTIFACTS),
     )
     val results = listOf(
@@ -36,7 +36,7 @@ class AgentCapabilityActivationPolicyTest {
     )
 
     assertEquals(
-      setOf(AgentCapabilityGroups.ANDROID_CONTROLS, AgentCapabilityGroups.STORAGE_ARTIFACTS),
+      setOf(AgentCapabilityGroups.ANDROID_SYSTEM_CONTROLS, AgentCapabilityGroups.STORAGE_ARTIFACTS),
       AgentCapabilityActivationPolicy.requestedGroups(calls + results, results),
     )
   }
@@ -44,7 +44,7 @@ class AgentCapabilityActivationPolicyTest {
   @Test
   fun rejectsPartialBatchInsteadOfActivatingOnlyTheMatchingSubset() {
     val calls = listOf(
-      activationCall("activate-1", AgentCapabilityGroups.ANDROID_CONTROLS),
+      activationCall("activate-1", AgentCapabilityGroups.ANDROID_SYSTEM_CONTROLS),
     )
     val results = listOf(
       activationResult("activate-1"),
@@ -57,7 +57,7 @@ class AgentCapabilityActivationPolicyTest {
   @Test
   fun rejectsMissingResultForOneActivationInTheSameAssistantBatch() {
     val calls = listOf(
-      activationCall("activate-1", AgentCapabilityGroups.ANDROID_CONTROLS),
+      activationCall("activate-1", AgentCapabilityGroups.ANDROID_SYSTEM_CONTROLS),
       activationCall("activate-2", AgentCapabilityGroups.STORAGE_ARTIFACTS),
     )
     val partialResults = listOf(activationResult("activate-1"))
