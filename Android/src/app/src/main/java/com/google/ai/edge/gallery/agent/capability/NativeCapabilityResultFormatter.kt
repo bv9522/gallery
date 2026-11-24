@@ -128,11 +128,11 @@ internal object NativeCapabilityResultFormatter {
   }
 
   private fun JsonObject.addNullableNumber(name: String, value: Number?) {
-    add(name, value?.let(::com.google.gson.JsonPrimitive) ?: JsonNull.INSTANCE)
+    add(name, value?.let { com.google.gson.JsonPrimitive(it) } ?: JsonNull.INSTANCE)
   }
 
   private fun JsonObject.addNullableBoolean(name: String, value: Boolean?) {
-    add(name, value?.let(::com.google.gson.JsonPrimitive) ?: JsonNull.INSTANCE)
+    add(name, value?.let { com.google.gson.JsonPrimitive(it) } ?: JsonNull.INSTANCE)
   }
 
   private fun oneLine(value: String): String =
