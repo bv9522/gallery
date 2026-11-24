@@ -44,6 +44,9 @@ class AgentSystemInstructionTest {
     val instruction = buildAgentSystemInstruction(null)
 
     assertTrue(instruction.contains("Discovery is read-only"))
+    assertTrue(instruction.contains("Treat tool results as authoritative"))
+    assertTrue(instruction.contains("Preserve numeric values exactly"))
+    assertTrue(instruction.contains("Keep JSON numbers, strings, booleans, and null distinct"))
     assertTrue(instruction.contains("fail closed"))
     assertTrue(instruction.contains("No backend substitution or shell fallback"))
     assertTrue(instruction.contains("only on explicit request"))
