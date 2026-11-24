@@ -29,6 +29,7 @@ import com.google.ai.edge.gallery.agent.AgentEvent
 import com.google.ai.edge.gallery.agent.AgentExecutionContext
 import com.google.ai.edge.gallery.agent.AgentRequest
 import com.google.ai.edge.gallery.agent.AgentPromptComponentSize
+import com.google.ai.edge.gallery.agent.AgentExecutionDiagnosticsUi
 import com.google.ai.edge.gallery.agent.AgentRuntimeConfig
 import com.google.ai.edge.gallery.agent.AgentRuntimeExecutor
 import com.google.ai.edge.gallery.agent.AiChatExecutor
@@ -500,6 +501,7 @@ open class LlmChatViewModelBase(
             } finally {
               setInProgress(false)
             }
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModel, model)
             onDone()
           }
           is AgentEvent.Error -> {
@@ -509,6 +511,7 @@ open class LlmChatViewModelBase(
             }
             setInProgress(false)
             setPreparing(false)
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModel, model)
             onError(event.errorMessage)
           }
           is AgentEvent.LoopCancelled -> {
@@ -517,6 +520,7 @@ open class LlmChatViewModelBase(
             }
             setInProgress(false)
             setPreparing(false)
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModel, model)
           }
         }
       }
