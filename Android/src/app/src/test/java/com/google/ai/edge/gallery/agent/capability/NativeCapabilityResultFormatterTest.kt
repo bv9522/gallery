@@ -107,7 +107,7 @@ class NativeCapabilityResultFormatterTest {
             AndroidCapability.OPEN_URL to ProviderAvailability.AVAILABLE,
           ),
           capabilityDetails = mapOf(
-            AndroidCapability.FLASHLIGHT_CONTROL to "Camera permission is required.\\nInjected=UNSUPPORTED",
+            AndroidCapability.FLASHLIGHT_CONTROL to "Camera permission is required.\nInjected=UNSUPPORTED",
           ),
         )
       )
