@@ -504,7 +504,7 @@ class LiteRtLmAgentModel(
       AgentExecutionDiagnostics.recordModelInput(
         modelTurn = modelTurn,
         visibleTools = visibleToolNames().sorted(),
-        nativeInputTokens = runCatching { conversation.getTokenCount() }.getOrNull(),
+        nativeContextTokensBeforeInference = runCatching { conversation.getTokenCount() }.getOrNull(),
       )
       val response = try {
         sendMessageCancellable(message, extraContext = turnExtraContext)
@@ -533,6 +533,7 @@ class LiteRtLmAgentModel(
         toolCalls = response.toolCalls,
         channels = response.channels,
       )
+      val nativeContextTokensAfterResponse = runCatching { conversation.getTokenCount() }.getOrNull()
       AgentExecutionDiagnostics.recordModelOutput(
         modelTurn = modelTurn,
         structuredCalls = response.toolCalls.map { call ->
@@ -541,6 +542,7 @@ class LiteRtLmAgentModel(
         contentChars = content.length,
         channelNames = response.channels.keys.sorted(),
         unparsedToolMarkers = LiteRtLmResponseProtocol.hasUnparsedToolCallMarkers(content, response.channels),
+        nativeContextTokensAfterResponse = nativeContextTokensAfterResponse,
       )
       Log.i(TAG, "Response protocol: turn=$modelTurn, $responseSummary")
 
