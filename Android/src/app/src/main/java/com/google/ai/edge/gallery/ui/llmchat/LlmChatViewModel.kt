@@ -501,7 +501,7 @@ open class LlmChatViewModelBase(
             } finally {
               setInProgress(false)
             }
-            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModel, model)
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
             onDone()
           }
           is AgentEvent.Error -> {
@@ -511,7 +511,7 @@ open class LlmChatViewModelBase(
             }
             setInProgress(false)
             setPreparing(false)
-            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModel, model)
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
             onError(event.errorMessage)
           }
           is AgentEvent.LoopCancelled -> {
@@ -520,7 +520,7 @@ open class LlmChatViewModelBase(
             }
             setInProgress(false)
             setPreparing(false)
-            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModel, model)
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
           }
         }
       }
