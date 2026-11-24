@@ -124,7 +124,7 @@ internal object NativeCapabilityResultFormatter {
     JsonObject().apply(build).toString()
 
   private fun JsonObject.addNullableString(name: String, value: String?) {
-    add(name, value?.let(::com.google.gson.JsonPrimitive) ?: JsonNull.INSTANCE)
+    add(name, value?.let { com.google.gson.JsonPrimitive(it) } ?: JsonNull.INSTANCE)
   }
 
   private fun JsonObject.addNullableNumber(name: String, value: Number?) {
