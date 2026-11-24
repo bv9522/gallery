@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.ai.edge.gallery.agent.AgentExecutionDiagnostics
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
@@ -365,6 +366,15 @@ class LiteRtLmAgentModel(
       val failure = candidate.failure
       groupSwitchFailureReason =
         AgentConversationCompactionPolicy.groupSwitchFailureReason(failure)
+      AgentExecutionDiagnostics.recordProjection(
+        groups = groupIds,
+        visibleToolCount = projected.names().size,
+        replayMessageCount = retainedMessages.size,
+        nativeTokenCount = null,
+        succeeded = false,
+        failureCategory = groupSwitchFailureReason,
+        durationMs = (System.nanoTime() - switchStartedAtNanos) / 1_000_000,
+      )
       Log.w(
         TAG,
         "Capability conversation rebuild failed (reason=$groupSwitchFailureReason); retaining the active conversation.",
@@ -381,12 +391,21 @@ class LiteRtLmAgentModel(
       .onFailure { Log.w(TAG, "Previous capability conversation cleanup callback failed.", it) }
     runCatching { previous.close() }
       .onFailure { Log.w(TAG, "Failed to close previous capability conversation.", it) }
+    val switchLatencyMs = (System.nanoTime() - switchStartedAtNanos) / 1_000_000
+    AgentExecutionDiagnostics.recordProjection(
+      groups = activeGroupIds,
+      visibleToolCount = projected.names().size,
+      replayMessageCount = retainedMessages.size,
+      nativeTokenCount = replacementTokenCount,
+      succeeded = true,
+      failureCategory = null,
+      durationMs = switchLatencyMs,
+    )
     Log.i(
       TAG,
       "Capability group projection changed: groups=${activeGroupIds.sorted()}, " +
         "visibleNativeTools=${projected.names().size}, retainedTurns=${conversationTurns.size}, " +
-        "nativeTokenCount=$replacementTokenCount, " +
-        "switchLatencyMs=${(System.nanoTime() - switchStartedAtNanos) / 1_000_000}",
+        "nativeTokenCount=$replacementTokenCount, switchLatencyMs=$switchLatencyMs",
     )
     return true
   }
@@ -482,6 +501,11 @@ class LiteRtLmAgentModel(
         "Turn request: turn=$modelTurn, thinkingRequested=$thinkingRequested, " +
           "toolResultCount=${toolMessages.size}",
       )
+      AgentExecutionDiagnostics.recordModelInput(
+        modelTurn = modelTurn,
+        visibleTools = visibleToolNames().sorted(),
+        nativeInputTokens = runCatching { conversation.getTokenCount() }.getOrNull(),
+      )
       val response = try {
         sendMessageCancellable(message, extraContext = turnExtraContext)
       } catch (error: Throwable) {
@@ -508,6 +532,15 @@ class LiteRtLmAgentModel(
         content = content,
         toolCalls = response.toolCalls,
         channels = response.channels,
+      )
+      AgentExecutionDiagnostics.recordModelOutput(
+        modelTurn = modelTurn,
+        structuredCalls = response.toolCalls.map { call ->
+          AgentExecutionDiagnostics.ToolCallSummary(call.name, call.arguments.keys.sorted())
+        },
+        contentChars = content.length,
+        channelNames = response.channels.keys.sorted(),
+        unparsedToolMarkers = LiteRtLmResponseProtocol.hasUnparsedToolCallMarkers(content, response.channels),
       )
       Log.i(TAG, "Response protocol: turn=$modelTurn, $responseSummary")
 
