@@ -17,7 +17,7 @@
 package com.google.ai.edge.gallery.agent
 
 import com.google.ai.edge.gallery.data.Model
-import com.google.ai.edge.gallery.ui.llmchat.LlmChatViewModel
+import com.google.ai.edge.gallery.ui.llmchat.LlmChatViewModelBase
 import com.google.gson.JsonObject
 
 /** Release-build no-op. The actual diagnostics implementation exists only in src/debug. */
@@ -34,5 +34,5 @@ internal object AgentExecutionDiagnostics {
 }
 
 internal object AgentExecutionDiagnosticsUi {
-  fun appendIfAvailable(viewModel: LlmChatViewModel, model: Model) = Unit
+  fun appendIfAvailable(viewModel: LlmChatViewModelBase, model: Model) = Unit
 }
