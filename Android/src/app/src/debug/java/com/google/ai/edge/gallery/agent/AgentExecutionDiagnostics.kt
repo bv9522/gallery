@@ -21,7 +21,7 @@ import com.google.ai.edge.gallery.agent.coordinator.AgentCapabilityGroups
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageCollapsableProgressPanel
 import com.google.ai.edge.gallery.ui.common.chat.LogMessage
 import com.google.ai.edge.gallery.ui.common.chat.LogMessageLevel
-import com.google.ai.edge.gallery.ui.llmchat.LlmChatViewModel
+import com.google.ai.edge.gallery.ui.llmchat.LlmChatViewModelBase
 import com.google.gson.JsonObject
 
 /** Debug-build-only trace. It never enters prompts, model messages, or persisted history. */
@@ -178,7 +178,7 @@ internal object AgentExecutionDiagnostics {
 
 /** Release source set provides a no-op counterpart; this UI exists only in debug APKs. */
 internal object AgentExecutionDiagnosticsUi {
-  fun appendIfAvailable(viewModel: LlmChatViewModel, model: Model) {
+  fun appendIfAvailable(viewModel: LlmChatViewModelBase, model: Model) {
     val snapshot = AgentExecutionDiagnostics.consume() ?: return
     viewModel.addMessage(
       model,
