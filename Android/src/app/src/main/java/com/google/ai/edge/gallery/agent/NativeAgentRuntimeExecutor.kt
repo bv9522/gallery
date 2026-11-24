@@ -199,6 +199,8 @@ class NativeAgentRuntimeExecutor(
     return flow {
       val job = currentCoroutineContext()[Job]
       activeJob.set(job)
+      AgentExecutionDiagnostics.begin()
+      AgentExecutionDiagnostics.recordRuntimeStage("Conversation creation/prefill started")
       emit(AgentEvent.LoopInitiated(request))
       var coordinatorStarted = false
       var executionStage = "conversation creation/prefill"
@@ -213,6 +215,10 @@ class NativeAgentRuntimeExecutor(
         val contents = withContext(Dispatchers.IO) { buildUserContents(currentContext, request) }
         val routedGroup = AgentCapabilityGroups.route(request.query)
         val activeModel = ensureAgentModel(currentConfig, routedGroup)
+        AgentExecutionDiagnostics.recordRuntimeStage(
+          "Conversation ready",
+          "visibleTools=${activeModel.visibleToolNames().size}, nativeTokens=${runCatching { activeModel.currentTokenCount() }.getOrNull() ?: "unavailable"}",
+        )
         if (routedGroup != null && !activeModel.selectGroup(routedGroup)) {
           val reason = activeModel.lastGroupSwitchFailureReason() ?: "conversation_rebuild_failed"
           val detail = if (reason == "context_limit") {
@@ -228,9 +234,15 @@ class NativeAgentRuntimeExecutor(
         @Suppress("UNCHECKED_CAST")
         val extraContext = request.metadata[AgentRequest.LITERTLM_EXTRA_CONTEXT] as? Map<String, Any>
           ?: emptyMap()
+        AgentExecutionDiagnostics.recordRuntimeStage("Coordinator started")
         val result: AgentRunResult =
           currentCoordinator.run(request.query, contents, extraContext)
+        AgentExecutionDiagnostics.recordRuntimeStage(
+          "Coordinator finished",
+          "status=${result.status}, modelTurns=${result.modelTurns}, toolCalls=${result.toolCalls}",
+        )
         if (result.isSuccessful) {
+          AgentExecutionDiagnostics.finish("completed")
           // Gemma's final prose can miscopy identifiers, counts, and command output. Append the
           // coordinator-retained, budgeted tool payload verbatim so the user can inspect the
           // authoritative result without relying on model transcription.
@@ -243,13 +255,18 @@ class NativeAgentRuntimeExecutor(
           emit(AgentEvent.StreamToken(token = finalText, done = true))
           emit(AgentEvent.LoopTerminated(finalText))
         } else {
+          AgentExecutionDiagnostics.finish("failed")
           discardAgentConversation()
           emit(AgentEvent.Error(result.finalText))
         }
       } catch (cancelled: CancellationException) {
+        AgentExecutionDiagnostics.recordRuntimeFailure(executionStage, cancelled)
+        AgentExecutionDiagnostics.finish("cancelled")
         discardAgentConversation()
         throw cancelled
       } catch (error: Exception) {
+        AgentExecutionDiagnostics.recordRuntimeFailure(executionStage, error)
+        AgentExecutionDiagnostics.finish("failed")
         Log.e(TAG, "Agent execution failed during $executionStage (${error.javaClass.simpleName}).")
         if (coordinatorStarted) discardAgentConversation()
         emit(AgentEvent.Error(error.message ?: error.javaClass.simpleName))
