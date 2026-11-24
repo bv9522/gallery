@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.ai.edge.gallery.agent.AgentExecutionDiagnostics
 import com.google.ai.edge.litertlm.Contents
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -165,22 +166,29 @@ class AgentCoordinator(
   }
 
   private suspend fun executeToolCall(call: AgentModelResponse.ToolCall): AgentToolResult {
+    val startedAtNanos = System.nanoTime()
     val visibleNames = visibleToolNames?.invoke()
     if (visibleNames != null && call.name !in visibleNames) {
-      return AgentToolResult(
+      val rejected = AgentToolResult(
         content = "Tool '" + call.name + "' is not currently exposed for this task. Discover and activate its capability group first.",
         isSuccessful = false,
       )
+      AgentExecutionDiagnostics.recordToolDispatch(call.name, call.arguments, "rejected_not_exposed", false, elapsedMs(startedAtNanos), rejected.content)
+      return rejected
     }
-    val tool = tools.find(call.name)
-      ?: return AgentToolResult(
+    val tool = tools.find(call.name) ?: run {
+      val rejected = AgentToolResult(
         content = "Unknown tool '" + call.name +
           "'. Use the available discovery tools to find the correct capability before retrying.",
         isSuccessful = false,
       )
+      AgentExecutionDiagnostics.recordToolDispatch(call.name, call.arguments, "rejected_unknown_tool", false, elapsedMs(startedAtNanos), rejected.content)
+      return rejected
+    }
     val result = try {
       tool.execute(call.arguments.deepCopy())
     } catch (cancelled: CancellationException) {
+      AgentExecutionDiagnostics.recordToolDispatch(call.name, call.arguments, "cancelled", false, elapsedMs(startedAtNanos), "cancelled")
       throw cancelled
     } catch (error: Exception) {
       AgentToolResult(
@@ -196,12 +204,20 @@ class AgentCoordinator(
       if (imageRejected) result.content + "\nImage payload omitted because the multimodal result budget was exceeded."
       else result.content
     )
-    return result.copy(
+    val finalResult = result.copy(
       content = boundedContent,
       isSuccessful = result.isSuccessful && !imageRejected,
       imageBytes = boundedImage,
     )
+    AgentExecutionDiagnostics.recordToolDispatch(
+      call.name, call.arguments, "dispatched", finalResult.isSuccessful,
+      elapsedMs(startedAtNanos), if (finalResult.isSuccessful) null else finalResult.content,
+    )
+    return finalResult
   }
+
+  private fun elapsedMs(startedAtNanos: Long): Long =
+    ((System.nanoTime() - startedAtNanos) / 1_000_000).coerceAtLeast(0)
 
   /** Erases image payloads from a failed/cancelled turn before rolling history back. */
   private fun rollbackTo(previousSize: Int) {
