@@ -58,4 +58,18 @@ Entries: 1
       formatted,
     )
   }
+  @Test
+  fun executionDetailsPanelPreservesCopyActionWhenCloned() {
+    val panel = ChatMessageCollapsableProgressPanel(
+      title = "Execution Details",
+      inProgress = false,
+      accelerator = "CPU",
+      copyLogsEnabled = true,
+    )
+
+    val cloned = panel.clone() as ChatMessageCollapsableProgressPanel
+
+    assertEquals(true, cloned.copyLogsEnabled)
+  }
+
 }
