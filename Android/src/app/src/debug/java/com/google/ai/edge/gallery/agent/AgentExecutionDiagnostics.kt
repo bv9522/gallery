@@ -87,20 +87,22 @@ internal object AgentExecutionDiagnostics {
   /** Captures the raw final text returned by LiteRT-LM, but only for a traced device-info run. */
   fun recordRawModelOutput(modelTurn: Int, content: String) {
     if (!synchronized(lock) { captureResponsePayloads }) return
+    val length = content.length
     add(
       LogMessageLevel.Info,
       "Raw model output",
-      "turn=$modelTurn, chars=1, text=\n" + boundedPayload(content),
+      "turn=$modelTurn, chars=$length, text=\n" + boundedPayload(content),
     )
   }
 
   /** Captures the exact final string emitted by NativeAgentRuntimeExecutor to Agent Chat. */
   fun recordDeliveredResponse(content: String) {
     if (!synchronized(lock) { captureResponsePayloads }) return
+    val length = content.length
     add(
       LogMessageLevel.Info,
       "Delivered response",
-      "chars=1, text=\n" + boundedPayload(content),
+      "chars=$length, text=\n" + boundedPayload(content),
     )
   }
 
