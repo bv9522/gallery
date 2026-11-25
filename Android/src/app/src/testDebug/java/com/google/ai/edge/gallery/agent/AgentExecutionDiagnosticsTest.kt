@@ -81,7 +81,7 @@ class AgentExecutionDiagnosticsTest {
 
     val snapshot = AgentExecutionDiagnostics.consume()
     assertNotNull(snapshot)
-    val trace = snapshot!!.entries.joinToString("\\n") { it.third }
+    val trace = snapshot!!.entries.joinToString("\\n") { "${it.second}: ${it.third}" }
     assertTrue(trace.contains(envelope))
     assertTrue(trace.contains("Raw model output"))
     assertTrue(trace.contains("Battery level is 2%."))
