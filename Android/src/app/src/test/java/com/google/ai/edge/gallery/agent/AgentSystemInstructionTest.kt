@@ -54,6 +54,8 @@ class AgentSystemInstructionTest {
     assertTrue(instruction.contains("exact scoped one-time approval"))
     assertTrue(instruction.contains("exactly one visible target app"))
     assertTrue(instruction.contains("separate consent naming provider"))
+    assertTrue(instruction.contains("display_brightness to read"))
+    assertTrue(instruction.contains("set_display_brightness only for explicit change requests"))
   }
 
   private companion object {
