@@ -201,7 +201,7 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 
 ### Five implementation milestones
 
-- [ ] **Milestone 1 — Inspect the existing pipeline and define the contract.**
+- [x] **Milestone 1 — Inspect the existing pipeline and define the contract.**
   - Trace successful tool results from provider/coordinator dispatch through structured result retention, model handoff, raw model output, and final response assembly.
   - Inspect existing authoritative transcript/formatter code and diagnostics; identify reusable components and the narrowest safe integration point.
   - Define a provider-neutral, turn-scoped representation for authoritative facts, preserving original JSON/value types, units, source/tool identity, execution identity, and success/failure status.
@@ -238,7 +238,7 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 
 | Milestone | Status | Completion evidence |
 |---|---|---|
-| 1. Pipeline inspection and contract | **In progress** | Trace current implementation; document data flow, integration point, and contract |
+| 1. Pipeline inspection and contract | **Complete** | Current data flow, integration point, and v1 result/response contract documented below |
 | 2. Shared result layer | Not started | Typed, turn-scoped authoritative result capture plus tests |
 | 3. Deterministic fact rendering | Not started | Generic renderer with precision/type/provenance tests |
 | 4. Response validation and assembly | Not started | Final responses cannot substitute contradictory model values for canonical facts |
@@ -247,3 +247,31 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 **Known motivating evidence:** On the Galaxy S21, the device-info tool handed Gemma the correct JSON values `battery_percent=59`, `temperature_celsius=27.7`, and `voltage_millivolts=3775`. The raw model output changed the latter two to `7.7°C` and `775mV`; diagnostics confirmed the corruption was already present in Gemma's raw generation, not in tool serialization/handoff or downstream delivery. A previous report also observed a battery percentage losing its leading digit. This establishes the need for runtime-owned fact fidelity; it does not establish that every numeric field or every model response is affected.
 
 **Current execution:** Milestone 1 is authorized and underway on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
+
+
+### Milestone 1 completion record — 2026-11-25
+
+**Inspected implementation and confirmed data flow**
+
+1. Each `AgentTool.execute` returns `AgentToolResult(content: String, isSuccessful, imageBytes?)`. The coordinator is the sole executor.
+2. `AgentCoordinator.executeToolCall` applies `AgentToolResultBudget` before retaining the result. It appends an `AgentMessage(Role.TOOL)` containing the bounded content, tool name, call ID, and success flag. The same bounded content is passed onward to the model.
+3. `LiteRtLmAgentModel.serializeToolResultForModel` wraps results in a JSON envelope (`tool`, `success`, `result`). JSON objects/arrays retain their structure; other content is represented as a string. This intentionally avoids guessing that arbitrary plain text such as `42` is a numeric JSON value.
+4. `NativeAgentRuntimeExecutor` receives the completed `AgentRunResult`, then appends `formatAuthoritativeToolResults` to Gemma's final text.
+5. The existing transcript formatter is only a partial precursor: it hardcodes `android_control`, `android_device_info`, and `execute_shell`; it filters to the current user turn but currently does not require `toolSucceeded == true`; and it appends raw text rather than producing a generic typed fact view.
+6. `NativeCapabilityResultFormatter` already emits useful typed JSON for several native operations, including numeric battery values, booleans, explicit units, and JSON nulls. It is a provider/domain serializer, not a provider-neutral result layer.
+7. Debug diagnostics separately capture the device-info model handoff, raw final model output, and delivered response. Payload capture is deliberately narrow/debug-only and should remain so; the ARL itself must not depend on debug diagnostics.
+
+**V1 contract and integration decision**
+
+- Add a provider-neutral authoritative result representation at the coordinator/runtime boundary. Each record is scoped to the current `AgentRunResult`/user turn and carries at least `toolCallId`, `toolName`, `success`, and the exact bounded source payload.
+- Only successful tool results are eligible for authoritative fact rendering. Failed, rejected, cancelled, missing, or stale results must never be promoted as current facts.
+- Preserve JSON objects/arrays as structured values. Preserve non-JSON/plain-text results as strings. Do not guess that scalar text such as `42`, `true`, or `null` is JSON; scalar structured values require an explicit typed-result signal in the tool-result contract.
+- Preserve original numeric representation and nested structure; keep units and field names with their values. No implicit rounding, rescaling, unit conversion, defaults, or inferred fields.
+- Keep source provenance and tool-call correlation separate from the model-generated prose. Do not retain a second unbounded copy of sensitive tool output; the bounded payload already used for model handoff is the initial source of truth.
+- The renderer is generic and schema/data driven, not battery-specific. Unsupported or malformed structured content remains safely representable as bounded text and is not guessed into facts.
+- For tool-dependent answers, the response assembler must present a deterministic, clearly labeled authoritative facts section generated from the retained result records. Gemma may add explanation, but its prose is not allowed to replace or relabel those source values. V1 will not claim general semantic fact-checking of arbitrary prose; where a task requires exact tool facts and the model response cannot be safely separated from unsupported factual claims, prefer the deterministic fact response over potentially misleading model prose.
+- Keep image payload lifecycle, approval, permissions, dispatch, cancellation, and existing result-budget behavior unchanged.
+
+**Primary integration point:** replace the current hardcoded `formatAuthoritativeToolResults(result.messages)` append path in `NativeAgentRuntimeExecutor` with a reusable extraction → authoritative result model → deterministic renderer → response assembly pipeline. Keep `AgentCoordinator` as sole tool executor; only extend its result contract if explicit scalar-JSON typing is required.
+
+**Milestone 1 exit:** pipeline traced; existing code limitations recorded; v1 typed-result, provenance, success, scoping, rendering, and response-assembly contract established. No runtime implementation or execution-policy behavior changed in this milestone.
