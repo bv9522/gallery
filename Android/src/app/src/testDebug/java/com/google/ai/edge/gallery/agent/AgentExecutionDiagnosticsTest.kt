@@ -63,6 +63,34 @@ class AgentExecutionDiagnosticsTest {
   }
 
   @Test
+  fun capturesExactDeviceInfoHandoffRawModelOutputAndDeliveredResponse() {
+    AgentExecutionDiagnostics.begin()
+    val envelope = """{"tool":"android_device_info","success":true,"result":{"battery_percent":42}}"""
+    AgentExecutionDiagnostics.recordModelToolHandoff(
+      2,
+      listOf(
+        "android_device_info" to envelope,
+        "android_communications" to """{"result":"PRIVATE_MESSAGE_BODY"}""",
+      ),
+    )
+    AgentExecutionDiagnostics.recordRawModelOutput(2, "Battery level is 2%.")
+    AgentExecutionDiagnostics.recordDeliveredResponse(
+      "Battery level is 2%.\n\nVerified tool results: battery_percent=42"
+    )
+    AgentExecutionDiagnostics.finish("completed")
+
+    val snapshot = AgentExecutionDiagnostics.consume()
+    assertNotNull(snapshot)
+    val trace = snapshot!!.entries.joinToString("\\n") { it.third }
+    assertTrue(trace.contains(envelope))
+    assertTrue(trace.contains("Raw model output"))
+    assertTrue(trace.contains("Battery level is 2%."))
+    assertTrue(trace.contains("Delivered response"))
+    assertTrue(trace.contains("battery_percent=42"))
+    assertFalse(trace.contains("PRIVATE_MESSAGE_BODY"))
+  }
+
+  @Test
   fun coordinatorDispatchTraceShowsNativeRouteAndExecutionOutcome() = runBlocking {
     val nativeTool = object : AgentTool {
       override val name = "android_device_info"
