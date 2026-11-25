@@ -32,9 +32,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,7 +49,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -99,25 +101,30 @@ fun LogsViewer(
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
           if (copyEnabled) {
-            TextButton(
-              onClick = {
-                clipboardManager.setText(
-                  AnnotatedString(
-                    formatDiagnosticsForClipboard(
-                      title = title,
-                      accelerator = accelerator,
-                      logs = logs,
+            var showActionsMenu by remember { mutableStateOf(false) }
+            IconButton(onClick = { showActionsMenu = true }) {
+              Icon(Icons.Filled.MoreVert, contentDescription = "Log viewer menu")
+            }
+            DropdownMenu(
+              expanded = showActionsMenu,
+              onDismissRequest = { showActionsMenu = false },
+            ) {
+              DropdownMenuItem(
+                text = { Text("Copy Diagnostics") },
+                leadingIcon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
+                onClick = {
+                  showActionsMenu = false
+                  clipboardManager.setText(
+                    AnnotatedString(
+                      formatDiagnosticsForClipboard(
+                        title = title,
+                        accelerator = accelerator,
+                        logs = logs,
+                      )
                     )
                   )
-                )
-              }
-            ) {
-              Icon(
-                Icons.Filled.ContentCopy,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                },
               )
-              Text("Copy Diagnostics")
             }
           }
           IconButton(
