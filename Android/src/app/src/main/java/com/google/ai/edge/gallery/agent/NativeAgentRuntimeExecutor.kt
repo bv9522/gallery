@@ -244,7 +244,6 @@ class NativeAgentRuntimeExecutor(
           "status=${result.status}, modelTurns=${result.modelTurns}, toolCalls=${result.toolCalls}",
         )
         if (result.isSuccessful) {
-          AgentExecutionDiagnostics.finish("completed")
           // Gemma's final prose can miscopy identifiers, counts, and command output. Append the
           // coordinator-retained, budgeted tool payload verbatim so the user can inspect the
           // authoritative result without relying on model transcription.
@@ -254,6 +253,8 @@ class NativeAgentRuntimeExecutor(
           } else {
             result.finalText + "\n\n" + authoritativeResults
           }
+          AgentExecutionDiagnostics.recordDeliveredResponse(finalText)
+          AgentExecutionDiagnostics.finish("completed")
           emit(AgentEvent.StreamToken(token = finalText, done = true))
           emit(AgentEvent.LoopTerminated(finalText))
         } else {
