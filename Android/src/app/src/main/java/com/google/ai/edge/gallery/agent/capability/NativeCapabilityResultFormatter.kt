@@ -136,7 +136,7 @@ internal object NativeCapabilityResultFormatter {
   }
 
   private fun oneLine(value: String): String =
-    value.replace('\\n', ' ').replace('\\r', ' ').trim()
+    value.replace('\n', ' ').replace('\r', ' ').trim()
 
   private const val MAX_AUDIO_DEVICES_IN_TOOL_RESULT = 24
   private const val MAX_APPS_IN_TOOL_RESULT = 25
