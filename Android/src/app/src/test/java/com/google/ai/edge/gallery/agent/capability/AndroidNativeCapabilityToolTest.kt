@@ -310,7 +310,11 @@ class AndroidNativeCapabilityToolTest {
     val providerStatus = tool.execute(arguments("status"))
     val result = tool.execute(arguments("download_status"))
 
-    assertTrue(providerStatus.content.contains("DOWNLOAD_MANAGEMENT=AVAILABLE"))
+    val providerStatusJson = com.google.gson.JsonParser.parseString(providerStatus.content).asJsonObject
+    assertTrue(
+      providerStatusJson.getAsJsonObject("capabilities")
+        .get(AndroidCapability.DOWNLOAD_MANAGEMENT.name).asString == ProviderAvailability.AVAILABLE.name
+    )
     assertTrue(result.isSuccessful)
     assertTrue(result.content.contains("model=Gemma E2B"))
     assertTrue(result.content.contains("phase=RUNNING"))
