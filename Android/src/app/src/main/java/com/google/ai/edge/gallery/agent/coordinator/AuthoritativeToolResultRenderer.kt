@@ -73,7 +73,7 @@ internal object AuthoritativeToolResultRenderer {
       }
       is JsonArray -> {
         if (value.size() == 0) appendLine("value = []")
-        value.forEachIndexed { index, child -> appendValueAt("[$index]", child) }
+        value.forEachIndexed { index, child -> appendValueAt("value[$index]", child) }
       }
       else -> appendValueAt("value", value)
     }
