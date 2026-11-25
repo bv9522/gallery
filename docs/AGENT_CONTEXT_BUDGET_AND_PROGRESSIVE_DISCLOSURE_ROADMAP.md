@@ -208,7 +208,7 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
   - Define explicit rules for missing, malformed, unsupported, and conflicting values; never infer or silently repair source data.
   - Record the design and test boundaries before implementation. Do not change execution semantics in this milestone.
 
-- [ ] **Milestone 2 — Implement the shared Authoritative Result Layer.** (implementation in progress)
+- [x] **Milestone 2 — Implement the shared Authoritative Result Layer.**
   - Capture successful structured tool results independently of Gemma's textual response.
   - Preserve primitive types, nested objects/arrays, units, provenance, and execution correlation.
   - Scope retained results to the correct turn/request and prevent stale or failed results from being presented as current facts.
@@ -239,14 +239,14 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 | Milestone | Status | Completion evidence |
 |---|---|---|
 | 1. Pipeline inspection and contract | **Complete** | Current data flow, integration point, and v1 result/response contract documented below |
-| 2. Shared result layer | **In progress** | Provider-neutral run-scoped capture and focused tests committed; local test/build validation pending |
+| 2. Shared result layer | **Complete** | Provider-neutral run-scoped capture, six focused tests, and local unit-test/debug-build validation passed |
 | 3. Deterministic fact rendering | Not started | Generic renderer with precision/type/provenance tests |
 | 4. Response validation and assembly | Not started | Final responses cannot substitute contradictory model values for canonical facts |
 | 5. Regression and S21 acceptance | Not started | Full regression results, diagnostics, and recorded device acceptance |
 
 **Known motivating evidence:** On the Galaxy S21, the device-info tool handed Gemma the correct JSON values `battery_percent=59`, `temperature_celsius=27.7`, and `voltage_millivolts=3775`. The raw model output changed the latter two to `7.7°C` and `775mV`; diagnostics confirmed the corruption was already present in Gemma's raw generation, not in tool serialization/handoff or downstream delivery. A previous report also observed a battery percentage losing its leading digit. This establishes the need for runtime-owned fact fidelity; it does not establish that every numeric field or every model response is affected.
 
-**Current execution:** Milestone 1 is complete; Milestone 2 implementation is underway on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
+**Current execution:** Milestones 1 and 2 are complete; Milestone 3 is next on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
 
 
 ### Milestone 1 completion record — 2026-11-25
@@ -298,4 +298,4 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 - Current-run scoping across persistent conversation history.
 - Structured side-channel data is not retained when result budgeting changes the text.
 
-**Validation state:** implementation and tests are committed, but the Android unit-test task and Shizuku debug APK build have not yet been run in the owner's local environment. Milestone 2 remains in progress until those checks pass and any resulting failures are resolved. Milestones 3–5 remain pending.
+**Validation state:** `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed successfully in the owner's local environment (BUILD SUCCESSFUL; 60 actionable tasks, 12 executed, 48 up-to-date; 7m 52s). Milestone 2 is complete. No S21 installation/device acceptance has been performed or is required for this milestone. Milestones 3–5 remain pending.
