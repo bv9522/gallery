@@ -67,6 +67,7 @@ class UnifiedShellExecutionTest {
       "echo " + '$' + "HOME",
       "date --set='2026-01-01'",
       "sort -o /tmp/output",
+      "dumpsys battery set level 5",
     ).forEach { command ->
       assertTrue("Expected approval for: $command", ShellCommandApprovalClassifier.requiresApproval(command))
     }
@@ -80,7 +81,6 @@ class UnifiedShellExecutionTest {
       "id",
       "pwd",
       "getprop ro.product.model",
-      "dumpsys battery",
       "ls -la",
       "cat /proc/version",
     ).forEach { command ->
