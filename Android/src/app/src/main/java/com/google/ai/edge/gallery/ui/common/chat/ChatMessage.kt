@@ -478,6 +478,7 @@ class ChatMessageCollapsableProgressPanel(
   val items: List<ProgressPanelItem> = listOf(),
   val logMessages: List<LogMessage> = listOf(),
   val customData: Any? = null,
+  val copyLogsEnabled: Boolean = false,
 ) :
   ChatMessage(
     type = ChatMessageType.COLLAPSABLE_PROGRESS_PANEL,
@@ -493,9 +494,31 @@ class ChatMessageCollapsableProgressPanel(
       items = items.toList(),
       logMessages = logMessages.toList(),
       customData = customData,
+      copyLogsEnabled = copyLogsEnabled,
     )
   }
 }
+
+
+/** Formats diagnostic log entries as plain text for sharing outside the app. */
+internal fun formatDiagnosticsForClipboard(
+  title: String,
+  accelerator: String,
+  logs: List<LogMessage>,
+): String = buildString {
+  appendLine(title)
+  if (accelerator.isNotBlank()) appendLine("Accelerator: $accelerator")
+  appendLine("Entries: ${logs.size}")
+  logs.forEach { log ->
+    append("[${log.level.name}] ")
+    if (log.source.isNotBlank()) {
+      append(log.source)
+      if (log.lineNumber >= 0) append(":${log.lineNumber}")
+      append(" — ")
+    }
+    appendLine(log.message)
+  }
+}.trimEnd()
 
 /** Chat message for showcasing a thought process. */
 class ChatMessageThinking(
