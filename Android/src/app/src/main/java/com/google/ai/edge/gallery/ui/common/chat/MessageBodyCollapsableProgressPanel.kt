@@ -58,6 +58,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
@@ -72,6 +74,7 @@ private const val MAX_DESCRIPTION_LINES = 5
 fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressPanel) {
   var isExpanded by remember { mutableStateOf(false) }
   var showLogsViewer by remember { mutableStateOf(false) }
+  val clipboardManager = LocalClipboardManager.current
 
   Column(
     modifier =
@@ -189,7 +192,27 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
         }
 
         if (message.logMessages.isNotEmpty()) {
-          Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomEnd) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            if (message.copyLogsEnabled) {
+              AssistChip(
+                onClick = {
+                  clipboardManager.setText(
+                    AnnotatedString(
+                      formatDiagnosticsForClipboard(
+                        title = message.title,
+                        accelerator = message.accelerator,
+                        logs = message.logMessages,
+                      )
+                    )
+                  )
+                },
+                label = { Text("Copy Diagnostics") },
+              )
+            }
             AssistChip(
               onClick = { showLogsViewer = true },
               label = { Text(stringResource(R.string.view_console_logs)) },
