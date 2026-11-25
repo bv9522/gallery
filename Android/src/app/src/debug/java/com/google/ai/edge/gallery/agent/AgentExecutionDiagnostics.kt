@@ -34,12 +34,14 @@ internal object AgentExecutionDiagnostics {
   private var activeEntries: MutableList<Entry>? = null
   private var latest: Snapshot? = null
   private var currentVisibleTools: Set<String> = emptySet()
+  private var captureResponsePayloads: Boolean = false
   private val nativeOperations by lazy { AgentCapabilityGroups.definitions.flatMap { it.operationNames }.toSet() }
 
   fun begin() = synchronized(lock) {
     activeEntries = mutableListOf()
     latest = null
     currentVisibleTools = emptySet()
+    captureResponsePayloads = false
   }
 
   fun recordRuntimeStage(stage: String, detail: String = "") {
@@ -62,6 +64,43 @@ internal object AgentExecutionDiagnostics {
       LogMessageLevel.Info,
       "Model input",
       "turn=$modelTurn, visibleTools=${visibleTools.size} [${visibleTools.joinToString()}], nativeContextTokensBeforeInference=${nativeContextTokensBeforeInference ?: "unavailable"}",
+    )
+  }
+
+  /**
+   * Captures the exact JSON envelope handed to LiteRT-LM for device-info results only.
+   * This payload capture is debug-build-only and is exposed only through explicit diagnostics copy.
+   */
+  fun recordModelToolHandoff(modelTurn: Int, toolResults: List<Pair<String, String>>) {
+    val deviceResults = toolResults.filter { it.first == "android_device_info" }
+    if (deviceResults.isEmpty()) return
+    synchronized(lock) { captureResponsePayloads = true }
+    deviceResults.forEach { (name, payload) ->
+      add(
+        LogMessageLevel.Info,
+        "Model handoff",
+        "turn=$modelTurn, tool=$name, payload=\n" + boundedPayload(payload),
+      )
+    }
+  }
+
+  /** Captures the raw final text returned by LiteRT-LM, but only for a traced device-info run. */
+  fun recordRawModelOutput(modelTurn: Int, content: String) {
+    if (!synchronized(lock) { captureResponsePayloads }) return
+    add(
+      LogMessageLevel.Info,
+      "Raw model output",
+      "turn=$modelTurn, chars=1, text=\n" + boundedPayload(content),
+    )
+  }
+
+  /** Captures the exact final string emitted by NativeAgentRuntimeExecutor to Agent Chat. */
+  fun recordDeliveredResponse(content: String) {
+    if (!synchronized(lock) { captureResponsePayloads }) return
+    add(
+      LogMessageLevel.Info,
+      "Delivered response",
+      "chars=1, text=\n" + boundedPayload(content),
     )
   }
 
@@ -156,6 +195,13 @@ internal object AgentExecutionDiagnostics {
   }
 
   fun consume(): Snapshot? = synchronized(lock) { latest.also { latest = null } }
+
+  private fun boundedPayload(value: String): String {
+    val limit = 4096
+    if (value.length <= limit) return value
+    val length = value.length
+    return value.take(limit) + "\n[diagnostic payload truncated; originalChars=$length]"
+  }
 
   private fun add(level: LogMessageLevel, source: String, message: String) {
     synchronized(lock) { activeEntries?.add(Entry(level, source, message)) }
