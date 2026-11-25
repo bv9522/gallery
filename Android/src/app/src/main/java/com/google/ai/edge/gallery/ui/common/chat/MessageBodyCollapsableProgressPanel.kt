@@ -58,8 +58,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
@@ -74,12 +72,11 @@ private const val MAX_DESCRIPTION_LINES = 5
 fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressPanel) {
   var isExpanded by remember { mutableStateOf(false) }
   var showLogsViewer by remember { mutableStateOf(false) }
-  val clipboardManager = LocalClipboardManager.current
 
   Column(
     modifier =
       Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        .clickable { isExpanded = !isExpanded }
+        .clickable(enabled = message.items.isNotEmpty()) { isExpanded = !isExpanded }
         .fillMaxWidth()
   ) {
     // Header Row: Contains the title and the expand/collapse button
@@ -121,16 +118,18 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
       }
 
       // Expand/Collapse Button on the right side
-      Icon(
-        imageVector =
-          if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-        contentDescription = if (isExpanded) "Collapse panel" else "Expand panel",
-      )
+      if (message.items.isNotEmpty()) {
+        Icon(
+          imageVector =
+            if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+          contentDescription = if (isExpanded) "Collapse panel" else "Expand panel",
+        )
+      }
     }
 
     // Collapsable Content: Shown only when isExpanded is true
     AnimatedVisibility(
-      visible = isExpanded,
+      visible = isExpanded && message.items.isNotEmpty(),
       enter = expandVertically(),
       exit = shrinkVertically(),
     ) {
@@ -191,47 +190,37 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
           }
         }
 
-        if (message.logMessages.isNotEmpty()) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            if (message.copyLogsEnabled) {
-              AssistChip(
-                onClick = {
-                  clipboardManager.setText(
-                    AnnotatedString(
-                      formatDiagnosticsForClipboard(
-                        title = message.title,
-                        accelerator = message.accelerator,
-                        logs = message.logMessages,
-                      )
-                    )
-                  )
-                },
-                label = { Text("Copy Diagnostics") },
-              )
-            }
-            AssistChip(
-              onClick = { showLogsViewer = true },
-              label = { Text(stringResource(R.string.view_console_logs)) },
-              leadingIcon = {
-                Icon(
-                  Icons.AutoMirrored.Outlined.Article,
-                  contentDescription = null,
-                  Modifier.size(AssistChipDefaults.IconSize),
-                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              },
+    if (message.logMessages.isNotEmpty()) {
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        AssistChip(
+          onClick = { showLogsViewer = true },
+          label = { Text(stringResource(R.string.view_console_logs)) },
+          leadingIcon = {
+            Icon(
+              Icons.AutoMirrored.Outlined.Article,
+              contentDescription = null,
+              Modifier.size(AssistChipDefaults.IconSize),
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-          }
-        }
+          },
+        )
+      }
+    }
       }
     }
   }
 
   if (showLogsViewer) {
-    LogsViewer(logs = message.logMessages, onDismissRequest = { showLogsViewer = false })
+    LogsViewer(
+      logs = message.logMessages,
+      onDismissRequest = { showLogsViewer = false },
+      title = message.title,
+      accelerator = message.accelerator,
+      copyEnabled = message.copyLogsEnabled,
+    )
   }
 }
