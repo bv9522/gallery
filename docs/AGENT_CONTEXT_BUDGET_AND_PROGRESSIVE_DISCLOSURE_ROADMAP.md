@@ -191,3 +191,59 @@ The owner reports that the focused `LegacyGalleryToolDispatcherTest` and `Unifie
 A Galaxy S21 activation attempt on 2026-11-22 exposed a concrete limit: rebuilding the conversation with the monolithic `android_control` schema failed at 4,257 input tokens against the 4,000-token ceiling. The previous conversation was retained correctly, but the model-facing explanation incorrectly implied a missing permission. PR #64 first reduced repetitive prose without removing operations or formal argument constraints, retained guidance for sensitive values and opaque handles, classified context overflow separately from other rebuild failures, and reported `context_limit` rather than a permission denial. The follow-up now splits the 55 operations across seven independently projected tools and filters each tool's argument schema and runtime dispatch allowlist. Tests were added for complete one-to-one operation coverage, focused schema contents, and a per-group character ceiling; they have not yet been run locally. Native-token counts and S21 activation measurements remain the acceptance evidence, so the split is not yet claimed to fit the 4,000-token budget.
 
 The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM conversation-switch lifecycle: complete current-turn/tool-transaction replay, successful replacement, failed candidate creation or token validation retaining the previous live conversation, and no duplicated side effects. Current policy tests exercise the extracted validation/replacement policies but do not drive the complete `LiteRtLmAgentModel` lifecycle through a controllable conversation implementation. Before adding an abstraction solely for testing, inspect whether the pinned LiteRT-LM API offers a practical test seam; otherwise keep the device-level proof explicit in the consolidated S21 acceptance plan. Native token-cost/reliability comparison and S21 resource/thermal acceptance also remain pending.
+
+
+## 8. Authoritative Result Layer (ARL) — model-output fidelity
+
+**Goal:** Ensure facts obtained from successful tool executions are represented accurately in the final user-facing response, even when the language model miscopies, truncates, or changes numeric values. The runtime—not Gemma—owns the authoritative tool-result values.
+
+**Design boundary:** This is a shared agent-runtime capability, not a battery-specific patch, Android-tool special case, chat-UI workaround, or model-prompt-only fix. It must preserve existing tool execution, approval, permission, cancellation, and provider boundaries. The first version prioritizes exact tool-derived facts; broad natural-language fact-checking is explicitly out of scope until a reliable claim contract exists.
+
+### Five implementation milestones
+
+- [ ] **Milestone 1 — Inspect the existing pipeline and define the contract.**
+  - Trace successful tool results from provider/coordinator dispatch through structured result retention, model handoff, raw model output, and final response assembly.
+  - Inspect existing authoritative transcript/formatter code and diagnostics; identify reusable components and the narrowest safe integration point.
+  - Define a provider-neutral, turn-scoped representation for authoritative facts, preserving original JSON/value types, units, source/tool identity, execution identity, and success/failure status.
+  - Define explicit rules for missing, malformed, unsupported, and conflicting values; never infer or silently repair source data.
+  - Record the design and test boundaries before implementation. Do not change execution semantics in this milestone.
+
+- [ ] **Milestone 2 — Implement the shared Authoritative Result Layer.**
+  - Capture successful structured tool results independently of Gemma's textual response.
+  - Preserve primitive types, nested objects/arrays, units, provenance, and execution correlation.
+  - Scope retained results to the correct turn/request and prevent stale or failed results from being presented as current facts.
+  - Keep provider-specific parsing out of the shared layer unless a provider's declared result contract requires it.
+
+- [ ] **Milestone 3 — Add deterministic authoritative fact rendering.**
+  - Render supported typed values from the retained source data, not from model-generated text.
+  - Preserve exact numeric values/precision and declared units; handle strings, booleans, enums, arrays, and nested objects predictably.
+  - Omit absent/invalid fields or label them unavailable; do not fabricate defaults or perform implicit unit conversions.
+  - Keep formatting generic and reusable across Android native, shell, MCP, and future providers.
+
+- [ ] **Milestone 4 — Integrate response validation and assembly.**
+  - Establish a clear contract separating model-authored explanation from runtime-authored authoritative facts.
+  - Ensure unsupported or contradicted model claims cannot override successful tool results.
+  - Preserve useful conversational framing while presenting canonical values deterministically.
+  - Avoid global regex replacement or heuristic rewriting of arbitrary prose; do not claim general semantic fact-checking in v1.
+  - Keep the existing response lifecycle and tool execution/approval semantics intact.
+
+- [ ] **Milestone 5 — Regression, diagnostics, and device acceptance.**
+  - Add deterministic tests for leading-digit loss, decimal/integer precision, units, booleans/enums, nested values, arrays, missing/malformed fields, multiple tools, conflicting model claims, and failed tool calls.
+  - Measure source-to-rendered fact fidelity, model disagreement/correction rates, unsupported-claim handling, and response behavior.
+  - Verify diagnostics distinguish source payload, model raw output, authoritative rendering, and delivered response without leaking sensitive content.
+  - Run local unit tests/build, then validate on the Galaxy S21 with Gemma 4 E2B; record model/runtime versions and repeatable conditions.
+  - Device acceptance is a separate gate; do not mark complete based only on unit tests or a successful APK build.
+
+### Milestone tracking
+
+| Milestone | Status | Completion evidence |
+|---|---|---|
+| 1. Pipeline inspection and contract | **In progress** | Trace current implementation; document data flow, integration point, and contract |
+| 2. Shared result layer | Not started | Typed, turn-scoped authoritative result capture plus tests |
+| 3. Deterministic fact rendering | Not started | Generic renderer with precision/type/provenance tests |
+| 4. Response validation and assembly | Not started | Final responses cannot substitute contradictory model values for canonical facts |
+| 5. Regression and S21 acceptance | Not started | Full regression results, diagnostics, and recorded device acceptance |
+
+**Known motivating evidence:** On the Galaxy S21, the device-info tool handed Gemma the correct JSON values `battery_percent=59`, `temperature_celsius=27.7`, and `voltage_millivolts=3775`. The raw model output changed the latter two to `7.7°C` and `775mV`; diagnostics confirmed the corruption was already present in Gemma's raw generation, not in tool serialization/handoff or downstream delivery. A previous report also observed a battery percentage losing its leading digit. This establishes the need for runtime-owned fact fidelity; it does not establish that every numeric field or every model response is affected.
+
+**Current execution:** Milestone 1 is authorized and underway on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
