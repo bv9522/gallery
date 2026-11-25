@@ -27,6 +27,9 @@ internal object AgentExecutionDiagnostics {
   fun recordRuntimeStage(stage: String, detail: String = "") = Unit
   fun recordRuntimeFailure(stage: String, error: Throwable) = Unit
   fun recordModelInput(modelTurn: Int, visibleTools: List<String>, nativeContextTokensBeforeInference: Int?) = Unit
+  fun recordModelToolHandoff(modelTurn: Int, toolResults: List<Pair<String, String>>) = Unit
+  fun recordRawModelOutput(modelTurn: Int, content: String) = Unit
+  fun recordDeliveredResponse(content: String) = Unit
   fun recordModelOutput(modelTurn: Int, structuredCalls: List<ToolCallSummary>, contentChars: Int, channelNames: List<String>, unparsedToolMarkers: Boolean, nativeContextTokensAfterResponse: Int? = null) = Unit
   fun recordToolDispatch(toolName: String, arguments: JsonObject, dispatchState: String, succeeded: Boolean, durationMs: Long, failureText: String?) = Unit
   fun recordProjection(groups: Set<String>, visibleToolCount: Int, replayMessageCount: Int, nativeTokenCount: Int?, succeeded: Boolean, failureCategory: String?, durationMs: Long) = Unit
