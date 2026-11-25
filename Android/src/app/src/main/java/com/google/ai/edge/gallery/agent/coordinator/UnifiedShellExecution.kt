@@ -115,7 +115,7 @@ internal object ShellCommandApprovalClassifier {
     val normalized = command.trim()
     if (normalized.isEmpty()) return true
     // Reject shell composition and expansion even when a safe command appears first.
-    if (normalized.any { it in ";|&<>\u0060$(){}\\\n\r" }) return true
+    if (normalized.any { it in ";|&<>(){}\\\n\r" || it.code == 96 || it.code == 36 }) return true
     val match = Regex("^([A-Za-z0-9_./+-]+)(?:\\s+.*)?$").matchEntire(normalized)
       ?: return true
     val executable = match.groupValues[1].substringAfterLast('/')
