@@ -240,13 +240,13 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 |---|---|---|
 | 1. Pipeline inspection and contract | **Complete** | Current data flow, integration point, and v1 result/response contract documented below |
 | 2. Shared result layer | **Complete** | Provider-neutral run-scoped capture, six focused tests, and local unit-test/debug-build validation passed |
-| 3. Deterministic fact rendering | Not started | Generic renderer with precision/type/provenance tests |
+| 3. Deterministic fact rendering | **In progress** | Generic renderer and focused tests added; local validation pending |
 | 4. Response validation and assembly | Not started | Final responses cannot substitute contradictory model values for canonical facts |
 | 5. Regression and S21 acceptance | Not started | Full regression results, diagnostics, and recorded device acceptance |
 
 **Known motivating evidence:** On the Galaxy S21, the device-info tool handed Gemma the correct JSON values `battery_percent=59`, `temperature_celsius=27.7`, and `voltage_millivolts=3775`. The raw model output changed the latter two to `7.7°C` and `775mV`; diagnostics confirmed the corruption was already present in Gemma's raw generation, not in tool serialization/handoff or downstream delivery. A previous report also observed a battery percentage losing its leading digit. This establishes the need for runtime-owned fact fidelity; it does not establish that every numeric field or every model response is affected.
 
-**Current execution:** Milestones 1 and 2 are complete; Milestone 3 is next on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
+**Current execution:** Milestones 1 and 2 are complete; Milestone 3 implementation is in progress on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
 
 
 ### Milestone 1 completion record — 2026-11-25
@@ -299,3 +299,24 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 - Structured side-channel data is not retained when result budgeting changes the text.
 
 **Validation state:** `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed successfully in the owner's local environment (BUILD SUCCESSFUL; 60 actionable tasks, 12 executed, 48 up-to-date; 7m 52s). Milestone 2 is complete. No S21 installation/device acceptance has been performed or is required for this milestone. Milestones 3–5 remain pending.
+
+
+### Milestone 3 implementation update — 2026-11-24
+
+**Deterministic renderer added**
+
+- Added provider-neutral `AuthoritativeToolResultRenderer` in the coordinator layer. It renders retained successful source values directly and does not inspect or rewrite Gemma's prose.
+- Structured JSON objects and arrays render as deterministic dotted/indexed paths. JSON primitives retain their serialized representation, including numeric lexical precision, booleans, quoted strings/enums, and explicit nulls. Empty objects/arrays remain visible rather than disappearing.
+- Explicitly typed top-level scalar values render as a `value` fact. Plain text and malformed JSON remain bounded text and are never guessed into structured values.
+- Each rendered result retains its tool name and tool-call ID provenance. Multiple results preserve coordinator execution order.
+- The renderer accepts a separate presentation allowlist. This keeps rendering generic across providers while preventing a newly added sensitive provider from becoming user-visible by default. The initial tests exercise the existing device-info/shell presentation boundary and verify sensitive, failed, and non-allowlisted results are omitted.
+- No model text, regular-expression replacement, unit conversion, rounding, inferred fields, provider-specific schema, or execution-policy behavior is involved. Runtime response integration is intentionally Milestone 4.
+
+**Focused regression coverage added**
+
+- Leading-digit and decimal-lexeme preservation (including trailing decimal zeroes).
+- Units/field names, booleans, enum strings, nulls, nested objects, empty objects, nested/top-level arrays, and explicit scalar rendering.
+- Plain-text and malformed-JSON fallback without scalar guessing.
+- Tool/call provenance, failed-result exclusion, and presentation allowlist privacy boundary.
+
+**Validation state:** Implementation and focused unit tests are committed, but have not yet been run in the owner's Android build environment. Milestone 3 remains in progress until local unit tests and the Shizuku debug build pass. Response assembly and contradictory-model-claim handling remain Milestone 4; Galaxy S21 acceptance remains Milestone 5.
