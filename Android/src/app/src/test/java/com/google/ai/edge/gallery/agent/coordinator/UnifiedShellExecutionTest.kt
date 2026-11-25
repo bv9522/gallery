@@ -34,6 +34,61 @@ import org.junit.Test
 class UnifiedShellExecutionTest {
 
   @Test
+  fun readOnlyPrintfRunsWithoutRequestingApproval() = runBlocking {
+    var approvals = 0
+    var executions = 0
+    val router = ShellExecutionRouter(
+      mapOf(ShellExecutionBackend.TERMUX to ShellExecutionTransport { request ->
+        executions++
+        ShellExecutionResult(request.backend, "555", "", 0)
+      })
+    )
+    val tool = UnifiedShellTool(router, ShellExecutionApprovalPolicy {
+      approvals++
+      false
+    })
+
+    val result = tool.execute(arguments("TERMUX", "printf '555'"))
+
+    assertTrue(result.isSuccessful)
+    assertTrue(result.content.contains("555"))
+    assertEquals(0, approvals)
+    assertEquals(1, executions)
+  }
+
+  @Test
+  fun mutatingAndUnclassifiedCommandsStillRequireApproval() {
+    listOf(
+      "touch /tmp/file",
+      "rm -f /tmp/file",
+      "settings put system screen_brightness 100",
+      "printf 'hello' > /tmp/file",
+      "printf 'hello' | wc -c",
+      "echo \\$HOME",
+      "date --set='2026-01-01'",
+      "sort -o /tmp/output",
+    ).forEach { command ->
+      assertTrue("Expected approval for: $command", ShellCommandApprovalClassifier.requiresApproval(command))
+    }
+  }
+
+  @Test
+  fun commonReadOnlyCommandsDoNotRequireApproval() {
+    listOf(
+      "printf '555'",
+      "printf 'Hello Cocochat'",
+      "id",
+      "pwd",
+      "getprop ro.product.model",
+      "dumpsys battery",
+      "ls -la",
+      "cat /proc/version",
+    ).forEach { command ->
+      assertFalse("Unexpected approval for: $command", ShellCommandApprovalClassifier.requiresApproval(command))
+    }
+  }
+
+  @Test
   fun deniedRequestNeverReachesAnyBackend() = runBlocking {
     val calls = mutableListOf<ShellExecutionRequest>()
     val router = ShellExecutionRouter(
@@ -50,7 +105,7 @@ class UnifiedShellExecutionTest {
       false
     })
 
-    val result = tool.execute(arguments("TERMUX", "id"))
+    val result = tool.execute(arguments("TERMUX", "touch /tmp/denied"))
 
     assertFalse(result.isSuccessful)
     assertTrue("Unexpected tool result: ${result.content}", approvedRequest != null)
@@ -76,7 +131,7 @@ class UnifiedShellExecutionTest {
     })
 
     val result = tool.execute(
-      arguments("SHIZUKU", "id").apply {
+      arguments("SHIZUKU", "touch /tmp/approved").apply {
         addProperty("working_directory", "/")
         addProperty("timeout_ms", 5_000)
         addProperty("max_output_chars", 4_096)
@@ -135,7 +190,7 @@ class UnifiedShellExecutionTest {
 
     ShellExecutionBackend.entries.forEach { backend ->
       val workingDirectory = if (backend == ShellExecutionBackend.TERMUX) "~/" else "/"
-      val result = tool.execute(arguments(backend.name, "id").apply {
+      val result = tool.execute(arguments(backend.name, "touch /tmp/approved").apply {
         addProperty("working_directory", workingDirectory)
       })
       assertTrue("Backend $backend should execute after approval. Result: ${result.content}", result.isSuccessful)
@@ -318,7 +373,7 @@ class UnifiedShellExecutionTest {
     val policy = ChannelShellExecutionApprovalPolicy(channel)
     val request = ShellExecutionRequest(
       backend = ShellExecutionBackend.TERMUX_RISH,
-      command = "id",
+      command = "touch /tmp/approved",
       workingDirectory = "/sdcard",
       timeoutMs = 4_000,
       maxOutputChars = 2_048,
@@ -327,7 +382,7 @@ class UnifiedShellExecutionTest {
     val action = channel.receive() as AskShellCommandPermissionAction
 
     assertEquals("TERMUX_RISH", action.backend)
-    assertEquals("id", action.command)
+    assertEquals("touch /tmp/approved", action.command)
     assertEquals("/sdcard", action.workingDirectory)
     assertEquals(4_000L, action.timeoutMs)
     assertEquals(2_048, action.maxOutputChars)
@@ -341,7 +396,7 @@ class UnifiedShellExecutionTest {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
     val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10)
     val approved = policy.requestApproval(
-      ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+      ShellExecutionRequest(ShellExecutionBackend.TERMUX, "touch /tmp/pending", "~/")
     )
 
     assertFalse(approved)
@@ -362,7 +417,7 @@ class UnifiedShellExecutionTest {
     })
 
     try {
-      val result = tool.execute(arguments("TERMUX", "id"))
+      val result = tool.execute(arguments("TERMUX", "touch /tmp/cancelled"))
       throw AssertionError("Expected cancellation, but tool returned: ${result.content}")
     } catch (_: CancellationException) {
       assertEquals(0, executions)
@@ -374,7 +429,7 @@ class UnifiedShellExecutionTest {
   fun channelApprovalCancellationPropagatesAndCompletesPendingRequestAsDenied() = runBlocking {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 1)
     val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10_000)
-    val request = ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+    val request = ShellExecutionRequest(ShellExecutionBackend.TERMUX, "touch /tmp/cancelled", "~/")
     val pending = async { policy.requestApproval(request) }
     val action = channel.receive() as AskShellCommandPermissionAction
 
@@ -396,7 +451,7 @@ class UnifiedShellExecutionTest {
     val policy = ChannelShellExecutionApprovalPolicy(channel)
     val request = async {
       policy.requestApproval(
-        ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+        ShellExecutionRequest(ShellExecutionBackend.TERMUX, "touch /tmp/denied", "~/")
       )
     }
     val action = channel.receive() as AskShellCommandPermissionAction
