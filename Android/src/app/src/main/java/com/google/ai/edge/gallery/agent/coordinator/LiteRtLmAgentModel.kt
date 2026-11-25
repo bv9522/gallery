@@ -536,6 +536,16 @@ class LiteRtLmAgentModel(
         visibleTools = visibleToolNames().sorted(),
         nativeContextTokensBeforeInference = runCatching { conversation.getTokenCount() }.getOrNull(),
       )
+      // Debug diagnostics capture only android_device_info payloads. The serialized value below
+      // is produced by the same function used to construct the actual LiteRT-LM ToolResponse.
+      AgentExecutionDiagnostics.recordModelToolHandoff(
+        modelTurn,
+        replayToolMessages.mapNotNull { result ->
+          val name = result.toolName ?: return@mapNotNull null
+          if (name != "android_device_info") return@mapNotNull null
+          name to serializeToolResultForModel(name, result.content, result.toolSucceeded)
+        },
+      )
       val response = try {
         sendMessageCancellable(message, extraContext = turnExtraContext)
       } catch (error: Throwable) {
@@ -601,6 +611,7 @@ class LiteRtLmAgentModel(
           Log.e(TAG, failure)
           throw IllegalStateException(failure)
         }
+        AgentExecutionDiagnostics.recordRawModelOutput(modelTurn, content)
         AgentModelResponse.FinalAnswer(content)
       }
     }
