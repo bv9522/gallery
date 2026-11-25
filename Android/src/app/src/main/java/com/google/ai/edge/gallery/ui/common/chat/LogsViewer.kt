@@ -46,6 +46,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -98,7 +99,7 @@ fun LogsViewer(
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
           if (copyEnabled) {
-            IconButton(
+            TextButton(
               onClick = {
                 clipboardManager.setText(
                   AnnotatedString(
@@ -111,7 +112,12 @@ fun LogsViewer(
                 )
               }
             ) {
-              Icon(Icons.Filled.ContentCopy, contentDescription = "Copy diagnostics")
+              Icon(
+                Icons.Filled.ContentCopy,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+              )
+              Text("Copy Diagnostics")
             }
           }
           IconButton(
