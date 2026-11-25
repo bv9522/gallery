@@ -108,7 +108,7 @@ internal object ShellCommandApprovalClassifier {
     "ls", "stat", "file", "head", "tail", "wc", "grep", "cat", "cut",
     "sort", "uniq", "tr", "sha256sum", "sha1sum", "md5sum", "df", "du",
     "ps", "uptime", "free", "printenv", "which", "type", "readlink",
-    "realpath", "basename", "dirname", "dumpsys",
+    "realpath", "basename", "dirname",
   )
 
   fun requiresApproval(command: String): Boolean {
