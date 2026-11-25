@@ -501,7 +501,8 @@ open class LlmChatViewModelBase(
             } finally {
               setInProgress(false)
             }
-            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
+            // Agent chat appends diagnostics after its generated artifacts and progress
+            // completion callback so the panel remains at the end of the assistant post.
             onDone()
           }
           is AgentEvent.Error -> {

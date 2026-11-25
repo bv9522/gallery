@@ -822,8 +822,12 @@ abstract class ChatViewModel(
       newMessages.removeAt(newMessages.size - 1)
       newMessages.add(createNewCollapsableMessage())
     } else {
+      // Diagnostics are a final assistant-post section, not a mutable tool-progress panel.
+      // Keep subsequent progress updates attached to the actual skill/tool progress message.
       val lastProgressPanelMessage =
-        getLastMessageWithType(model = model, type = ChatMessageType.COLLAPSABLE_PROGRESS_PANEL)
+        newMessages.lastOrNull {
+          it is ChatMessageCollapsableProgressPanel && !it.copyLogsEnabled
+        }
       val lastProgressPanelMessageIndex = newMessages.indexOf(lastProgressPanelMessage)
       val lastUserTextMessage =
         getLastMessageWithTypeAndSide(
@@ -862,6 +866,7 @@ abstract class ChatViewModel(
                 },
             customData = lastProgressPanelMessage.customData,
             logMessages = lastProgressPanelMessage.logMessages,
+            copyLogsEnabled = lastProgressPanelMessage.copyLogsEnabled,
           )
         newMessages[lastProgressPanelMessageIndex] = updatedMessage
       } else {
@@ -880,7 +885,7 @@ abstract class ChatViewModel(
     val newMessages = newMessagesByModel[model.name]?.toMutableList() ?: mutableListOf()
     if (newMessages.isNotEmpty()) {
       val lastCollapsableIndex = newMessages.indexOfLast {
-        it is ChatMessageCollapsableProgressPanel
+        it is ChatMessageCollapsableProgressPanel && !it.copyLogsEnabled
       }
       if (lastCollapsableIndex != -1) {
         val lastMessage = newMessages[lastCollapsableIndex] as ChatMessageCollapsableProgressPanel
