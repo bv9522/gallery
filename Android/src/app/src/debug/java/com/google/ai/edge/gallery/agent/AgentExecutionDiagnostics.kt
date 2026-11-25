@@ -79,7 +79,7 @@ internal object AgentExecutionDiagnostics {
       add(
         LogMessageLevel.Info,
         "Model handoff",
-        "turn=$modelTurn, tool=$name, payload=\n" + boundedPayload(payload),
+        "turn=$modelTurn, role=TOOL, content=ToolResponse, tool=$name, payload=\n" + boundedPayload(payload),
       )
     }
   }
