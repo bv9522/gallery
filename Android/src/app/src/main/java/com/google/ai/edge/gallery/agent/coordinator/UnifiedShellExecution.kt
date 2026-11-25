@@ -97,6 +97,41 @@ fun interface ShellExecutionApprovalPolicy {
 }
 
 /**
+ * Read-only shell commands that are safe to run without an interruption.
+ *
+ * This is intentionally an allowlist, not a shell parser: compound commands, redirections,
+ * substitutions, pipelines, unknown commands, and known write-capable options require approval.
+ */
+internal object ShellCommandApprovalClassifier {
+  private val readOnlyCommands = setOf(
+    "printf", "echo", "pwd", "id", "whoami", "uname", "getprop", "date",
+    "ls", "stat", "file", "head", "tail", "wc", "grep", "cat", "cut",
+    "sort", "uniq", "tr", "sha256sum", "sha1sum", "md5sum", "df", "du",
+    "ps", "uptime", "free", "printenv", "which", "type", "readlink",
+    "realpath", "basename", "dirname", "dumpsys",
+  )
+
+  fun requiresApproval(command: String): Boolean {
+    val normalized = command.trim()
+    if (normalized.isEmpty()) return true
+    // Reject shell composition and expansion even when a safe command appears first.
+    if (normalized.any { it in ";|&<>\u0060$(){}\\\n\r" }) return true
+    val match = Regex("^([A-Za-z0-9_./+-]+)(?:\\s+.*)?$").matchEntire(normalized)
+      ?: return true
+    val executable = match.groupValues[1].substringAfterLast('/')
+    if (executable !in readOnlyCommands) return true
+    val arguments = normalized.removePrefix(match.groupValues[1]).trim()
+    if (executable == "date" &&
+      Regex("(^|\\s)(-s|--set)(=|\\s|$)").containsMatchIn(arguments)
+    ) return true
+    if (executable == "sort" &&
+      Regex("(^|\\s)(-o|--output)(=|\\s|$)").containsMatchIn(arguments)
+    ) return true
+    return false
+  }
+}
+
+/**
  * Bridges the shared approval policy to Agent Chat's existing action channel. Missing UI
  * collectors, closed channels, dismissal, and the approval deadline all fail closed.
  */
@@ -281,7 +316,7 @@ class UnifiedShellTool(
     "Native device shell tool. Use execute_shell directly for all shell-command requests; do not " +
       "call run_mcp_tool for shell execution. Select the backend explicitly: TERMUX (Termux app " +
       "UID), SHIZUKU (Android shell UID 2000, not root), or TERMUX_RISH (Termux invoking the " +
-      "existing Shizuku service). Never substitute another backend. Every command requires user approval."
+      "existing Shizuku service). Never substitute another backend. Read-only allowlisted commands run directly; mutating or unclassified commands require one-time approval."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -366,14 +401,16 @@ class UnifiedShellTool(
         "commandChars=${request.command.length}, " +
         "commandSha256=${ExecutionFingerprint.sha256(request.command)}",
     )
-    val approved = try {
-      approval.requestApproval(request)
-    } catch (cancelled: CancellationException) {
-      throw cancelled
-    } catch (error: Exception) {
-      return AgentToolResult("Approval failed: ${error.message ?: error.javaClass.simpleName}", false)
+    if (ShellCommandApprovalClassifier.requiresApproval(request.command)) {
+      val approved = try {
+        approval.requestApproval(request)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        return AgentToolResult("Approval failed: ${error.message ?: error.javaClass.simpleName}", false)
+      }
+      if (!approved) return AgentToolResult("Execution denied: user approval was not granted.", false)
     }
-    if (!approved) return AgentToolResult("Execution denied: user approval was not granted.", false)
 
     val result = try {
       router.execute(request)
