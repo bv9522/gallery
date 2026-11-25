@@ -190,6 +190,8 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
           }
         }
 
+      }
+    }
     if (message.logMessages.isNotEmpty()) {
       Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
@@ -210,8 +212,7 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
         )
       }
     }
-      }
-    }
+
   }
 
   if (showLogsViewer) {
