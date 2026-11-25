@@ -208,7 +208,7 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
   - Define explicit rules for missing, malformed, unsupported, and conflicting values; never infer or silently repair source data.
   - Record the design and test boundaries before implementation. Do not change execution semantics in this milestone.
 
-- [ ] **Milestone 2 — Implement the shared Authoritative Result Layer.**
+- [ ] **Milestone 2 — Implement the shared Authoritative Result Layer.** (implementation in progress)
   - Capture successful structured tool results independently of Gemma's textual response.
   - Preserve primitive types, nested objects/arrays, units, provenance, and execution correlation.
   - Scope retained results to the correct turn/request and prevent stale or failed results from being presented as current facts.
@@ -239,14 +239,14 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 | Milestone | Status | Completion evidence |
 |---|---|---|
 | 1. Pipeline inspection and contract | **Complete** | Current data flow, integration point, and v1 result/response contract documented below |
-| 2. Shared result layer | Not started | Typed, turn-scoped authoritative result capture plus tests |
+| 2. Shared result layer | **In progress** | Provider-neutral run-scoped capture and focused tests committed; local test/build validation pending |
 | 3. Deterministic fact rendering | Not started | Generic renderer with precision/type/provenance tests |
 | 4. Response validation and assembly | Not started | Final responses cannot substitute contradictory model values for canonical facts |
 | 5. Regression and S21 acceptance | Not started | Full regression results, diagnostics, and recorded device acceptance |
 
 **Known motivating evidence:** On the Galaxy S21, the device-info tool handed Gemma the correct JSON values `battery_percent=59`, `temperature_celsius=27.7`, and `voltage_millivolts=3775`. The raw model output changed the latter two to `7.7°C` and `775mV`; diagnostics confirmed the corruption was already present in Gemma's raw generation, not in tool serialization/handoff or downstream delivery. A previous report also observed a battery percentage losing its leading digit. This establishes the need for runtime-owned fact fidelity; it does not establish that every numeric field or every model response is affected.
 
-**Current execution:** Milestone 1 is authorized and underway on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
+**Current execution:** Milestone 1 is complete; Milestone 2 implementation is underway on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
 
 
 ### Milestone 1 completion record — 2026-11-25
@@ -275,3 +275,27 @@ The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM 
 **Primary integration point:** replace the current hardcoded `formatAuthoritativeToolResults(result.messages)` append path in `NativeAgentRuntimeExecutor` with a reusable extraction → authoritative result model → deterministic renderer → response assembly pipeline. Keep `AgentCoordinator` as sole tool executor; only extend its result contract if explicit scalar-JSON typing is required.
 
 **Milestone 1 exit:** pipeline traced; existing code limitations recorded; v1 typed-result, provenance, success, scoping, rendering, and response-assembly contract established. No runtime implementation or execution-policy behavior changed in this milestone.
+
+
+### Milestone 2 implementation update — 2026-11-25
+
+**Implemented in the shared coordinator boundary**
+
+- Added `AuthoritativeToolResult`, a provider-neutral record carrying the tool-call ID, tool name, success state, exact bounded result text, and an optional typed JSON value.
+- `AgentCoordinator` now captures each tool result immediately after the existing result-budget and image-budget decisions, preserving execution order and returning a separate result list on `AgentRunResult`.
+- The list is created per `run()`, so it contains only results from the current user turn even though coordinator conversation history remains persistent across turns.
+- Successful and unsuccessful results are both retained for provenance; `isEligibleForFacts` is false for unsuccessful, rejected, or budget-rejected results. Cancellation still propagates and rolls back history without returning a partial run.
+- JSON objects and arrays are parsed from the already-bounded content, preserving nested primitives, arrays, units, and numeric lexical representation. Ordinary text remains text; scalar JSON is accepted only when a tool explicitly supplies `structuredContent` and its compact serialization exactly matches the unchanged bounded content.
+- An explicit structured scalar is discarded if the result budget modifies the content, preventing a side-channel value from bypassing the existing output limit or becoming detached from the bytes/text actually handed to the model.
+- The model-facing `AgentMessage` and serialization path are unchanged. Approval, permission, dispatch, cancellation, image lifecycle, and result-budget policy are unchanged.
+
+**Focused regression coverage added**
+
+- Nested JSON objects/arrays, decimal lexical precision, booleans, and provenance.
+- Explicit typed scalar versus ordinary scalar-looking text.
+- Failed results retained but marked ineligible as facts.
+- Multiple tool calls retain their individual IDs/names and execution order.
+- Current-run scoping across persistent conversation history.
+- Structured side-channel data is not retained when result budgeting changes the text.
+
+**Validation state:** implementation and tests are committed, but the Android unit-test task and Shizuku debug APK build have not yet been run in the owner's local environment. Milestone 2 remains in progress until those checks pass and any resulting failures are resolved. Milestones 3–5 remain pending.

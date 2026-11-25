@@ -32,6 +32,8 @@ data class AgentRunResult(
   val modelTurns: Int,
   val toolCalls: Int,
   val messages: List<AgentMessage>,
+  /** Successful and failed bounded tool results captured for this run only. */
+  val authoritativeToolResults: List<AuthoritativeToolResult> = emptyList(),
 ) {
   val isSuccessful: Boolean get() = status == AgentRunStatus.COMPLETED
 }
@@ -76,6 +78,7 @@ class AgentCoordinator(
       )
       var modelTurns = 0
       var toolCalls = 0
+      val authoritativeToolResults = mutableListOf<AuthoritativeToolResult>()
 
       try {
         while (modelTurns < maxModelTurns) {
@@ -98,14 +101,15 @@ class AgentCoordinator(
                 modelTurns,
                 toolCalls,
                 conversationMessages.toList(),
+                authoritativeToolResults.toList(),
               )
             }
             is AgentModelResponse.ToolCall -> {
-              executeToolCalls(listOf(response), conversationMessages)
+              executeToolCalls(listOf(response), conversationMessages, authoritativeToolResults)
               toolCalls++
             }
             is AgentModelResponse.ToolCalls -> {
-              executeToolCalls(response.calls, conversationMessages)
+              executeToolCalls(response.calls, conversationMessages, authoritativeToolResults)
               toolCalls += response.calls.size
             }
           }
@@ -120,6 +124,7 @@ class AgentCoordinator(
           modelTurns,
           toolCalls,
           conversationMessages.toList(),
+          authoritativeToolResults.toList(),
         )
       } catch (cancelled: CancellationException) {
         rollbackTo(previousSize)
@@ -141,6 +146,7 @@ class AgentCoordinator(
   private suspend fun executeToolCalls(
     calls: List<AgentModelResponse.ToolCall>,
     messages: MutableList<AgentMessage>,
+    authoritativeResults: MutableList<AuthoritativeToolResult>,
   ) {
     // Preserve the model's complete batch before executing any member of it.
     calls.forEach { call ->
@@ -154,6 +160,7 @@ class AgentCoordinator(
     // Execute sequentially: shell sessions are stateful and ordering must be deterministic.
     calls.forEach { call ->
       val result = executeToolCall(call)
+      authoritativeResults += AuthoritativeToolResult.capture(call, result, result.content)
       messages += AgentMessage(
         role = AgentMessage.Role.TOOL,
         content = result.content,
@@ -208,6 +215,9 @@ class AgentCoordinator(
       content = boundedContent,
       isSuccessful = result.isSuccessful && !imageRejected,
       imageBytes = boundedImage,
+      structuredContent = result.structuredContent?.takeIf {
+        boundedContent == result.content && it.toString() == boundedContent
+      }?.deepCopy(),
     )
     AgentExecutionDiagnostics.recordToolDispatch(
       call.name, call.arguments, "dispatched", finalResult.isSuccessful,

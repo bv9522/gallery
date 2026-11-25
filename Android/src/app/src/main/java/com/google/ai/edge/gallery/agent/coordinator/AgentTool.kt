@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 
 /** A callable capability exposed to the agent model. */
@@ -40,4 +41,12 @@ data class AgentToolResult(
   val isSuccessful: Boolean = true,
   /** Optional one-shot image payload delivered to the model as multimodal tool content. */
   val imageBytes: ByteArray? = null,
+  /**
+   * Optional explicit JSON value for top-level scalar results (including JSON null).
+   *
+   * When supplied, [content] must be the compact JSON serialization of this value. This explicit
+   * signal avoids interpreting ordinary text such as "42", "true", or "null" as typed JSON.
+   * Objects and arrays can be discovered from [content] without this signal.
+   */
+  val structuredContent: JsonElement? = null,
 )
