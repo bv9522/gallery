@@ -142,7 +142,7 @@ class UnifiedShellExecutionTest {
     assertEquals(listOf(ShellExecutionBackend.SHIZUKU), calls)
     assertEquals(approvedRequest, ShellExecutionRequest(
       backend = ShellExecutionBackend.SHIZUKU,
-      command = "id",
+      command = "touch /tmp/approved",
       workingDirectory = "/",
       timeoutMs = 5_000,
       maxOutputChars = 4_096,
@@ -468,7 +468,7 @@ class UnifiedShellExecutionTest {
     val channel = Channel<com.google.ai.edge.gallery.tools.ToolAction>(capacity = 0)
     val policy = ChannelShellExecutionApprovalPolicy(channel, approvalTimeoutMs = 10)
     val approved = policy.requestApproval(
-      ShellExecutionRequest(ShellExecutionBackend.TERMUX, "id", "~/")
+      ShellExecutionRequest(ShellExecutionBackend.TERMUX, "touch /tmp/pending", "~/")
     )
 
     assertFalse(approved)
