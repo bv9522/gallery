@@ -47,7 +47,7 @@ class LiteRtLmResponseProtocolTest {
     assertSame(screenshot, image.bytes)
     val response = message.contents.contents[1] as Content.ToolResponse
     assertEquals("screen_inspect", response.name)
-    val envelope = JsonParser.parseString(response.response).asJsonObject
+    val envelope = JsonParser.parseString(response.response.toString()).asJsonObject
     assertEquals("screen_inspect", envelope.get("tool").asString)
     assertTrue(envelope.get("success").isJsonNull)
     assertEquals("Screenshot attached.", envelope.get("result").asString)
