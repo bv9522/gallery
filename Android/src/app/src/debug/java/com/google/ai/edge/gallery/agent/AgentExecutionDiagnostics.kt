@@ -191,6 +191,7 @@ internal object AgentExecutionDiagnosticsUi {
         logMessages = snapshot.entries.map { (level, source, message) ->
           LogMessage(level = level, source = source, message = message)
         },
+        copyLogsEnabled = true,
       ),
     )
   }
