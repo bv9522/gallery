@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
@@ -55,6 +56,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.google.ai.edge.gallery.R
@@ -70,7 +73,14 @@ import kotlinx.coroutines.launch
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LogsViewer(logs: List<LogMessage>, onDismissRequest: () -> Unit) {
+fun LogsViewer(
+  logs: List<LogMessage>,
+  onDismissRequest: () -> Unit,
+  title: String = "Console Logs",
+  accelerator: String = "",
+  copyEnabled: Boolean = false,
+) {
+  val clipboardManager = LocalClipboardManager.current
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val scope = rememberCoroutineScope()
 
@@ -83,18 +93,37 @@ fun LogsViewer(logs: List<LogMessage>, onDismissRequest: () -> Unit) {
         horizontalArrangement = Arrangement.SpaceBetween,
       ) {
         Text(
-          stringResource(R.string.logs_viewer_title),
+          title,
           style = MaterialTheme.typography.titleLarge,
         )
-        IconButton(
-          onClick = {
-            scope.launch {
-              sheetState.hide()
-              onDismissRequest()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          if (copyEnabled) {
+            IconButton(
+              onClick = {
+                clipboardManager.setText(
+                  AnnotatedString(
+                    formatDiagnosticsForClipboard(
+                      title = title,
+                      accelerator = accelerator,
+                      logs = logs,
+                    )
+                  )
+                )
+              }
+            ) {
+              Icon(Icons.Filled.ContentCopy, contentDescription = "Copy diagnostics")
             }
           }
-        ) {
-          Icon(Icons.Filled.Close, contentDescription = "Close viewer")
+          IconButton(
+            onClick = {
+              scope.launch {
+                sheetState.hide()
+                onDismissRequest()
+              }
+            }
+          ) {
+            Icon(Icons.Filled.Close, contentDescription = "Close viewer")
+          }
         }
       }
 
