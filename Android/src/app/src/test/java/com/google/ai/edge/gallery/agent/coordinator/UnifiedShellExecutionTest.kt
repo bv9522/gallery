@@ -64,7 +64,7 @@ class UnifiedShellExecutionTest {
       "settings put system screen_brightness 100",
       "printf 'hello' > /tmp/file",
       "printf 'hello' | wc -c",
-      "echo \\$HOME",
+      "echo " + '$' + "HOME",
       "date --set='2026-01-01'",
       "sort -o /tmp/output",
     ).forEach { command ->
