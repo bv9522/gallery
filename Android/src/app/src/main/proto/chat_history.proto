@@ -66,6 +66,11 @@ message ChatMessageProto {
   string file_size_string = 14;
   // Path to the local copy of the attached file if this is a file message.
   string file_path = 15;
+  // Authoritative tool-result presentation fields (display-only, not model transcript text).
+  string tool_call_id = 16;
+  string tool_name = 17;
+  bool tool_succeeded = 18;
+  string structured_value_json = 19;
 }
 
 // Represents an audio recording associated with a chat session message.
