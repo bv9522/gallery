@@ -21,6 +21,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
 import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmAgentModel
+import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmConversationAdapter
 import com.google.ai.edge.gallery.common.cleanUpMediapipeTaskErrorMessage
 import com.google.ai.edge.gallery.common.metrics.InferenceStatus
 import com.google.ai.edge.gallery.common.metrics.MetricsTracker
@@ -206,17 +207,25 @@ object LlmChatModelHelper : LlmModelHelper {
       defaultValue = DEFAULT_MAX_TOKEN,
     ).coerceAtMost(4_000).coerceAtLeast(100)
     return LiteRtLmAgentModel(
-      conversation = conversation,
+      conversation = LiteRtLmConversationAdapter(conversation),
       conversationFactory = { history ->
-        conversationFactory(history, visibleTools, true, true).also { instance.activeEphemeralConversations.add(it) }
+        LiteRtLmConversationAdapter(
+          conversationFactory(history, visibleTools, true, true).also {
+            instance.activeEphemeralConversations.add(it)
+          },
+        )
       },
       fullToolRegistry = tools,
       initialVisibleToolRegistry = visibleTools,
       groupedConversationFactory = { history, registry ->
-        conversationFactory(history, registry, true, true).also { instance.activeEphemeralConversations.add(it) }
+        LiteRtLmConversationAdapter(
+          conversationFactory(history, registry, true, true).also {
+            instance.activeEphemeralConversations.add(it)
+          },
+        )
       },
       initialGroupIds = initialGroupIds,
-      onConversationClosed = { instance.activeEphemeralConversations.remove(it) },
+      onConversationClosed = { it.nativeConversation?.let(instance.activeEphemeralConversations::remove) },
       compactAtTokenCount = (contextLimit * 0.75).toInt(),
       compactToTokenCount = (contextLimit * 0.60).toInt(),
     )
