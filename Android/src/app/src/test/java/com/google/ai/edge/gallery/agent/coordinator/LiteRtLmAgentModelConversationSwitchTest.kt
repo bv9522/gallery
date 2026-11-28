@@ -73,6 +73,17 @@ class LiteRtLmAgentModelConversationSwitchTest {
     assertTrue(candidate.closed)
   }
 
+private fun makeToolDescription(name: String): JsonElement =
+  JsonObject().apply {
+    add(
+      "function",
+      JsonObject().apply {
+        addProperty("name", name)
+        add("parameters", JsonObject())
+      },
+    )
+  }
+
   @Test
   fun failedGroupConversationCreationRetainsOriginalAndReportsFailure() = runBlocking {
     val fullRegistry = fullRegistry()
@@ -164,17 +175,6 @@ class LiteRtLmAgentModelConversationSwitchTest {
   private fun originalResponse(conversation: FakeConversation): Message =
     conversation.responsesInitially.single()
 
-  private fun toolDescription(name: String): JsonElement =
-    JsonObject().apply {
-      add(
-        "function",
-        JsonObject().apply {
-          addProperty("name", name)
-          add("parameters", JsonObject())
-        },
-      )
-    }
-
   private class FakeConversation(
     names: Set<String>,
     responses: List<Message> = emptyList(),
@@ -189,7 +189,7 @@ class LiteRtLmAgentModelConversationSwitchTest {
     override val automaticToolCalling = false
     override val isAlive: Boolean
       get() = !closed
-    override val toolDescriptions = names.sorted().map(::toolDescription)
+    override val toolDescriptions = names.sorted().map(::makeToolDescription)
     override val nativeConversation = null
 
     override fun getTokenCount(): Int {
