@@ -222,6 +222,10 @@ class AgentCoordinator(
       structuredContent = result.structuredContent?.takeIf {
         boundedContent == result.content && it.toString() == boundedContent
       }?.deepCopy(),
+      shellDetails = result.shellDetails?.let { details ->
+        if (boundedContent == result.content) details
+        else details.copy(stdout = "", stderr = "", outputTruncated = true)
+      },
     )
     AgentExecutionDiagnostics.recordToolDispatch(
       call.name, call.arguments, "dispatched", finalResult.isSuccessful,
