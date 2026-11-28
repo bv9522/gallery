@@ -460,8 +460,7 @@ class LiteRtLmAgentModel internal constructor(
         failureCategory = groupSwitchFailureReason,
         durationMs = (System.nanoTime() - switchStartedAtNanos) / 1_000_000,
       )
-      Log.w(
-        TAG,
+      logger.warn(
         "Capability conversation rebuild failed (reason=$groupSwitchFailureReason); retaining the active conversation.",
         failure,
       )
