@@ -135,7 +135,7 @@ class LiteRtLmAgentModelConversationSwitchTest {
   ) = LiteRtLmAgentModel(
     conversation = original,
     conversationFactory = { _ -> FakeConversation(initialVisible.names()) },
-    ioDispatcher = Dispatchers.Unconfined,
+    ioDispatcher = Dispatchers.IO,
     onConversationClosed = onClosed,
     compactAtTokenCount = 10_000,
     compactToTokenCount = 8_000,
