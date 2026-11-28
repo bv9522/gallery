@@ -24,6 +24,8 @@ import com.google.ai.edge.gallery.proto.AudioMessageProto
 import com.google.ai.edge.gallery.proto.ChatMessageProto
 import com.google.ai.edge.gallery.proto.ChatSideProto
 import com.google.ai.edge.gallery.agent.coordinator.AuthoritativeToolResult
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolOutcome
+import com.google.ai.edge.gallery.agent.coordinator.ShellToolResultDetails
 import com.google.gson.JsonParser
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
@@ -84,6 +86,22 @@ object ChatMessageMapper {
               succeeded = protoMsg.toolSucceeded,
               rawContent = protoMsg.content,
               structuredValue = structured,
+              outcome = protoMsg.toolOutcome.takeIf { it.isNotEmpty() }
+                ?.let { runCatching { AgentToolOutcome.valueOf(it) }.getOrNull() }
+                ?: if (protoMsg.toolSucceeded) AgentToolOutcome.SUCCEEDED else AgentToolOutcome.FAILED,
+              shellDetails = protoMsg.shellBackend.takeIf { it.isNotEmpty() }?.let { backend ->
+                ShellToolResultDetails(
+                  backend = backend,
+                  exitCode = protoMsg.shellExitCode,
+                  timedOut = protoMsg.shellTimedOut,
+                  outputTruncated = protoMsg.shellOutputTruncated,
+                  stdout = protoMsg.shellStdout,
+                  stderr = protoMsg.shellStderr,
+                  error = protoMsg.shellError.ifEmpty { null },
+                  processMayStillBeRunning = protoMsg.shellProcessMayStillBeRunning,
+                  unavailable = protoMsg.shellUnavailable,
+                )
+              },
             )
           )
         }
@@ -225,6 +243,19 @@ object ChatMessageMapper {
             .setToolName(msg.result.toolName)
             .setToolSucceeded(msg.result.succeeded)
             .setStructuredValueJson(msg.result.structuredValue?.toString().orEmpty())
+            .setToolOutcome(msg.result.outcome.name)
+          msg.result.shellDetails?.let { details ->
+            builder
+              .setShellBackend(details.backend)
+              .setShellExitCode(details.exitCode)
+              .setShellTimedOut(details.timedOut)
+              .setShellOutputTruncated(details.outputTruncated)
+              .setShellStdout(details.stdout)
+              .setShellStderr(details.stderr)
+              .setShellError(details.error.orEmpty())
+              .setShellProcessMayStillBeRunning(details.processMayStillBeRunning)
+              .setShellUnavailable(details.unavailable)
+          }
         }
         is ChatMessageText -> {
           builder
