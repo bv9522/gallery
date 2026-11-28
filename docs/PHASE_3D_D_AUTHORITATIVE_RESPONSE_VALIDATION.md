@@ -36,7 +36,7 @@
 | Failed and non-allowlisted results | Exclude from authoritative facts/validation | Unit test |
 | No eligible results | Leave model response unchanged | Unit test |
 | Result bounds/truncation | Verify existing capture/renderer limits remain respected and truncation is explicit | Existing layer + acceptance review |
-| Per-turn isolation | Verify prior-turn facts cannot appear in current assembly | Runtime integration review/test |
+| Per-turn isolation | Verify prior-turn facts cannot appear in a subsequent no-tool assembly | Unit test + device acceptance |
 | Source/model conflict | Facts are first and clearly authoritative; model text is not rewritten | Unit test |
 
 ## Validation gate
