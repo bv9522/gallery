@@ -51,7 +51,7 @@ class LiteRtLmAgentModelConversationSwitchTest {
         capturedProjection = projected
         candidate
       },
-      onClosed = closed::add,
+      onClosed = { closed.add(it) },
     )
 
     model.generate(listOf(AgentMessage(AgentMessage.Role.USER, "First prompt.")))
@@ -112,7 +112,7 @@ class LiteRtLmAgentModelConversationSwitchTest {
       fullRegistry = fullRegistry,
       initialVisible = coreRegistry,
       groupedFactory = { _, _ -> rejected },
-      onClosed = closed::add,
+      onClosed = { closed.add(it) },
     )
 
     assertFalse(model.selectGroup(AgentCapabilityGroups.STORAGE_ARTIFACTS))
