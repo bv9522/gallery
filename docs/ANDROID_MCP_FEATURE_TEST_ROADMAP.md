@@ -434,3 +434,64 @@ If LiteRT-LM rejects a single oversized inference with its native input-token ov
 The built-in agent policy prompt is reduced to a 2,500-character enforced ceiling, targeting Google's upstream 2,044-character default while retaining this fork's Android permission, routing, privacy, accessibility, SAF, USB, remote-upload, sharing, and download safeguards.
 
 **Validation:** Unit tests cover prompt size/safety clauses, compaction threshold, atomic retention of complete turns/tool transactions, protection of incomplete/current turns, and native overflow classification. GitHub Actions and Galaxy S21 repeated-turn/tool-round-trip validation are required before marking the token-budget regression resolved. A single oversized user turn or a latest turn that alone consumes the context ceiling still requires a shorter prompt or a fresh agent conversation; the compactor deliberately does not destroy the current turn to conceal that limit.
+
+## 9. Model-independent authoritative tool-result presentation — proposed follow-on
+
+**Status:** Proposed; approved for roadmap planning. This is a follow-on presentation workstream to the five ARL milestones, not a replacement for them and not a sixth attempt to redo their integrity work.
+
+**Motivation from S21 acceptance (2026-11-27):** With Gemma 4 E2B, repeated harmless `execute_shell` calls completed through TERMUX with exit code 0 and `backendOutputTruncated=false`, while model-authored responses changed identity values, split/omitted text, and miscounted a literal pipe-delimited string. A no-tool control prompt also returned an incorrect field count. The authoritative tool facts supplied by the runtime and the model's prose must therefore remain independently inspectable. These observations establish model-response unreliability in the tested cases; they do not, by themselves, prove every alteration occurred inside the model rather than at an earlier capture/serialization boundary. Preserve that distinction in diagnostics.
+
+**Goal:** A user can inspect the actual bounded tool result even when Gemma produces no explanation, an incorrect explanation, malformed text, or a contradictory claim. Model output must never be required to reconstruct, transcribe, or validate the source result for it to be displayed.
+
+**Relationship to the existing five ARL milestones:**
+- Do not reimplement ARL capture, typed values, provenance, deterministic fact rendering, or response validation.
+- Reuse the existing `AgentRunResult` / `AuthoritativeToolResult` records and deterministic renderer wherever their contracts fit.
+- Keep the five ARL milestones and their completion evidence authoritative for source integrity and model-claim handling.
+- This workstream adds a deterministic presentation path for the actual tool transaction/result, including bounded raw text and execution metadata. It does not weaken or bypass the existing ARL response assembly.
+- Do not begin broad compatibility-layer changes or prompt-only patches without boundary evidence showing a concrete defect.
+
+### Implementation strategy
+
+1. **Audit the existing result-to-UI path (read-only investigation first).**
+   - Trace `AgentCoordinator` result capture, `AgentRunResult`, `NativeAgentRuntimeExecutor`, response assembly, conversation/message models, and the chat UI.
+   - Identify whether tool transactions are already represented as separate messages/cards and whether the UI currently hides, summarizes, or relies on Gemma's final prose to expose them.
+   - Reconcile the exact bounded payload at process capture, coordinator retention, model serialization, ARL rendering, and UI presentation. Use length/hash/boundary diagnostics for comparison; avoid logging sensitive raw payloads.
+   - Record the narrowest reusable UI integration point before changing runtime or compatibility code.
+
+2. **Define a model-independent presentation contract.**
+   - Present each tool invocation/result as a distinct transaction associated with its tool-call ID and originating turn.
+   - Display the authoritative bounded result directly from the retained runtime result, never from Gemma's paraphrase.
+   - For shell results, expose backend, exit code, truncation state, stdout, and stderr as separate labeled fields. Preserve exact captured text, whitespace, line breaks, delimiters, and character order in a selectable/monospaced raw-output area.
+   - Distinguish successful, failed, denied, cancelled, timed-out, and unavailable outcomes. Never display a failure as success or hide a nonzero exit code.
+   - Keep model-authored interpretation in a separate visual region with clear attribution. It may explain the result but cannot overwrite, merge into, or masquerade as raw output.
+   - Respect the existing result budget and privacy policy. Show an explicit truncation/omission marker when the retained result is bounded; do not create an unbounded second copy or expose sensitive data by default.
+
+3. **Implement deterministic tool-result UI using existing data.**
+   - Prefer extending the existing conversation/tool-result message rendering over adding a second execution channel or a parallel result store.
+   - Bind the result view to the authoritative result/message identity and preserve execution order for multiple tool calls.
+   - Ensure the result remains visible when the final model response is empty, malformed, refused, or factually incorrect.
+   - Support long output with bounded layout, expand/collapse, and copy of the displayed authoritative payload. Copy must use the retained source text, not rendered model text.
+   - Keep generic presentation reusable for shell, native Android capabilities, MCP providers, and future tools; use tool-specific labels only where the declared result contract requires them.
+
+4. **Preserve the existing agent/runtime boundaries.**
+   - `AgentCoordinator` remains the sole tool executor and approval authority.
+   - Do not execute tools from the UI, change approval semantics, introduce backend fallback, or change permission/cancellation behavior.
+   - Do not change model handoff serialization merely to make Gemma's transcript look better. Any discovered boundary corruption is a separately evidenced defect and should receive a narrowly scoped fix with regression coverage.
+   - Keep ARL deterministic fact rendering/response assembly intact. The raw transaction view complements the ARL facts section; it does not replace typed fact rendering or contradiction safeguards.
+
+5. **Regression and S21 acceptance.**
+   - Unit tests: exact whitespace/newline/delimiter preservation; Unicode; empty stdout; stderr-only; mixed stdout/stderr; nonzero exit; timeout/cancel/denial; truncated output; multiple tool calls; duplicate IDs; missing model response; incorrect/contradictory model prose; long-output expand/collapse; copy payload fidelity.
+   - UI/instrumentation tests: result card appears from authoritative transaction data without waiting for Gemma's final answer; model explanation remains separately attributed; process recreation/replay retains the correct result without duplicate side effects.
+   - Add boundary-integrity tests comparing safe length/hash fingerprints at capture, retained result, model handoff, and rendered raw view. Keep raw payload capture debug-only and privacy-safe.
+   - Re-run existing ARL tests unchanged as regression protection. Do not mark the original five milestones complete or incomplete based solely on this presentation workstream.
+   - On the S21, repeat the `id`, newline, delimiter, and literal-count controls. Confirm the raw result view matches the authoritative facts exactly even when Gemma's prose is wrong. Test both Gemma 4 E2B and E4B only as a separate comparative model experiment; E4B is not a prerequisite for deterministic result display.
+
+**Acceptance criteria:**
+- The displayed raw result is sourced directly from the authoritative retained tool result and matches it exactly within the documented output budget.
+- Gemma can be wrong, silent, or unavailable without preventing the user from seeing the tool result.
+- Model explanation and runtime evidence are visually and semantically distinct.
+- Backend, status, exit code, truncation, stdout, and stderr remain explicit where applicable.
+- Existing execution, approval, permission, cancellation, history/replay, privacy, and ARL regression tests remain green.
+- No additional model, model download, or device-specific dependency is required for the presentation path.
+
+**Sequencing:** Complete the current S21 Chunk 01 investigation and record its evidence. Then implement this as a focused follow-on UI/runtime-presentation change on the existing PR stack after inspecting current message rendering. Keep PRs open and unmerged; device installation/acceptance remains a separate explicit gate.
