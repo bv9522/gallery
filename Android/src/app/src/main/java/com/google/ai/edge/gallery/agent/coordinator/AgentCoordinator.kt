@@ -63,6 +63,7 @@ class AgentCoordinator(
     userInput: String,
     userContents: Contents? = null,
     extraContext: Map<String, Any> = emptyMap(),
+    onToolResult: suspend (AuthoritativeToolResult) -> Unit = {},
   ): AgentRunResult =
     runMutex.withLock {
       require(userInput.isNotBlank() || userContents != null) {
@@ -105,11 +106,11 @@ class AgentCoordinator(
               )
             }
             is AgentModelResponse.ToolCall -> {
-              executeToolCalls(listOf(response), conversationMessages, authoritativeToolResults)
+              executeToolCalls(listOf(response), conversationMessages, authoritativeToolResults, onToolResult)
               toolCalls++
             }
             is AgentModelResponse.ToolCalls -> {
-              executeToolCalls(response.calls, conversationMessages, authoritativeToolResults)
+              executeToolCalls(response.calls, conversationMessages, authoritativeToolResults, onToolResult)
               toolCalls += response.calls.size
             }
           }
@@ -147,6 +148,7 @@ class AgentCoordinator(
     calls: List<AgentModelResponse.ToolCall>,
     messages: MutableList<AgentMessage>,
     authoritativeResults: MutableList<AuthoritativeToolResult>,
+    onToolResult: suspend (AuthoritativeToolResult) -> Unit,
   ) {
     // Preserve the model's complete batch before executing any member of it.
     calls.forEach { call ->
@@ -160,7 +162,9 @@ class AgentCoordinator(
     // Execute sequentially: shell sessions are stateful and ordering must be deterministic.
     calls.forEach { call ->
       val result = executeToolCall(call)
-      authoritativeResults += AuthoritativeToolResult.capture(call, result, result.content)
+      val authoritative = AuthoritativeToolResult.capture(call, result, result.content)
+      authoritativeResults += authoritative
+      onToolResult(authoritative)
       messages += AgentMessage(
         role = AgentMessage.Role.TOOL,
         content = result.content,
