@@ -106,6 +106,34 @@ class AuthoritativeToolResultTest {
   }
 
   @Test
+  fun streamsAuthoritativeResultsImmediatelyInExecutionOrder() = runBlocking {
+    val first = resultTool("first") { AgentToolResult("first\\n") }
+    val second = resultTool("second") { AgentToolResult("second\\n") }
+    var modelTurn = 0
+    val model = AgentModel {
+      modelTurn++
+      if (modelTurn == 1) {
+        AgentModelResponse.ToolCalls(
+          listOf(
+            AgentModelResponse.ToolCall("first", JsonObject(), "stream-call-1"),
+            AgentModelResponse.ToolCall("second", JsonObject(), "stream-call-2"),
+          )
+        )
+      } else {
+        AgentModelResponse.FinalAnswer("The model commentary is optional.")
+      }
+    }
+    val emitted = mutableListOf<AuthoritativeToolResult>()
+
+    val result = AgentCoordinator(model, AgentToolRegistry(listOf(first, second)))
+      .run("Run both tools.") { emitted += it }
+
+    assertEquals(result.authoritativeToolResults, emitted)
+    assertEquals(listOf("stream-call-1", "stream-call-2"), emitted.map { it.toolCallId })
+    assertEquals(listOf("first\\n", "second\\n"), emitted.map { it.rawContent })
+  }
+
+  @Test
   fun authoritativeResultsAreScopedToTheCurrentRunNotEarlierConversationTurns() = runBlocking {
     val tool = resultTool("device_info") { AgentToolResult("""{"battery_percent":59}""") }
     var modelTurn = 0
