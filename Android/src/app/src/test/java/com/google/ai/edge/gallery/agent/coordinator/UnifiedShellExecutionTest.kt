@@ -108,6 +108,7 @@ class UnifiedShellExecutionTest {
     val result = tool.execute(arguments("TERMUX", "touch /tmp/denied"))
 
     assertFalse(result.isSuccessful)
+    assertEquals(AgentToolOutcome.DENIED, result.outcome)
     assertTrue("Unexpected tool result: ${result.content}", approvedRequest != null)
     assertEquals(ShellExecutionBackend.TERMUX, approvedRequest?.backend)
     assertTrue(calls.isEmpty())
@@ -169,6 +170,47 @@ class UnifiedShellExecutionTest {
     assertTrue(result.isSuccessful)
     assertTrue(result.content.contains("Backend output truncated: true"))
     assertTrue(result.content.contains("Warning: output was truncated."))
+  }
+
+  @Test
+  fun shellResultRetainsExactStreamsAndTypedOutcome() = runBlocking {
+    val stdout = "BEGIN|VALUE|END\\n\\n  "
+    val stderr = "warning\\r\\n  "
+    val router = ShellExecutionRouter(
+      mapOf(ShellExecutionBackend.TERMUX to ShellExecutionTransport { request ->
+        ShellExecutionResult(
+          backend = request.backend,
+          stdout = stdout,
+          stderr = stderr,
+          exitCode = 7,
+        )
+      })
+    )
+    val tool = UnifiedShellTool(router, ShellExecutionApprovalPolicy { true })
+
+    val result = tool.execute(arguments("TERMUX", "id"))
+
+    assertFalse(result.isSuccessful)
+    assertEquals(AgentToolOutcome.FAILED, result.outcome)
+    assertEquals(stdout, result.shellDetails?.stdout)
+    assertEquals(stderr, result.shellDetails?.stderr)
+    assertTrue(result.content.contains(stdout))
+    assertTrue(result.content.contains(stderr))
+    assertEquals(7, result.shellDetails?.exitCode)
+  }
+
+  @Test
+  fun missingBackendIsPresentedAsUnavailableWithoutFallback() = runBlocking {
+    val router = ShellExecutionRouter(
+      mapOf(ShellExecutionBackend.TERMUX to ShellExecutionTransport { success(it.backend) })
+    )
+    val tool = UnifiedShellTool(router, ShellExecutionApprovalPolicy { true })
+
+    val result = tool.execute(arguments("SHIZUKU", "id"))
+
+    assertFalse(result.isSuccessful)
+    assertEquals(AgentToolOutcome.UNAVAILABLE, result.outcome)
+    assertTrue(result.shellDetails?.unavailable == true)
   }
 
   @Test
