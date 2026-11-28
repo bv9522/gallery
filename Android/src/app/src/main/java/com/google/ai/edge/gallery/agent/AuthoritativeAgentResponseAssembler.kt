@@ -67,8 +67,13 @@ internal object AuthoritativeAgentResponseAssembler {
     val claims = NUMBER_PATTERN.findAll(modelResponse).map { it.value }.toList()
     val sourceNumbers = results.flatMap { result ->
       val values = mutableListOf<String>()
-      result.structuredValue?.let(::collectNumericValues)?.let(values::addAll)
-      NUMBER_PATTERN.findAll(result.rawContent).forEach { values += it.value }
+      if (result.structuredValue != null) {
+        collectNumericValues(result.structuredValue).let(values::addAll)
+      } else {
+        // For unstructured output, scan text. For parsed JSON, do not treat digits in
+        // string fields (serials, labels, versions) as numeric source facts.
+        NUMBER_PATTERN.findAll(result.rawContent).forEach { values += it.value }
+      }
       values
     }.mapNotNull(::canonicalNumber).toSet()
 
