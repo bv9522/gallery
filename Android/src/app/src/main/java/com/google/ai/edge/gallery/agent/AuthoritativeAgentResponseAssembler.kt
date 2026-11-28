@@ -93,5 +93,5 @@ internal object AuthoritativeAgentResponseAssembler {
     runCatching { BigDecimal(value).stripTrailingZeros().toPlainString() }.getOrNull()
 
   private val NUMBER_PATTERN =
-    Regex("(?<![A-Za-z0-9_])[-+]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?![A-Za-z0-9_])")
+    Regex("(?<![A-Za-z0-9_])[-+]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:(?![A-Za-z0-9_])|(?=mV))")
 }
