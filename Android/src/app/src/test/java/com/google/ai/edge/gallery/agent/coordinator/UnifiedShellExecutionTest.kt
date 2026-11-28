@@ -156,7 +156,7 @@ class UnifiedShellExecutionTest {
       mapOf(ShellExecutionBackend.TERMUX to ShellExecutionTransport { request ->
         ShellExecutionResult(
           backend = request.backend,
-          stdout = "first line\\nlast retained line",
+          stdout = "first line\nlast retained line",
           stderr = "",
           exitCode = 0,
           outputTruncated = true,
@@ -174,8 +174,8 @@ class UnifiedShellExecutionTest {
 
   @Test
   fun shellResultRetainsExactStreamsAndTypedOutcome() = runBlocking {
-    val stdout = "BEGIN|VALUE|END\\n\\n  "
-    val stderr = "warning\\r\\n  "
+    val stdout = "BEGIN|VALUE|END\n\n  "
+    val stderr = "warning\r\n  "
     val router = ShellExecutionRouter(
       mapOf(ShellExecutionBackend.TERMUX to ShellExecutionTransport { request ->
         ShellExecutionResult(
