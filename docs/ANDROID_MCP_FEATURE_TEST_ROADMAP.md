@@ -1,6 +1,6 @@
 # Android MCP — Feature-by-Feature Test Roadmap
 
-**Status:** Chunked validation is in progress on the Galaxy S21. Chunk 00 is active; no later chunks have started. Preserve the existing 12-chunk sequence and do not advance until the current chunk's exit criteria are evidenced.  
+**Status:** Chunked validation is in progress on the Galaxy S21. Chunk 00 is active; later device chunks have not started. Current PR #64 unit tests/debug assembly passed on prior code head `fafc0c95`; new conversation-switch test seam commits await workflow #152/current-head validation. Preserve the existing 12-chunk sequence and do not advance until the current chunk's exit criteria are evidenced.  
 **Owner workflow:** Review and execute one chunk at a time with Brian. Do not run the entire device matrix in one session.  
 **Implementation baseline:** Stage 10A–10I onboarding is implemented on the current stacked branch. GitHub Actions workflow #130 passed unit tests, Shizuku debug build, signing-certificate verification, release build, and artifact upload on PR #60 head `e839f0a6ed612820ee44d550a1606e81de828604`. Workflow #118 remains historical CI evidence (308 unit tests). CI is not proof of device acceptance or exhaustive feature coverage.  
 **Target:** unrooted Samsung Galaxy S21 SM-G991U, Android 15 / One UI 7, package `com.google.aiedge.gallery.shizuku`. Keep Knox intact.  
@@ -119,6 +119,7 @@ For every executed case record:
 - **T02-11 — Result/context budgets:** return large bounded provider output and verify truncation/budget handling preserves authoritative fields and does not exhaust model context.- **T02-12 — Tool-loop ceiling:** provoke repeated tool requests; verify loop limits, cancellation, and clear termination.
 - **T02-13 — Lifecycle recovery:** background/foreground chat during model generation, approval, and tool result delivery; verify no lost approval or stale response.
 - **T02-14 — Multimodal screenshot result:** approved screenshot bytes reach Gemma as a multimodal tool result; verify correct image dimensions/encoding, bounded payload, no path/URI leakage, and byte/reference cleanup after the turn.
+- **T02-15 — Capability-group conversation switching:** verify a selected group replaces only the model-visible schema projection; complete prior user/assistant/tool transactions are replayed in order; candidate token validation precedes swap; the prior conversation remains active and is not closed on factory/token-validation failure; rejected candidates are closed; no tool side effect is duplicated.
 
 **Existing seams to extend/review:** `AgentCoordinatorTest`, `AgentToolResultBudgetTest`, `LiteRtLmResponseProtocolTest`, and screenshot/accessibility policy tests.
 
@@ -405,10 +406,10 @@ These limitations must remain documented in the result record and must not be re
 | Shizuku debug APK build | PASS | Workflow #118 |
 | Release APK build | PASS | Workflow #118 |
 | Termux APP_SHELL / Shizuku PFD instrumentation execution | NOT YET VERIFIED | Instrumentation source exists; workflow #118 did not run instrumentation task |
-| Galaxy S21 acceptance | IN PROGRESS | Chunk 00 underway; see updated 2026-11-21 live execution record above |
+| Galaxy S21 acceptance | IN PROGRESS | Chunk 00 underway; see updated 2026-11-21 live execution record above. Current-head unit/debug gate is separate from device acceptance |
 | Chunk 00 | IN PROGRESS | T00-01, T00-02, T00-03, T00-05 PASS; T00-04 PASS with manual unload/reload N/A; T00-06, T00-07, T00-08 PARTIAL for documented follow-ups |
 | Chunks 01–11 | NOT STARTED | Remain blocked until Chunk 00 exit criteria are met |
-| Stage 9 integration/release | NOT STARTED | Requires S21 acceptance and explicit owner approval |
+| Stage 9 integration/release | NOT STARTED | Requires S21 acceptance, PR dependency/sibling reconciliation, and explicit owner approval |
 
 ## 6. Native Gemma input-token budget regression (discovered 2026-11-21)
 
