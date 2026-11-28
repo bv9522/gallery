@@ -664,7 +664,7 @@ class LiteRtLmAgentModel internal constructor(
           val failure =
             "LiteRT-LM returned channel-only output without a final content message or structured " +
               "tool call. No tool was executed. Protocol diagnostics: $responseSummary."
-          Log.e(TAG, failure)
+          logger.error(failure)
           throw IllegalStateException(failure)
         }
         AgentExecutionDiagnostics.recordRawModelOutput(modelTurn, content)
