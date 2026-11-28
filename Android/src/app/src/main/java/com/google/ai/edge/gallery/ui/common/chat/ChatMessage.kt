@@ -53,6 +53,7 @@ enum class ChatMessageType {
   WEBVIEW,
   COLLAPSABLE_PROGRESS_PANEL,
   THINKING,
+  AUTHORITATIVE_TOOL_RESULT,
   DIVIDER,
 }
 
@@ -163,6 +164,20 @@ open class ChatMessageText(
       )
     return cloned
   }
+}
+
+/** Display-only authoritative evidence from one completed tool invocation. */
+class ChatMessageToolResult(
+  val result: com.google.ai.edge.gallery.agent.coordinator.AuthoritativeToolResult,
+  override val id: String = UUID.randomUUID().toString(),
+) : ChatMessage(
+  type = ChatMessageType.AUTHORITATIVE_TOOL_RESULT,
+  side = ChatSide.AGENT,
+  hideSenderLabel = true,
+  disableBubbleShape = true,
+  id = id,
+) {
+  override fun clone(): ChatMessageToolResult = ChatMessageToolResult(result, id)
 }
 
 /** Chat message for images. */
