@@ -107,8 +107,8 @@ class AuthoritativeToolResultTest {
 
   @Test
   fun streamsAuthoritativeResultsImmediatelyInExecutionOrder() = runBlocking {
-    val first = resultTool("first") { AgentToolResult("first\\n") }
-    val second = resultTool("second") { AgentToolResult("second\\n") }
+    val first = resultTool("first") { AgentToolResult("first\n") }
+    val second = resultTool("second") { AgentToolResult("second\n") }
     var modelTurn = 0
     val model = AgentModel {
       modelTurn++
@@ -130,7 +130,7 @@ class AuthoritativeToolResultTest {
 
     assertEquals(result.authoritativeToolResults, emitted)
     assertEquals(listOf("stream-call-1", "stream-call-2"), emitted.map { it.toolCallId })
-    assertEquals(listOf("first\\n", "second\\n"), emitted.map { it.rawContent })
+    assertEquals(listOf("first\n", "second\n"), emitted.map { it.rawContent })
   }
 
   @Test
