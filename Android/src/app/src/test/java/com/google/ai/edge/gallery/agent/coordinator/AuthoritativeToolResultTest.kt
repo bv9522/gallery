@@ -150,6 +150,49 @@ class AuthoritativeToolResultTest {
     assertNull(captured.structuredValue)
   }
 
+  @Test
+  fun preservesExactBoundedOutputWhitespaceAndDelimitersWhenModelCommentaryDiffers() = runBlocking {
+    val rawOutput = "BEGIN|ALPHA|BRAVO|CHARLIE|END\\n\\n  "
+    val tool = resultTool("execute_shell") { AgentToolResult(rawOutput) }
+    var modelTurn = 0
+    val model = AgentModel {
+      modelTurn++
+      if (modelTurn == 1) {
+        AgentModelResponse.ToolCall("execute_shell", JsonObject(), "fidelity-call")
+      } else {
+        // Deliberately incorrect commentary must not mutate the independently retained result.
+        AgentModelResponse.FinalAnswer("The output contained four fields.")
+      }
+    }
+
+    val result = AgentCoordinator(model, AgentToolRegistry(listOf(tool))).run("Run the delimiter test.")
+
+    assertEquals("The output contained four fields.", result.finalText)
+    assertEquals(rawOutput, result.authoritativeToolResults.single().rawContent)
+    assertEquals("fidelity-call", result.authoritativeToolResults.single().toolCallId)
+  }
+
+  @Test
+  fun authoritativeOutputRemainsAvailableWhenModelProvidesNoCommentary() = runBlocking {
+    val rawOutput = "uid=10486(u0_a486)\\n"
+    val tool = resultTool("execute_shell") { AgentToolResult(rawOutput) }
+    var modelTurn = 0
+    val model = AgentModel {
+      modelTurn++
+      if (modelTurn == 1) {
+        AgentModelResponse.ToolCall("execute_shell", JsonObject(), "silent-call")
+      } else {
+        AgentModelResponse.FinalAnswer("")
+      }
+    }
+
+    val result = AgentCoordinator(model, AgentToolRegistry(listOf(tool))).run("Run id.")
+
+    assertEquals("", result.finalText)
+    assertEquals(rawOutput, result.authoritativeToolResults.single().rawContent)
+    assertTrue(result.authoritativeToolResults.single().succeeded)
+  }
+
   private suspend fun runTool(tool: AgentTool, callId: String): AgentRunResult {
     var turn = 0
     val model = AgentModel {
