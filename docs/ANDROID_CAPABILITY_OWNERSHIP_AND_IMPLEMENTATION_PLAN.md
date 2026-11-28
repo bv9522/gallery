@@ -278,7 +278,7 @@ The first pass over changed-file lists identifies these existing/extended unit-t
 - USB: `UsbDescriptorParserTest`.
 - Model catalog: `GalleryAllowlistedModelCatalogTest`.
 
-The changed-file review of PRs #16–#47 surfaced no changed `androidTest` source paths; this does not establish that the repository has no instrumentation tests. The combined-head inventory must inspect the complete test tree and Gradle task graph before deciding whether instrumentation coverage exists or needs to be added.
+The original changed-file review of PRs #16–#47 did not include the later Stage 10 instrumentation source. The complete current branch-tree inventory below supersedes that limited review; Gradle task-graph confirmation remains outstanding.
 
 **Complete current-head source inventory (2026-11-27):** The branch tree contains **55 JVM unit-test source files** and **1 Android instrumentation-test source file**. Unit coverage is grouped as: agent/runtime (6); artifact generation/transport (14); Android capabilities and provider policy (15); coordinator/protocol/shell (12); model catalog (1); Shizuku (2); Termux (3); discovery tools (1); UI diagnostics (1). The sole current instrumentation source is `ShellBinaryTransportInstrumentedTest.kt`, which exercises Termux APP_SHELL stdin and Shizuku PFD binary transfer behind device prerequisites. It has not been run. The three new `LiteRtLmAgentModelConversationSwitchTest` cases provide a fake-native-conversation seam for successful replay/swap, factory failure, and candidate token-validation cleanup; current-head CI validation is pending workflow #157.
 
@@ -287,7 +287,7 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 **High-priority coverage review:** current unit tests cover many policy/fake-provider cases, but identify missing Android instrumentation for permission/approval ordering at the actual framework boundary; SAF grant/revocation/provider behaviors; AccessibilityService enablement/window/node churn; notification/call-log/SMS eligibility; USB permission/disconnect; PFD/Binder cancellation and abrupt-process cleanup; and lifecycle behavior across backgrounding/process death. Multimodal image-byte clearing has unit tests but must be verified in the native model loop. These gaps remain mapped to device chunks and any required instrumentation additions.
 
 #### 8B — Consolidated automated validation
-- [x] Run `:app:testShizukuDebugUnitTest` on code head `fafc0c95fe09d683fa09da39335138815ccf766c`; owner confirmed local pass on 2026-11-27. **Latest seam/test changes await workflow #152 or owner-side validation.** Historical workflow #118 also passed (308 tests) on its earlier Stage 10 head.
+- [x] Run `:app:testShizukuDebugUnitTest` on code head `fafc0c95fe09d683fa09da39335138815ccf766c`; owner confirmed local pass on 2026-11-27. **Latest seam/test changes await workflow #157 or owner-side validation.** Historical workflow #118 also passed (308 tests) on its earlier Stage 10 head.
 - [x] Run `:app:assembleShizukuDebug` on code head `fafc0c95`; owner confirmed local pass on 2026-11-27. **Latest seam/test changes await workflow #152 or owner-side validation.** Historical workflow #118 also passed and uploaded its APK artifact.
 - [x] Run `:app:assembleRelease` on earlier Stage 10 CI head; workflow #118 passed and uploaded the APK artifact. **Current PR #64 head release assembly remains unverified.**
 - [ ] Record APK SHA-256, versionCode, and signing certificate fingerprint during Chunk 00 artifact provenance; CI success alone does not substitute for that installation baseline.
@@ -344,7 +344,7 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 | Wave 3E downloads/media/sharing/session control | IMPLEMENTED IN DRAFT PRs; UNIT CI PASSED; device acceptance pending | PR #34 downloads (user-confirmed tests/build); PR #35 media, PR #36 sharing, PR #37 active sessions (unit tests passed in workflow #118); device acceptance pending |
 | Wave 4 SAF/removable storage | CODE / VALIDATION PENDING | PR #23–#25 |
 | Wave 5 Accessibility/UI automation | CODE COMPLETE IN DRAFT PRs; validation deferred | PR #39–#42; optional capability families PR #43–#46; Wi-Fi handoff/audit PR #47 |
-| Wave 6 consolidated S21 acceptance | CURRENT-HEAD UNIT/DEBUG PASS; DEVICE MATRIX PARTIAL | PR #64 head passed owner-run unit tests/debug assembly 2026-11-27; historical CI #118 covered earlier head; chunked S21 validation remains incomplete |
+| Wave 6 consolidated S21 acceptance | PRIOR-HEAD UNIT/DEBUG PASS; CURRENT-CODE CI PENDING; DEVICE MATRIX PARTIAL | Code head `fafc0c95` passed owner-run tests/debug assembly 2026-11-27; conversation seam/test commits await workflow #157; historical CI #118 covered earlier head; chunked S21 validation remains incomplete |
 | Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IMPLEMENTATION COMPLETE — 10A–10I; EARLIER CI PASS | Workflow #118 passed 308 tests and debug/release builds on earlier head; instrumentation and S21 protocol acceptance remain outstanding; TERMUX_RISH binary output and on-device generation remain unavailable |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
