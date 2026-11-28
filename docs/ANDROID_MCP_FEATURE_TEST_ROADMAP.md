@@ -437,7 +437,7 @@ The built-in agent policy prompt is reduced to a 2,500-character enforced ceilin
 
 ## 9. Model-independent authoritative tool-result presentation — proposed follow-on
 
-**Status:** Stage 1 audit complete; Stage 2 presentation contract defined and committed; Stage 2 regression tests added but pending CI validation. Stage 3 UI/event implementation has not started. This is a follow-on presentation workstream to the five ARL milestones, not a replacement for them and not a sixth attempt to redo their integrity work. See [the presentation contract](AUTHORITATIVE_TOOL_RESULT_PRESENTATION_CONTRACT.md).
+**Status:** Stage 1 audit complete. Stage 2 contract and regression tests are complete; the corrected Stage 2 test commit `01b3e35f25c3f5b757f3a2fc88baaae8cb153b17` passed GitHub Actions workflow #182 (run ID `46108234391`). Stage 3 event delivery, display-only chat messages, persistence, and deterministic result cards are now implemented in progress on PR #64; current head `e97688fd3279bc588ab4e6620f3ea87f6534629b` is awaiting workflow #226 (run ID `46110948026`). Stage 3 is not considered validated until CI and owner local validation pass. Stage 4/5 and S21 presentation acceptance remain pending. This is a follow-on presentation workstream to the five ARL milestones, not a replacement for them and not a sixth attempt to redo their integrity work. See [the presentation contract](AUTHORITATIVE_TOOL_RESULT_PRESENTATION_CONTRACT.md).
 
 **Motivation from S21 acceptance (2026-11-27):** With Gemma 4 E2B, repeated harmless `execute_shell` calls completed through TERMUX with exit code 0 and `backendOutputTruncated=false`, while model-authored responses changed identity values, split/omitted text, and miscounted a literal pipe-delimited string. A no-tool control prompt also returned an incorrect field count. The authoritative tool facts supplied by the runtime and the model's prose must therefore remain independently inspectable. These observations establish model-response unreliability in the tested cases; they do not, by themselves, prove every alteration occurred inside the model rather than at an earlier capture/serialization boundary. Preserve that distinction in diagnostics.
 
@@ -460,7 +460,7 @@ The built-in agent policy prompt is reduced to a 2,500-character enforced ceilin
 
 2. **Define a model-independent presentation contract.**
    - Stage 2 contract: `docs/AUTHORITATIVE_TOOL_RESULT_PRESENTATION_CONTRACT.md`. It formalizes the existing `AuthoritativeToolResult` as the source of truth, transaction identity, typed outcomes, shell stream fields, budget/privacy/fidelity rules, and the strict separation of optional model commentary.
-   - Added coordinator-level regression tests for exact bounded whitespace/newline/delimiter preservation when model commentary is incorrect, and for a retained tool result when the model final response is empty. These tests are pending CI validation.
+   - Added coordinator-level regression tests for exact bounded whitespace/newline/delimiter preservation when model commentary is incorrect, and for a retained tool result when the model final response is empty. These tests passed GitHub Actions workflow #182 (run ID `46108234391`) on corrected commit `01b3e35f25c3f5b757f3a2fc88baaae8cb153b17`.
    - Present each tool invocation/result as a distinct transaction associated with its tool-call ID and originating turn.
    - Display the authoritative bounded result directly from the retained runtime result, never from Gemma's paraphrase.
    - For shell results, expose backend, exit code, truncation state, stdout, and stderr as separate labeled fields. Preserve exact captured text, whitespace, line breaks, delimiters, and character order in a selectable/monospaced raw-output area.
@@ -469,6 +469,12 @@ The built-in agent policy prompt is reduced to a 2,500-character enforced ceilin
    - Respect the existing result budget and privacy policy. Show an explicit truncation/omission marker when the retained result is bounded; do not create an unbounded second copy or expose sensitive data by default.
 
 3. **Implement deterministic tool-result UI using existing data.**
+   - Stage 3 implementation now emits `AgentEvent.ToolResult` immediately after the coordinator captures each result, in sequential execution order. The coordinator remains the sole executor; the event is a presentation callback over the same retained record.
+   - Added a display-only `ChatMessageToolResult` type and a dedicated card with outcome/tool-call identity, selectable monospaced output, bounded expand/collapse, and copy actions. Empty tool output remains a visible result.
+   - Added protobuf persistence for tool-call ID, tool name, success/outcome, structured JSON facts, and optional shell metadata. Display-only tool-result messages are intentionally excluded from `convertToLitertMessage`, so they are not replayed as fabricated assistant prose.
+   - Shell results now retain typed backend/exit/timeout/truncation/error/process metadata and exact stdout/stderr strings when the existing result budget permits. If the budget truncates the model-facing text, raw stream side fields are omitted and the bounded retained result remains visible; no duplicate unbounded output copy is created.
+   - Removed `trimEnd()`/`trim()` from shell result formatting so retained stdout/stderr whitespace and line endings are not normalized before coordinator capture.
+   - Added coordinator callback ordering, shell stream fidelity/status, and chat-history round-trip/model-isolation tests. Current Stage 3 CI is pending; the code has not yet been locally validated on Brian's Windows environment.
    - Prefer extending the existing conversation/tool-result message rendering over adding a second execution channel or a parallel result store.
    - Bind the result view to the authoritative result/message identity and preserve execution order for multiple tool calls.
    - Ensure the result remains visible when the final model response is empty, malformed, refused, or factually incorrect.
@@ -496,4 +502,4 @@ The built-in agent policy prompt is reduced to a 2,500-character enforced ceilin
 - Existing execution, approval, permission, cancellation, history/replay, privacy, and ARL regression tests remain green.
 - No additional model, model download, or device-specific dependency is required for the presentation path.
 
-**Sequencing:** Complete the current S21 Chunk 01 investigation and record its evidence. Then implement this as a focused follow-on UI/runtime-presentation change on the existing PR stack after inspecting current message rendering. Keep PRs open and unmerged; device installation/acceptance remains a separate explicit gate.
+**Sequencing:** Stage 1 and Stage 2 are complete; Stage 3 implementation is underway on the existing PR #64 stack. The broader S21 Chunk 01 device investigation remains a separate in-progress validation track and has not been marked complete by these source changes. Keep PRs open and unmerged; device installation/acceptance remains a separate explicit gate.
