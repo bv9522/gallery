@@ -59,6 +59,7 @@ import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageLoading
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageMapper
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageText
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageToolResult
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageThinking
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageType
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageWarning
@@ -374,6 +375,12 @@ open class LlmChatViewModelBase(
         ->
         when (event) {
           is AgentEvent.LoopInitiated -> {}
+          is AgentEvent.ToolResult -> {
+            if (getLastMessage(model = model)?.type == ChatMessageType.LOADING) {
+              removeLastMessage(model = model)
+            }
+            addMessage(model = model, message = ChatMessageToolResult(event.result))
+          }
           is AgentEvent.StreamToken -> {
             val lastMessage = getLastMessage(model = model)
             val wasLoading = lastMessage?.type == ChatMessageType.LOADING
@@ -463,6 +470,14 @@ open class LlmChatViewModelBase(
             }
           }
           is AgentEvent.LoopTerminated -> {
+            if (firstRun) {
+              firstRun = false
+              setPreparing(false)
+              onFirstToken(model)
+            }
+            if (getLastMessage(model = model)?.type == ChatMessageType.LOADING) {
+              removeLastMessage(model = model)
+            }
             val finalLastMessage = getLastMessage(model = model)
             if (finalLastMessage?.type == ChatMessageType.THINKING) {
               val thinkingMsg = finalLastMessage as ChatMessageThinking
