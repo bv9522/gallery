@@ -32,6 +32,8 @@ data class AuthoritativeToolResult(
   val succeeded: Boolean,
   val rawContent: String,
   val structuredValue: JsonElement?,
+  val outcome: AgentToolOutcome = if (succeeded) AgentToolOutcome.SUCCEEDED else AgentToolOutcome.FAILED,
+  val shellDetails: ShellToolResultDetails? = null,
 ) {
   /** Failed, rejected, or budget-rejected results are never authoritative facts. */
   val isEligibleForFacts: Boolean
@@ -51,6 +53,11 @@ data class AuthoritativeToolResult(
         succeeded = result.isSuccessful,
         rawContent = boundedContent,
         structuredValue = structured?.deepCopy(),
+        outcome = result.outcome,
+        shellDetails = result.shellDetails?.let { details ->
+          if (boundedContent == result.content) details
+          else details.copy(stdout = "", stderr = "", outputTruncated = true)
+        },
       )
     }
 
