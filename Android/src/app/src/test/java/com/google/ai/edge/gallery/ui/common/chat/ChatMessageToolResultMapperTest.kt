@@ -17,6 +17,8 @@
 package com.google.ai.edge.gallery.ui.common.chat
 
 import com.google.ai.edge.gallery.agent.coordinator.AuthoritativeToolResult
+import com.google.ai.edge.gallery.agent.coordinator.AgentToolOutcome
+import com.google.ai.edge.gallery.agent.coordinator.ShellToolResultDetails
 import com.google.gson.JsonParser
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -32,9 +34,20 @@ class ChatMessageToolResultMapperTest {
       AuthoritativeToolResult(
         toolCallId = "tool-call-7",
         toolName = "execute_shell",
-        succeeded = true,
+        succeeded = false,
         rawContent = raw,
-        structuredValue = JsonParser.parseString("""{"exit_code":0}"""),
+        structuredValue = JsonParser.parseString("""{"exit_code":7}"""),
+        outcome = AgentToolOutcome.TIMED_OUT,
+        shellDetails = ShellToolResultDetails(
+          backend = "TERMUX",
+          exitCode = 124,
+          timedOut = true,
+          outputTruncated = true,
+          stdout = "line one\\n  ",
+          stderr = "timeout\\n",
+          error = "deadline exceeded",
+          processMayStillBeRunning = true,
+        ),
       )
     )
 
