@@ -77,6 +77,28 @@ internal class LiteRtLmConversationAdapter(
   override fun close() = nativeConversation.close()
 }
 
+/** Logging seam keeps lifecycle tests independent of Android's mocked Log class. */
+internal interface AgentConversationLogger {
+  fun info(message: String)
+  fun warn(message: String, error: Throwable? = null)
+  fun error(message: String)
+}
+
+internal object AndroidAgentConversationLogger : AgentConversationLogger {
+  override fun info(message: String) {
+    Log.i("LiteRtLmAgentModel", message)
+  }
+
+  override fun warn(message: String, error: Throwable?) {
+    if (error == null) Log.w("LiteRtLmAgentModel", message)
+    else Log.w("LiteRtLmAgentModel", message, error)
+  }
+
+  override fun error(message: String) {
+    Log.e("LiteRtLmAgentModel", message)
+  }
+}
+
 /**
  * Model-neutral coordinator adapter for a manually-driven LiteRT-LM conversation.
  *
@@ -339,6 +361,7 @@ class LiteRtLmAgentModel internal constructor(
   initialVisibleToolRegistry: AgentToolRegistry? = null,
   private val groupedConversationFactory: ((List<Message>, AgentToolRegistry) -> AgentNativeConversation)? = null,
   initialGroupIds: Set<String> = emptySet(),
+  private val logger: AgentConversationLogger = AndroidAgentConversationLogger,
 ) : AgentModel, Closeable {
   private val mutex = Mutex()
   private var consumedMessageCount = 0
@@ -362,8 +385,7 @@ class LiteRtLmAgentModel internal constructor(
     require(!conversation.automaticToolCalling) {
       "Agent conversations must disable automatic tool calling."
     }
-    Log.i(
-      TAG,
+    logger.info(
       "Conversation ready: automaticToolCalling=${conversation.automaticToolCalling}, " +
         "registeredTools=${registeredToolSummaries.joinToString(prefix = "[", postfix = "]")}",
     )
@@ -419,9 +441,9 @@ class LiteRtLmAgentModel internal constructor(
         validate = { replacementTokenCount = it.getTokenCount() },
         closeRejected = { failedCandidate ->
           runCatching { onConversationClosed?.invoke(failedCandidate) }
-            .onFailure { Log.w(TAG, "Failed candidate cleanup callback failed.", it) }
+            .onFailure { logger.warn("Failed candidate cleanup callback failed.", it) }
           runCatching { failedCandidate.close() }
-            .onFailure { Log.w(TAG, "Failed to close rejected capability conversation.", it) }
+            .onFailure { logger.warn("Failed to close rejected capability conversation.", it) }
         },
       )
     }
@@ -451,9 +473,9 @@ class LiteRtLmAgentModel internal constructor(
     activeGroupIds.clear()
     activeGroupIds.addAll(groupIds)
     runCatching { onConversationClosed?.invoke(previous) }
-      .onFailure { Log.w(TAG, "Previous capability conversation cleanup callback failed.", it) }
+      .onFailure { logger.warn("Previous capability conversation cleanup callback failed.", it) }
     runCatching { previous.close() }
-      .onFailure { Log.w(TAG, "Failed to close previous capability conversation.", it) }
+      .onFailure { logger.warn("Failed to close previous capability conversation.", it) }
     val switchLatencyMs = (System.nanoTime() - switchStartedAtNanos) / 1_000_000
     AgentExecutionDiagnostics.recordProjection(
       groups = activeGroupIds,
@@ -464,8 +486,7 @@ class LiteRtLmAgentModel internal constructor(
       failureCategory = null,
       durationMs = switchLatencyMs,
     )
-    Log.i(
-      TAG,
+    logger.info(
       "Capability group projection changed: groups=${activeGroupIds.sorted()}, " +
         "visibleNativeTools=${projected.names().size}, retainedTurns=${conversationTurns.size}, " +
         "nativeTokenCount=$replacementTokenCount, switchLatencyMs=$switchLatencyMs",
@@ -562,8 +583,7 @@ class LiteRtLmAgentModel internal constructor(
       }
       val turnExtraContext = userMessages.singleOrNull()?.extraContext.orEmpty()
       val thinkingRequested = turnExtraContext["enable_thinking"]?.toString() ?: "not-provided"
-      Log.i(
-        TAG,
+      logger.info(
         "Turn request: turn=$modelTurn, thinkingRequested=$thinkingRequested, " +
           "toolResultCount=${toolMessages.size}",
       )
@@ -620,7 +640,7 @@ class LiteRtLmAgentModel internal constructor(
         unparsedToolMarkers = LiteRtLmResponseProtocol.hasUnparsedToolCallMarkers(content, response.channels),
         nativeContextTokensAfterResponse = nativeContextTokensAfterResponse,
       )
-      Log.i(TAG, "Response protocol: turn=$modelTurn, $responseSummary")
+      logger.info("Response protocol: turn=$modelTurn, $responseSummary")
 
       if (response.toolCalls.isNotEmpty()) {
         val calls = response.toolCalls.mapIndexed { index, call ->
@@ -637,7 +657,7 @@ class LiteRtLmAgentModel internal constructor(
             "The model emitted native tool-call markers, but LiteRT-LM did not return a structured " +
               "toolCalls entry. No tool was executed. Protocol diagnostics: $responseSummary. " +
               "Registered tool schemas: ${registeredToolSummaries.joinToString(prefix = "[", postfix = "]")}."
-          Log.e(TAG, failure)
+          logger.error(failure)
           throw IllegalStateException(failure)
         }
         if (content.isBlank() && response.channels.isNotEmpty()) {
@@ -661,7 +681,7 @@ class LiteRtLmAgentModel internal constructor(
     var tokenCount = try {
       conversation.getTokenCount()
     } catch (error: Exception) {
-      Log.w(TAG, "Unable to read native context token count; leaving conversation unchanged.", error)
+      logger.warn("Unable to read native context token count; leaving conversation unchanged.", error)
       return@withContext
     }
     if (!AgentConversationCompactionPolicy.shouldCompact(tokenCount, compactAtTokenCount)) {
@@ -691,8 +711,7 @@ class LiteRtLmAgentModel internal constructor(
       )
       val replacement = candidate.value
       if (replacement == null) {
-        Log.w(
-          TAG,
+        logger.warn(
           "Native conversation rebuild or validation failed; retaining the existing conversation.",
           candidate.failure,
         )
@@ -705,12 +724,11 @@ class LiteRtLmAgentModel internal constructor(
       conversation = replacement
       conversationTurns.removeAt(0)
       runCatching { onConversationClosed?.invoke(previous) }
-        .onFailure { Log.w(TAG, "Previous conversation cleanup callback failed.", it) }
+        .onFailure { logger.warn("Previous conversation cleanup callback failed.", it) }
       runCatching { previous.close() }
-        .onFailure { Log.w(TAG, "Failed to close compacted native conversation.", it) }
+        .onFailure { logger.warn("Failed to close compacted native conversation.", it) }
       tokenCount = replacementTokenCount
-      Log.i(
-        TAG,
+      logger.info(
         "Native context compacted: tokenCount=$tokenCount, retainedTurns=${conversationTurns.size}",
       )
     }
