@@ -101,8 +101,8 @@ fun MessageBodyToolResult(
         }
       }
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (canExpand || shell?.stdout?.length.orZero() > COLLAPSED_OUTPUT_CHARS ||
-          shell?.stderr?.length.orZero() > COLLAPSED_OUTPUT_CHARS
+        if (canExpand || (shell?.stdout?.length ?: 0) > COLLAPSED_OUTPUT_CHARS ||
+          (shell?.stderr?.length ?: 0) > COLLAPSED_OUTPUT_CHARS
         ) {
           TextButton(onClick = { expanded = !expanded }) {
             Text(if (expanded) "Show less" else "Show all")
