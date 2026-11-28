@@ -152,7 +152,7 @@ class AuthoritativeToolResultTest {
 
   @Test
   fun preservesExactBoundedOutputWhitespaceAndDelimitersWhenModelCommentaryDiffers() = runBlocking {
-    val rawOutput = "BEGIN|ALPHA|BRAVO|CHARLIE|END\\n\\n  "
+    val rawOutput = "BEGIN|ALPHA|BRAVO|CHARLIE|END\n\n  "
     val tool = resultTool("execute_shell") { AgentToolResult(rawOutput) }
     var modelTurn = 0
     val model = AgentModel {
@@ -174,7 +174,7 @@ class AuthoritativeToolResultTest {
 
   @Test
   fun authoritativeOutputRemainsAvailableWhenModelProvidesNoCommentary() = runBlocking {
-    val rawOutput = "uid=10486(u0_a486)\\n"
+    val rawOutput = "uid=10486(u0_a486)\n"
     val tool = resultTool("execute_shell") { AgentToolResult(rawOutput) }
     var modelTurn = 0
     val model = AgentModel {
