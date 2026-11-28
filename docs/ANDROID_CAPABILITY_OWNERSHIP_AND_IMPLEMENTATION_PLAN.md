@@ -89,14 +89,15 @@ The finished system must have:
 
 ### Stage 2A — Authoritative tool-result integrity (M1–M5)
 
-**Status:** M1/M2 implemented; M3 renderer code implemented and test passed on owner's local branch; M4 response validation/assembly CODE COMPLETE, validation pending; M5 regression/device acceptance pending.  
-**Current implementation head:** `phase-10i-native-capability-groups` (M4 commits are in progress; do not treat as device-accepted).
+**Status:** M1–M4 implementation and local test/build confirmed by owner; M5 regression matrix is being expanded, S21 acceptance pending.  
+**Current implementation head:** `phase-10i-native-capability-groups`; latest M5 regression commits are pending owner-side test/build. No device acceptance claimed.
 
 - [x] M1 — Inspect execution pipeline and define authoritative result contract.
 - [x] M2 — Shared authoritative result layer captures bounded per-run tool results, provenance, success state, and typed structured values.
 - [x] M3 — Deterministic renderer preserves typed values, numeric lexemes, nested paths, arrays, and provenance; excludes failed and non-allowlisted results. The top-level-array path regression was fixed in commit `2c4891ba`; Brian confirmed the unit-test suite passed.
-- [x] M4 — Assemble authoritative source facts before model-written explanation; validate model numeric claims against eligible captured results and flag unsupported claims without silently rewriting prose. Implementation and regression tests are committed; local unit-test/build gate is pending.
-- [ ] M5 — Regression matrix and Galaxy S21 acceptance: leading digits, decimals, units, null/missing values, conflicting model claims, multiple tools, truncation, and turn isolation; verify output against direct Android/ADB observations.
+- [x] M4 — Assemble authoritative source facts before model-written explanation; validate numeric claims against eligible captured results and flag unsupported claims without silently rewriting prose. Brian confirmed unit tests and debug APK build passed after fixing the `mV` suffix tokenization bug.
+- [ ] M5 — Expanded regression matrix: units, nested arrays/signed decimals, numeric strings in JSON, null/missing, conflicts, multiple tools, allowlist/failure filtering, bounds/truncation, and turn isolation. New tests and a structured-value validation hardening fix are committed; owner-side test/build pending.
+- [ ] M5 device acceptance — On Galaxy S21, compare direct Android/ADB observations with authoritative facts/model narration for battery, temperature, voltage, identity, provider status, and shell results; verify bounds/truncation and per-turn isolation.
 
 **M4 implementation commits:** `6dc11511` (assembler), `d62931cc` (tests), `441fb287` (runtime integration), `551bb5a0` (acceptance documentation).  
 **Scope/limitations:** numeric validation is conservative consistency checking, not semantic or unit proof. The authoritative block is source-backed; model text remains explicitly marked interpretation and is never auto-corrected. See [Phase 3D-D acceptance](PHASE_3D_D_AUTHORITATIVE_RESPONSE_VALIDATION.md).
