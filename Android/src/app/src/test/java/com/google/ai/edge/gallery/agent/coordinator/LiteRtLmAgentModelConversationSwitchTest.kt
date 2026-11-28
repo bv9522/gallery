@@ -73,17 +73,6 @@ class LiteRtLmAgentModelConversationSwitchTest {
     assertTrue(candidate.closed)
   }
 
-private fun makeToolDescription(name: String): JsonElement =
-  JsonObject().apply {
-    add(
-      "function",
-      JsonObject().apply {
-        addProperty("name", name)
-        add("parameters", JsonObject())
-      },
-    )
-  }
-
   @Test
   fun failedGroupConversationCreationRetainsOriginalAndReportsFailure() = runBlocking {
     val fullRegistry = fullRegistry()
@@ -209,3 +198,15 @@ private fun makeToolDescription(name: String): JsonElement =
     }
   }
 }
+
+private fun makeToolDescription(name: String): JsonElement =
+  JsonObject().apply {
+    add(
+      "function",
+      JsonObject().apply {
+        addProperty("name", name)
+        add("parameters", JsonObject())
+      },
+    )
+  }
+
