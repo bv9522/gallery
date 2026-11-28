@@ -90,6 +90,15 @@ fun MessageBodyToolResult(
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
           )
         }
+        if (shell.outputTruncated && shell.stdout.isEmpty() && shell.stderr.isEmpty()) {
+          Text("Bounded tool output", style = MaterialTheme.typography.labelMedium)
+          SelectionContainer {
+            Text(
+              text = visible,
+              style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            )
+          }
+        }
       } else if (raw.isEmpty()) {
         Text("(empty result)", style = MaterialTheme.typography.bodySmall)
       } else {
