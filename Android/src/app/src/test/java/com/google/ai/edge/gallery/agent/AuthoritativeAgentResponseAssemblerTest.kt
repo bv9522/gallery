@@ -125,6 +125,20 @@ class AuthoritativeAgentResponseAssemblerTest {
   }
 
   @Test
+  fun separateAssemblyCallsDoNotCarryPriorTurnFacts() {
+    val firstTurn = AuthoritativeAgentResponseAssembler.assemble(
+      "Battery is 42%.",
+      listOf(source("android_device_info", """{"battery_percent":42}""", callId = "turn-one")),
+    )
+    val secondTurn = AuthoritativeAgentResponseAssembler.assemble("No tools were used this turn.", emptyList())
+
+    assertTrue(firstTurn.text.contains("turn-one"))
+    assertEquals("No tools were used this turn.", secondTurn.text)
+    assertFalse(secondTurn.text.contains("42"))
+    assertFalse(secondTurn.text.contains("turn-one"))
+  }
+
+  @Test
   fun noAuthoritativeFactsLeavesModelResponseUnchanged() {
     val assembled = AuthoritativeAgentResponseAssembler.assemble("A general explanation with no tool facts.", emptyList())
     assertEquals("A general explanation with no tool facts.", assembled.text)
