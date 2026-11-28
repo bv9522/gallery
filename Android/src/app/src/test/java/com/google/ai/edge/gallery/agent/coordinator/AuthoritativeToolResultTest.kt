@@ -126,11 +126,13 @@ class AuthoritativeToolResultTest {
     val emitted = mutableListOf<AuthoritativeToolResult>()
 
     val result = AgentCoordinator(model, AgentToolRegistry(listOf(first, second)))
-      .run("Run both tools.") { emitted += it }
+      .run("Run both tools.", sessionId = "session-42", userTurnId = "turn-9") { emitted += it }
 
     assertEquals(result.authoritativeToolResults, emitted)
     assertEquals(listOf("stream-call-1", "stream-call-2"), emitted.map { it.toolCallId })
     assertEquals(listOf("first\n", "second\n"), emitted.map { it.rawContent })
+    assertEquals(listOf("session-42", "session-42"), emitted.map { it.sessionId })
+    assertEquals(listOf("turn-9", "turn-9"), emitted.map { it.userTurnId })
   }
 
   @Test
