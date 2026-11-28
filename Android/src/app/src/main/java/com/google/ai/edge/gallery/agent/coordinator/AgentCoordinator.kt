@@ -218,6 +218,7 @@ class AgentCoordinator(
     val finalResult = result.copy(
       content = boundedContent,
       isSuccessful = result.isSuccessful && !imageRejected,
+      outcome = if (imageRejected) AgentToolOutcome.FAILED else result.outcome,
       imageBytes = boundedImage,
       structuredContent = result.structuredContent?.takeIf {
         boundedContent == result.content && it.toString() == boundedContent
