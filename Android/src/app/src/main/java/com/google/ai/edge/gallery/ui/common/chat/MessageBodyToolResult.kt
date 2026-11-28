@@ -56,14 +56,41 @@ fun MessageBodyToolResult(
     ) {
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
-          text = if (result.succeeded) "Tool result · ${result.toolName}" else "Tool failed · ${result.toolName}",
+          text = "${result.outcome.name} · ${result.toolName}",
           style = MaterialTheme.typography.labelLarge,
           color = if (result.succeeded) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.error,
         )
         Text(text = result.toolCallId, style = MaterialTheme.typography.labelSmall)
       }
-      if (raw.isEmpty()) {
+      val shell = result.shellDetails
+      if (shell != null) {
+        Text(
+          text = "Backend: ${shell.backend} · Exit code: ${shell.exitCode}",
+          style = MaterialTheme.typography.labelMedium,
+        )
+        if (shell.timedOut) Text("Command timed out.", color = MaterialTheme.colorScheme.error)
+        if (shell.outputTruncated) Text("Output truncated by the execution/result budget.")
+        if (shell.unavailable) Text("Requested backend unavailable.")
+        shell.error?.takeIf { it.isNotEmpty() }?.let { Text("Error: $it") }
+        if (shell.processMayStillBeRunning) {
+          Text("The backend could not confirm that the process stopped.")
+        }
+        Text("STDOUT", style = MaterialTheme.typography.labelMedium)
+        SelectionContainer {
+          Text(
+            text = if (shell.stdout.isEmpty()) "(empty)" else if (!expanded && shell.stdout.length > COLLAPSED_OUTPUT_CHARS) shell.stdout.take(COLLAPSED_OUTPUT_CHARS) + "\n…" else shell.stdout,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+          )
+        }
+        Text("STDERR", style = MaterialTheme.typography.labelMedium)
+        SelectionContainer {
+          Text(
+            text = if (shell.stderr.isEmpty()) "(empty)" else if (!expanded && shell.stderr.length > COLLAPSED_OUTPUT_CHARS) shell.stderr.take(COLLAPSED_OUTPUT_CHARS) + "\n…" else shell.stderr,
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+          )
+        }
+      } else if (raw.isEmpty()) {
         Text("(empty result)", style = MaterialTheme.typography.bodySmall)
       } else {
         SelectionContainer {
@@ -74,13 +101,17 @@ fun MessageBodyToolResult(
         }
       }
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (canExpand) {
+        if (canExpand || shell?.stdout?.length.orZero() > COLLAPSED_OUTPUT_CHARS ||
+          shell?.stderr?.length.orZero() > COLLAPSED_OUTPUT_CHARS
+        ) {
           TextButton(onClick = { expanded = !expanded }) {
             Text(if (expanded) "Show less" else "Show all")
           }
         }
-        TextButton(onClick = { onCopyClicked(raw) }) {
-          Text("Copy result")
+        TextButton(onClick = { onCopyClicked(raw) }) { Text("Copy result") }
+        shell?.let {
+          TextButton(onClick = { onCopyClicked(it.stdout) }) { Text("Copy stdout") }
+          TextButton(onClick = { onCopyClicked(it.stderr) }) { Text("Copy stderr") }
         }
       }
     }
