@@ -46,7 +46,7 @@ import kotlin.coroutines.resumeWithException
 internal interface AgentNativeConversation : Closeable {
   val automaticToolCalling: Boolean
   val isAlive: Boolean
-  val toolDescriptions: List<JsonElement>
+  val toolDescriptions: Iterable<JsonElement>
   fun getTokenCount(): Int
   fun sendMessage(message: Message, extraContext: Map<String, Any>): Message
   fun cancelProcess()
