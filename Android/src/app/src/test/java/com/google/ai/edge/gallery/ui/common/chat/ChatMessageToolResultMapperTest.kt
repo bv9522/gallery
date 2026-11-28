@@ -39,6 +39,8 @@ class ChatMessageToolResultMapperTest {
         rawContent = raw,
         structuredValue = JsonParser.parseString("""{"exit_code":7}"""),
         outcome = AgentToolOutcome.TIMED_OUT,
+        sessionId = "session-42",
+        userTurnId = "turn-9",
         shellDetails = ShellToolResultDetails(
           backend = "TERMUX",
           exitCode = 124,
@@ -60,6 +62,8 @@ class ChatMessageToolResultMapperTest {
     assertEquals("execute_shell", restored.result.toolName)
     assertFalse(restored.result.succeeded)
     assertEquals(AgentToolOutcome.TIMED_OUT, restored.result.outcome)
+    assertEquals("session-42", restored.result.sessionId)
+    assertEquals("turn-9", restored.result.userTurnId)
     assertEquals(original.result.structuredValue, restored.result.structuredValue)
     assertEquals(original.result.shellDetails, restored.result.shellDetails)
   }
