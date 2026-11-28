@@ -143,7 +143,14 @@ class LiteRtLmAgentModelConversationSwitchTest {
     initialVisibleToolRegistry = initialVisible,
     groupedConversationFactory = groupedFactory,
     initialGroupIds = emptySet(),
+    logger = SilentLogger,
   )
+
+  private object SilentLogger : AgentConversationLogger {
+    override fun info(message: String) = Unit
+    override fun warn(message: String, error: Throwable?) = Unit
+    override fun error(message: String) = Unit
+  }
 
   private fun fullRegistry(): AgentToolRegistry =
     AgentToolRegistry(
