@@ -22,6 +22,7 @@ import com.google.ai.edge.gallery.agent.coordinator.ShellToolResultDetails
 import com.google.gson.JsonParser
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,8 +58,10 @@ class ChatMessageToolResultMapperTest {
     assertEquals(raw, restored.result.rawContent)
     assertEquals("tool-call-7", restored.result.toolCallId)
     assertEquals("execute_shell", restored.result.toolName)
-    assertTrue(restored.result.succeeded)
+    assertFalse(restored.result.succeeded)
+    assertEquals(AgentToolOutcome.TIMED_OUT, restored.result.outcome)
     assertEquals(original.result.structuredValue, restored.result.structuredValue)
+    assertEquals(original.result.shellDetails, restored.result.shellDetails)
   }
 
   @Test
