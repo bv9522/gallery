@@ -1,6 +1,6 @@
 # Phase 3D-D — Authoritative Response Validation and Assembly
 
-**Status:** CODE COMPLETE / LOCAL VALIDATION PENDING  
+**Status:** M1–M4 IMPLEMENTED AND LOCAL TEST/BUILD CONFIRMED; M5 REGRESSION MATRIX IN PROGRESS  
 **Branch:** `phase-10i-native-capability-groups`  
 **Purpose:** Keep model-written explanations useful while making runtime-captured facts the unambiguous source of truth.
 
@@ -19,19 +19,39 @@
 
 - `AuthoritativeAgentResponseAssembler` performs deterministic validation and assembles facts ahead of model prose.
 - `NativeAgentRuntimeExecutor` now uses the assembler for completed native agent turns.
-- Tests cover leading-digit corruption (27→7, 27.7→7.7, 3775→775), null/missing source values, multiple tools and call provenance, allowlist/failure filtering, unchanged no-tool responses, and exact source lexeme preservation.
+- M1–M4 implementation and local validation are owner-confirmed: `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` passed after fixing the `mV` suffix tokenization regression.
+- M5 expands the matrix for unit-suffixed corrupted claims, nested arrays/signed decimals, and numeric strings in structured JSON. Parsed JSON numeric validation now uses typed numeric nodes only, avoiding false validation from digits inside labels/version strings; unstructured output retains text scanning.
 
-## Validation required
+## M5 regression matrix
 
-Run on the branch head:
+| Case | Expected behavior | Coverage |
+|---|---|---|
+| Leading-digit corruption: 27→7, 27.7→7.7, 3775→775 | Flag all unsupported claims; preserve model text and source facts | Unit test |
+| Unit suffixes (`°C`, `mV`, `%`) | Tokenize numeric value; flag corrupted value | Unit tests |
+| Equivalent formatting (`27.700` vs `27.7`) | Compare canonical numeric values; preserve source lexeme | Unit test |
+| Null/missing values | Do not invent a numeric source fact; flag claim | Unit test |
+| Typed numeric values nested in objects/arrays; signed/decimal values | Recursively validate exact numeric values | Unit test |
+| Numeric-looking strings (serials, labels, versions) in structured JSON | Must not count as numeric facts | Unit test |
+| Multiple eligible tools | Render independent provenance and source values | Unit test |
+| Failed and non-allowlisted results | Exclude from authoritative facts/validation | Unit test |
+| No eligible results | Leave model response unchanged | Unit test |
+| Result bounds/truncation | Verify existing capture/renderer limits remain respected and truncation is explicit | Existing layer + acceptance review |
+| Per-turn isolation | Verify prior-turn facts cannot appear in current assembly | Runtime integration review/test |
+| Source/model conflict | Facts are first and clearly authoritative; model text is not rewritten | Unit test |
+
+## Validation gate
+
+Run on the updated branch head:
 
 ```powershell
-cd C:\Users\bvell\Downloads\gallery\Android\src
-.\gradlew.bat :app:testShizukuDebugUnitTest
-.\gradlew.bat :app:assembleShizukuDebug
+cd C:\Users\bvell\Downloads\gallery
+
+git pull --ff-only
+cd Android\src
+.\gradlew.bat :app:testShizukuDebugUnitTest :app:assembleShizukuDebug
 ```
 
-The build/test gate must pass before M4 is considered validated. The S21 acceptance must then compare model summary and authoritative transcript for battery percentage, temperature, voltage, device identity, provider status, and shell output. This code does not claim device acceptance.
+After local matrix passes, complete the S21 acceptance: compare direct Android observations against model prose and the authoritative fact block for battery percentage, temperature, voltage, device identity, provider status, and shell output. Also inspect result bounds/truncation and verify turn isolation. This is the device acceptance gate; no device acceptance is claimed before it is performed.
 
 ## Known limits
 
