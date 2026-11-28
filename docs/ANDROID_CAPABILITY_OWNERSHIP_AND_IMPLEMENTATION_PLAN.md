@@ -5,11 +5,11 @@
 > the technical source of truth. If a legacy status below conflicts with this ledger, update both;
 > this ledger states the current project sequence and readiness.
 >
-> **Last reconciled:** 2026-11-27 (PR #64 current head `fafc0c95`; owner-confirmed `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` passed; M5 unit regression coverage complete; S21 acceptance pending)  
+> **Last reconciled:** 2026-11-27 (M5 regression suite and debug build passed on code head `fafc0c95`; a new injectable LiteRT conversation seam and conversation-switch integration tests were then added; latest CI validation is in progress; S21 acceptance pending)  
 > **Repository:** [bv9522/gallery](https://github.com/bv9522/gallery)  
 > **Current implementation branch:** `phase-10i-native-capability-groups`  
 > **Current change:** [PR #64 — native capability groups and safe conversation switching](https://github.com/bv9522/gallery/pull/64), stacked on PR #63 (MCP/skill progressive disclosure), PR #62 (privacy-safe context diagnostics), and PR #60 (Stage 10 image/document integration).  
-> **Overall state:** Capability and artifact implementation onboarding is largely complete. The current PR #64 head has passed owner-run unit tests and Shizuku debug APK assembly. Remaining work includes targeted integration/device acceptance, completing the feature-by-feature S21 validation chunks, native token/reliability/resource measurements, stacked-PR integration, and final release gates. TERMUX_RISH binary artifact output remains deliberately unavailable pending proof.
+> **Overall state:** Capability and artifact implementation onboarding is largely complete. Owner-run unit tests/debug assembly passed on the prior code head; additional conversation lifecycle seam/tests and CI trigger changes are now committed and await validation. Remaining work includes targeted integration/device acceptance, completing the feature-by-feature S21 validation chunks, native token/reliability/resource measurements, stacked-PR integration, and final release gates. TERMUX_RISH binary artifact output remains deliberately unavailable pending proof.
 
 ## How to read and maintain this roadmap
 
@@ -25,7 +25,7 @@ A PR being open, a commit existing, or code compiling is never by itself proof o
 remain draft/open/unmerged until explicitly approved for integration. No PR is to be merged or closed without the owner's
 explicit approval.
 
-**Owner-directed validation sequencing (updated 2026-11-27):** The latest PR #64 head `fafc0c95fe09d683fa09da39335138815ccf766c` passed the owner's `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` tasks (60 actionable tasks; 12 executed, 48 up-to-date; 1m 6s). This includes M5 authoritative-response regression expansion and current context/native-group code. This is local validation, not GitHub Actions, instrumentation, or S21 acceptance; `:app:assembleRelease` was not part of this run. Historical Stage 10 CI workflow #118 remains evidence for its earlier code head only. Proceed with staged S21 acceptance using [ANDROID_MCP_FEATURE_TEST_ROADMAP.md](ANDROID_MCP_FEATURE_TEST_ROADMAP.md); do not wipe app data or uninstall as routine setup. Execution order remains implementation/validation → Stage 8 → Stage 9.
+**Owner-directed validation sequencing (updated 2026-11-27):** The M5 regression suite and `:app:assembleShizukuDebug` passed locally on code head `fafc0c95fe09d683fa09da39335138815ccf766c` (60 actionable tasks; 12 executed, 48 up-to-date; 1m 6s). Subsequent commits introduce an injectable native-conversation seam and three conversation-switch tests, and correct the CI branch filters; those later changes await workflow #152/current-head validation. This is local validation, not device acceptance; `:app:assembleRelease` was not part of the local run. Historical Stage 10 CI workflow #118 remains evidence for its earlier code head only. Proceed with staged S21 acceptance using [ANDROID_MCP_FEATURE_TEST_ROADMAP.md](ANDROID_MCP_FEATURE_TEST_ROADMAP.md); do not wipe app data or uninstall as routine setup. Execution order remains implementation/validation → Stage 8 → Stage 9.
 
 **Progress-update rule:** after every implementation slice, update (1) this ledger, (2) the capability row/status in the
 ownership matrix, (3) the provider matrix if ownership/readiness changed, and (4) the relevant PR description. Record the
@@ -89,14 +89,15 @@ The finished system must have:
 
 ### Stage 2A — Authoritative tool-result integrity (M1–M5)
 
-**Status:** M1–M5 implementation and local unit-test/debug-build validation confirmed by owner; only S21 device acceptance remains for this workstream.  
-**Current implementation head:** `phase-10i-native-capability-groups` / PR #64 head `fafc0c95fe09d683fa09da39335138815ccf766c`. No device acceptance claimed.
+**Status:** M1–M5 implementation and local unit-test/debug-build validation confirmed on code head `fafc0c95`; new model-level conversation-switch tests were added afterward and await validation. S21 device acceptance remains outstanding.  
+**Current implementation head:** `phase-10i-native-capability-groups` / PR #64. No device acceptance claimed.
 
 - [x] M1 — Inspect execution pipeline and define authoritative result contract.
 - [x] M2 — Shared authoritative result layer captures bounded per-run tool results, provenance, success state, and typed structured values.
 - [x] M3 — Deterministic renderer preserves typed values, numeric lexemes, nested paths, arrays, and provenance; excludes failed and non-allowlisted results. The top-level-array path regression was fixed in commit `2c4891ba`; Brian confirmed the unit-test suite passed.
 - [x] M4 — Assemble authoritative source facts before model-written explanation; validate numeric claims against eligible captured results and flag unsupported claims without silently rewriting prose. Brian confirmed unit tests and debug APK build passed after fixing the `mV` suffix tokenization bug.
-- [x] M5 — Expanded regression matrix: units, nested arrays/signed decimals, numeric strings in JSON, null/missing, conflicts, multiple tools, allowlist/failure filtering, bounds/truncation, and turn isolation. Includes independent assembly-call isolation and structured-value validation hardening; owner confirmed unit tests and debug APK build passed on current head (2026-11-27).
+- [x] M5 — Expanded regression matrix: units, nested arrays/signed decimals, numeric strings in JSON, null/missing, conflicts, multiple tools, allowlist/failure filtering, bounds/truncation, and turn isolation. Includes independent assembly-call isolation and structured-value validation hardening; owner confirmed unit tests and debug APK build passed on code head `fafc0c95` (2026-11-27).
+- [ ] Follow-up integration seam — an injectable native-conversation adapter and three model-level group-switch tests now exercise successful replay/swap, factory failure retention, and candidate token-validation cleanup. Current-head validation is pending CI/local build.
 - [ ] M5 device acceptance — On Galaxy S21, compare direct Android/ADB observations with authoritative facts/model narration for battery, temperature, voltage, identity, provider status, and shell results; verify bounds/truncation and per-turn isolation.
 
 **M4 implementation commits:** `6dc11511` (assembler), `d62931cc` (tests), `441fb287` (runtime integration), `551bb5a0` (acceptance documentation).  
@@ -257,7 +258,7 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 
 
 ### Stage 8 — Consolidated provider verification and S21 acceptance (Wave 6)
-**Status: AUTOMATED VALIDATION PARTLY CURRENT-HEAD CONFIRMED; DEVICE ACCEPTANCE PARTIAL.** The current PR #64 head passed owner-run unit tests and debug APK assembly on 2026-11-27. Historical workflow #118 validated an earlier Stage 10 head, including release assembly. The S21 feature matrix is still incomplete; proceed one chunk at a time using [ANDROID_MCP_FEATURE_TEST_ROADMAP.md](ANDROID_MCP_FEATURE_TEST_ROADMAP.md), and do not treat local/CI build success as device acceptance.
+**Status: AUTOMATED VALIDATION PARTLY CURRENT-HEAD CONFIRMED; DEVICE ACCEPTANCE PARTIAL.** The previous PR #64 code head passed owner-run unit tests and debug APK assembly on 2026-11-27. Subsequent native-conversation seam/test commits are pending current-head CI validation. Historical workflow #118 validated an earlier Stage 10 head, including release assembly. The S21 feature matrix is still incomplete; proceed one chunk at a time using [ANDROID_MCP_FEATURE_TEST_ROADMAP.md](ANDROID_MCP_FEATURE_TEST_ROADMAP.md), and do not treat local/CI build success as device acceptance.
 
 #### 8A — Consolidated test and build preflight
 - [ ] Confirm the complete dependency chain resolves through the final Stage 10 implementation head stacked on PR #48; keep all PRs draft/open/unmerged.
@@ -281,8 +282,8 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 **High-priority coverage review:** verify permission/approval ordering and denial at the provider boundary; stale/replayed handles and cancellation/cleanup; multimodal image-byte delivery and clearing; SAF grant/revocation; notification/call-log/SMS eligibility; USB disconnect/permission timeout; and lifecycle behavior when the app backgrounds or the process dies. These are the highest-risk integration seams and should be explicitly mapped to tests before the first full-suite run.
 
 #### 8B — Consolidated automated validation
-- [x] Run `:app:testShizukuDebugUnitTest` on current PR #64 head `fafc0c95fe09d683fa09da39335138815ccf766c`; owner confirmed local pass on 2026-11-27. Historical workflow #118 also passed (308 tests) on its earlier Stage 10 head.
-- [x] Run `:app:assembleShizukuDebug` on current PR #64 head; owner confirmed local pass on 2026-11-27. Historical workflow #118 also passed and uploaded its APK artifact.
+- [x] Run `:app:testShizukuDebugUnitTest` on code head `fafc0c95fe09d683fa09da39335138815ccf766c`; owner confirmed local pass on 2026-11-27. **Latest seam/test changes await workflow #152 or owner-side validation.** Historical workflow #118 also passed (308 tests) on its earlier Stage 10 head.
+- [x] Run `:app:assembleShizukuDebug` on code head `fafc0c95`; owner confirmed local pass on 2026-11-27. **Latest seam/test changes await workflow #152 or owner-side validation.** Historical workflow #118 also passed and uploaded its APK artifact.
 - [x] Run `:app:assembleRelease` on earlier Stage 10 CI head; workflow #118 passed and uploaded the APK artifact. **Current PR #64 head release assembly remains unverified.**
 - [ ] Record APK SHA-256, versionCode, and signing certificate fingerprint during Chunk 00 artifact provenance; CI success alone does not substitute for that installation baseline.
 - [ ] Execute Android instrumentation tests and S21 device acceptance in the feature-chunk order; workflow #118 did not run instrumentation.
@@ -342,9 +343,14 @@ The changed-file review of PRs #16–#47 surfaced no changed `androidTest` sourc
 | Artifact generation (PDF/DOCX/XLSX/PPTX/images/ZIP) | IMPLEMENTATION COMPLETE — 10A–10I; EARLIER CI PASS | Workflow #118 passed 308 tests and debug/release builds on earlier head; instrumentation and S21 protocol acceptance remain outstanding; TERMUX_RISH binary output and on-device generation remain unavailable |
 | Integration/release | NOT STARTED | Requires acceptance and explicit merge approval |
 
-## Active PR dependency chain
+## Active PR dependency chain and branch reconciliation
 
-All entries below are tracked as draft/open/unmerged unless explicitly stated otherwise. Draft status is intentional; it is not a release status. Stage 10 PRs are stacked after PR #48 and before Stage 8 validation.
+All entries below are tracked as draft/open/unmerged unless explicitly stated otherwise. Draft status is intentional; it is not a release status. Stage 10 PRs are stacked after PR #48 and before Stage 8 validation. The current context-budget stack is PR #60 → #62 → #63 → #64; do not merge until each base/head dependency is validated and integration is explicitly approved.
+
+### Sibling/overlap audit (unresolved; do not merge both branches blindly)
+- **PR #38 vs PR #39:** both branch from the same PR #37 base and both add the AccessibilityService declaration/configuration. PR #39's `screen_inspect` status/settings path already declares and uses the service, and is the parent of PRs #40–#47 in the active capability stack. PR #38's standalone `accessibility_control` lifecycle tool appears superseded/overlapping and is not in the current PR #47 chain. Verify all distinct behavior/tests are accounted for before deciding to close or cherry-pick; no PR has been closed.
+- **PR #58 vs PR #59:** sibling implementations of Stage 10I shell binary artifact output from the PR #57 base. The active PR #60 chain uses PR #58 (which includes instrumentation tests and conservative transport bounds). PR #59 is a separate alternative with a divergent history and different transport implementation/limits; it is not part of the active stack. Do not merge both; compare for any unique defect fixes before final integration. Neither has device-validated transport proof.
+- **PR #1/#2:** historical drafts/experiments; PR #1 local MCP loopback is discontinued. PR #2's relationship to the consolidated runtime integration chain requires final dependency review; do not treat these old drafts as release-ready.
 
 - PR #1 — optional historical local-MCP loopback build; discontinued from the critical path.
 - PR #2 — unified native agent runtime / shell execution foundation.
@@ -380,6 +386,7 @@ All entries below are tracked as draft/open/unmerged unless explicitly stated ot
 - PR #57 — Stage 10H local image resize/crop/rotate/convert using bounded SAF source reads, concrete output MIME handling, optional image-generation provider contracts, and remote-consent gate with source labels; payload/consent unit tests passed in workflow #118, image/device acceptance pending.
 - PR #58 — Stage 10I binary artifact destinations: Termux bounded RUN_COMMAND stdin chunks and Shizuku PFD pipe transfer; pure policy/transport unit tests passed in workflow #118; Android instrumentation and S21 protocol acceptance remain pending; TERMUX_RISH binary output remains unavailable.
 - PR #60 — final Stage 10 embedded-image integration and documentation reconciliation; workflow #118 passed 308 unit tests plus Shizuku debug/release APK builds on its code head; external-reader openability, instrumentation, and S21 acceptance remain pending.
+- PR #64 — latest prior code head passed owner-run unit tests/debug assembly. Subsequent commits add `AgentNativeConversation`/`LiteRtLmConversationAdapter` injection and three model-level conversation-switch/replay/recovery tests, plus Android CI branch-filter corrections. Workflow #152 is the current validation gate; its result must be recorded before advancing.
 - PR #62 — privacy-safe context diagnostics; included in the current stacked head. Device diagnostics/token measurements remain pending.
 - PR #63 — MCP/skill progressive disclosure; included in the current stacked head. Native token/reliability comparison and device acceptance remain pending.
 - PR #64 — native capability groups, safe conversation rebuild/history projection, independent legacy dispatcher, schema splitting, and approval/permission hardening; current head `fafc0c95fe09d683fa09da39335138815ccf766c` passed owner-run unit tests and debug APK assembly on 2026-11-27. Native token savings, end-to-end conversation switching/recovery, device acceptance, and release assembly remain pending.
