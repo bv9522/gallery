@@ -262,7 +262,8 @@ the target S21 acceptance report is complete, and all remaining unsupported/defe
 
 #### 8A — Consolidated test and build preflight
 - [ ] Confirm the complete dependency chain resolves through the final Stage 10 implementation head stacked on PR #48; keep all PRs draft/open/unmerged.
-- [ ] Inventory every test source and existing Gradle task; map each new capability to its unit/policy/parser/dispatch tests and identify uncovered integration seams.
+- [x] Inventory every test source in the current branch tree and map major test families to existing seams.
+- [ ] Confirm the complete Gradle task graph/instrumentation task names on the local Windows build and map remaining coverage gaps.
 - [ ] Confirm Windows JDK/Gradle/Android SDK paths, compile SDK 37 installation, signing identity, available disk space, and ADB/device connectivity before execution.
 - [ ] Capture baseline repository state and exact commands/results; do not clean or wipe app/device data as a precondition unless specifically needed and approved.
 
@@ -279,7 +280,11 @@ The first pass over changed-file lists identifies these existing/extended unit-t
 
 The changed-file review of PRs #16–#47 surfaced no changed `androidTest` source paths; this does not establish that the repository has no instrumentation tests. The combined-head inventory must inspect the complete test tree and Gradle task graph before deciding whether instrumentation coverage exists or needs to be added.
 
-**High-priority coverage review:** verify permission/approval ordering and denial at the provider boundary; stale/replayed handles and cancellation/cleanup; multimodal image-byte delivery and clearing; SAF grant/revocation; notification/call-log/SMS eligibility; USB disconnect/permission timeout; and lifecycle behavior when the app backgrounds or the process dies. These are the highest-risk integration seams and should be explicitly mapped to tests before the first full-suite run.
+**Complete current-head source inventory (2026-11-27):** The branch tree contains **55 JVM unit-test source files** and **1 Android instrumentation-test source file**. Unit coverage is grouped as: agent/runtime (6); artifact generation/transport (14); Android capabilities and provider policy (15); coordinator/protocol/shell (12); model catalog (1); Shizuku (2); Termux (3); discovery tools (1); UI diagnostics (1). The sole current instrumentation source is `ShellBinaryTransportInstrumentedTest.kt`, which exercises Termux APP_SHELL stdin and Shizuku PFD binary transfer behind device prerequisites. It has not been run. The three new `LiteRtLmAgentModelConversationSwitchTest` cases provide a fake-native-conversation seam for successful replay/swap, factory failure, and candidate token-validation cleanup; current-head CI validation is pending workflow #157.
+
+**Coverage interpretation:** JVM tests validate policy, argument bounds, registry/dispatch behavior, fake transports, and OOXML/package structure. They do not validate Android framework prompts, SAF provider quirks, AccessibilityService windows/nodes, Binder/PFD lifecycle, hardware, model tool-call reliability, or resource impact. These remain device/instrumentation gates.
+
+**High-priority coverage review:** current unit tests cover many policy/fake-provider cases, but identify missing Android instrumentation for permission/approval ordering at the actual framework boundary; SAF grant/revocation/provider behaviors; AccessibilityService enablement/window/node churn; notification/call-log/SMS eligibility; USB permission/disconnect; PFD/Binder cancellation and abrupt-process cleanup; and lifecycle behavior across backgrounding/process death. Multimodal image-byte clearing has unit tests but must be verified in the native model loop. These gaps remain mapped to device chunks and any required instrumentation additions.
 
 #### 8B — Consolidated automated validation
 - [x] Run `:app:testShizukuDebugUnitTest` on code head `fafc0c95fe09d683fa09da39335138815ccf766c`; owner confirmed local pass on 2026-11-27. **Latest seam/test changes await workflow #152 or owner-side validation.** Historical workflow #118 also passed (308 tests) on its earlier Stage 10 head.
