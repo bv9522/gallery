@@ -436,17 +436,19 @@ class UnifiedShellTool(
       appendLine("Backend output truncated: ${result.outputTruncated}")
       if (result.stdout.isNotEmpty()) {
         appendLine("STDOUT:")
-        appendLine(result.stdout.trimEnd())
+        append(result.stdout)
+        if (!result.stdout.endsWith("\n")) appendLine()
       }
       if (result.stderr.isNotEmpty()) {
         appendLine("STDERR:")
-        appendLine(result.stderr.trimEnd())
+        append(result.stderr)
+        if (!result.stderr.endsWith("\n")) appendLine()
       }
       if (result.outputTruncated) appendLine("Warning: output was truncated.")
       if (result.processMayStillBeRunning) {
         appendLine("Warning: the backend could not confirm that the process group has stopped.")
       }
-    }.trim()
+    }
     return AgentToolResult(response, result.succeeded)
   }
 
