@@ -21,6 +21,7 @@ import com.google.ai.edge.litertlm.Message
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +30,7 @@ class AgentConversationCompactionPolicyTest {
   fun compactionStartsAtConfiguredThreshold() {
     assertFalse(AgentConversationCompactionPolicy.shouldCompact(2_999, 3_000))
     assertTrue(AgentConversationCompactionPolicy.shouldCompact(3_000, 3_000))
+    assertTrue(AgentConversationCompactionPolicy.shouldCompact(3_001, 3_000))
   }
 
   @Test
@@ -72,10 +74,107 @@ class AgentConversationCompactionPolicyTest {
   }
 
   @Test
+  fun replaySnapshotPreservesEveryMessageAndIncludesTheActiveTurn() {
+    val firstUser = Message.user("first request")
+    val firstAnswer = Message.model(Contents.of("first answer"), emptyList(), emptyMap())
+    val secondUser = Message.user("second request")
+    val toolCall = Message.model(Contents.of("tool call"), emptyList(), emptyMap())
+    val toolResult = Message.tool(Contents.of("tool result"))
+    val completed = AgentConversationTurn(
+      messages = mutableListOf(firstUser, firstAnswer),
+      complete = true,
+    )
+    val active = AgentConversationTurn(
+      messages = mutableListOf(secondUser, toolCall, toolResult),
+      complete = false,
+    )
+
+    val replay = AgentConversationHistoryPolicy.replayMessages(listOf(completed, active))
+
+    assertEquals(5, replay.size)
+    assertSame(firstUser, replay[0])
+    assertSame(firstAnswer, replay[1])
+    assertSame(secondUser, replay[2])
+    assertSame(toolCall, replay[3])
+    assertSame(toolResult, replay[4])
+  }
+
+  @Test
+  fun failedConversationCreationLeavesNoCandidateToPublish() {
+    var published = "previous"
+    val candidate = AgentConversationReplacementPolicy.createValidated(
+      create = { error("simulated rebuild failure") },
+      validate = { },
+      closeRejected = { throw AssertionError("No candidate should be closed.") },
+    )
+    candidate.value?.let { published = it }
+
+    assertEquals("previous", published)
+    assertTrue(candidate.failure?.message.orEmpty().contains("simulated rebuild failure"))
+  }
+
+  @Test
+  fun failedCandidateValidationClosesCandidateAndKeepsPreviousConversation() {
+    class Candidate {
+      var closed = false
+    }
+    val previous = Candidate()
+    val rejected = Candidate()
+    var active = previous
+    val candidate = AgentConversationReplacementPolicy.createValidated(
+      create = { rejected },
+      validate = { error("simulated token-count validation failure") },
+      closeRejected = { it.closed = true },
+    )
+    candidate.value?.let { active = it }
+
+    assertSame(previous, active)
+    assertTrue(rejected.closed)
+    assertTrue(candidate.failure?.message.orEmpty().contains("validation failure"))
+  }
+
+  @Test
+  fun classifiesContextOverflowSeparatelyFromOtherConversationRebuildFailures() {
+    assertEquals(
+      "context_limit",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(
+        IllegalArgumentException("INVALID_ARGUMENT: Input token ids are too long.")
+      ),
+    )
+    assertEquals(
+      "context_limit",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(
+        IllegalStateException(
+          "Conversation failed",
+          IllegalArgumentException("Exceeding the maximum number of tokens"),
+        )
+      ),
+    )
+    assertEquals(
+      "conversation_rebuild_failed",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(
+        IllegalStateException("The model file could not be opened."),
+      ),
+    )
+    assertEquals(
+      "conversation_rebuild_failed",
+      AgentConversationCompactionPolicy.groupSwitchFailureReason(null),
+    )
+  }
+
+  @Test
   fun recognizesNativeInputTokenOverflowWithoutMatchingUnrelatedErrors() {
     assertTrue(
       AgentConversationCompactionPolicy.isContextOverflow(
         IllegalArgumentException("INVALID_ARGUMENT: Input token ids are too long.")
+      )
+    )
+    assertTrue(
+      AgentConversationCompactionPolicy.isContextOverflow(
+        IllegalStateException(
+          "Conversation failed",
+          IllegalArgumentException("Exceeding the maximum number of tokens"),
+        )
       )
     )
     assertFalse(

@@ -43,4 +43,4 @@ internal fun formatAuthoritativeToolResults(messages: List<AgentMessage>): Strin
   }.trimEnd()
 }
 
-private val AUTHORITATIVE_TOOL_NAMES = setOf("android_control", "execute_shell")
+private val AUTHORITATIVE_TOOL_NAMES = setOf("android_control", "android_device_info", "execute_shell")

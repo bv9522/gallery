@@ -81,6 +81,7 @@ data class ShellExecutionResult(
   val outputTruncated: Boolean = false,
   val error: String? = null,
   val processMayStillBeRunning: Boolean = false,
+  val unavailable: Boolean = false,
 ) {
   val succeeded: Boolean
     get() = error == null && !timedOut && exitCode == 0 && !processMayStillBeRunning
@@ -94,6 +95,41 @@ fun interface ShellExecutionTransport {
 /** One policy owns approval for every execution identity. */
 fun interface ShellExecutionApprovalPolicy {
   suspend fun requestApproval(request: ShellExecutionRequest): Boolean
+}
+
+/**
+ * Read-only shell commands that are safe to run without an interruption.
+ *
+ * This is intentionally an allowlist, not a shell parser: compound commands, redirections,
+ * substitutions, pipelines, unknown commands, and known write-capable options require approval.
+ */
+internal object ShellCommandApprovalClassifier {
+  private val readOnlyCommands = setOf(
+    "printf", "echo", "pwd", "id", "whoami", "uname", "getprop", "date",
+    "ls", "stat", "file", "head", "tail", "wc", "grep", "cat", "cut",
+    "sort", "uniq", "tr", "sha256sum", "sha1sum", "md5sum", "df", "du",
+    "ps", "uptime", "free", "printenv", "which", "type", "readlink",
+    "realpath", "basename", "dirname",
+  )
+
+  fun requiresApproval(command: String): Boolean {
+    val normalized = command.trim()
+    if (normalized.isEmpty()) return true
+    // Reject shell composition and expansion even when a safe command appears first.
+    if (normalized.any { it in ";|&<>(){}\\\n\r" || it.code == 96 || it.code == 36 }) return true
+    val match = Regex("^([A-Za-z0-9_./+-]+)(?:\\s+.*)?$").matchEntire(normalized)
+      ?: return true
+    val executable = match.groupValues[1].substringAfterLast('/')
+    if (executable !in readOnlyCommands) return true
+    val arguments = normalized.removePrefix(match.groupValues[1]).trim()
+    if (executable == "date" &&
+      Regex("(^|\\s)(-s|--set)(=|\\s|$)").containsMatchIn(arguments)
+    ) return true
+    if (executable == "sort" &&
+      Regex("(^|\\s)(-o|--output)(=|\\s|$)").containsMatchIn(arguments)
+    ) return true
+    return false
+  }
 }
 
 /**
@@ -113,8 +149,10 @@ class ChannelShellExecutionApprovalPolicy(
       maxOutputChars = request.maxOutputChars,
     )
     return try {
-      actionChannel.send(action)
-      withTimeoutOrNull(approvalTimeoutMs) { action.result.await() } ?: false
+      withTimeoutOrNull(approvalTimeoutMs) {
+        actionChannel.send(action)
+        action.result.await()
+      } ?: false
     } finally {
       if (!action.result.isCompleted) action.result.complete(false)
     }
@@ -140,6 +178,7 @@ class ShellExecutionRouter(transports: Map<ShellExecutionBackend, ShellExecution
         stderr = "",
         exitCode = -1,
         error = "Execution backend ${request.backend} is not configured.",
+        unavailable = true,
       )
     return transport.execute(request)
   }
@@ -279,7 +318,7 @@ class UnifiedShellTool(
     "Native device shell tool. Use execute_shell directly for all shell-command requests; do not " +
       "call run_mcp_tool for shell execution. Select the backend explicitly: TERMUX (Termux app " +
       "UID), SHIZUKU (Android shell UID 2000, not root), or TERMUX_RISH (Termux invoking the " +
-      "existing Shizuku service). Never substitute another backend. Every command requires user approval."
+      "existing Shizuku service). Never substitute another backend. Read-only allowlisted commands run directly; mutating or unclassified commands require one-time approval."
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -364,14 +403,20 @@ class UnifiedShellTool(
         "commandChars=${request.command.length}, " +
         "commandSha256=${ExecutionFingerprint.sha256(request.command)}",
     )
-    val approved = try {
-      approval.requestApproval(request)
-    } catch (cancelled: CancellationException) {
-      throw cancelled
-    } catch (error: Exception) {
-      return AgentToolResult("Approval failed: ${error.message ?: error.javaClass.simpleName}", false)
+    if (ShellCommandApprovalClassifier.requiresApproval(request.command)) {
+      val approved = try {
+        approval.requestApproval(request)
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (error: Exception) {
+        return AgentToolResult("Approval failed: ${error.message ?: error.javaClass.simpleName}", false)
+      }
+      if (!approved) return AgentToolResult(
+        "Execution denied: user approval was not granted.",
+        false,
+        outcome = AgentToolOutcome.DENIED,
+      )
     }
-    if (!approved) return AgentToolResult("Execution denied: user approval was not granted.", false)
 
     val result = try {
       router.execute(request)
@@ -397,18 +442,40 @@ class UnifiedShellTool(
       appendLine("Backend output truncated: ${result.outputTruncated}")
       if (result.stdout.isNotEmpty()) {
         appendLine("STDOUT:")
-        appendLine(result.stdout.trimEnd())
+        append(result.stdout)
+        if (!result.stdout.endsWith("\n")) appendLine()
       }
       if (result.stderr.isNotEmpty()) {
         appendLine("STDERR:")
-        appendLine(result.stderr.trimEnd())
+        append(result.stderr)
+        if (!result.stderr.endsWith("\n")) appendLine()
       }
       if (result.outputTruncated) appendLine("Warning: output was truncated.")
       if (result.processMayStillBeRunning) {
         appendLine("Warning: the backend could not confirm that the process group has stopped.")
       }
-    }.trim()
-    return AgentToolResult(response, result.succeeded)
+    }
+    return AgentToolResult(
+      content = response,
+      isSuccessful = result.succeeded,
+      outcome = when {
+        result.unavailable -> AgentToolOutcome.UNAVAILABLE
+        result.timedOut -> AgentToolOutcome.TIMED_OUT
+        result.succeeded -> AgentToolOutcome.SUCCEEDED
+        else -> AgentToolOutcome.FAILED
+      },
+      shellDetails = ShellToolResultDetails(
+        backend = result.backend.name,
+        exitCode = result.exitCode,
+        timedOut = result.timedOut,
+        outputTruncated = result.outputTruncated,
+        stdout = result.stdout,
+        stderr = result.stderr,
+        error = result.error,
+        processMayStillBeRunning = result.processMayStillBeRunning,
+        unavailable = result.unavailable,
+      ),
+    )
   }
 
   private fun JsonObject.string(key: String): String? =

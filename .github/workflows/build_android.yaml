@@ -6,6 +6,9 @@ on:
     branches:
       - main
       - phase-6-unified-execution-runtime
+      - stage-10i-binary-artifact-output
+      - phase-10h-mcp-skill-progressive-disclosure
+      - phase-10i-native-capability-groups
     paths:
       - 'Android/**'
       - '.github/workflows/build_android.yaml'
@@ -14,6 +17,8 @@ on:
       - main
       - phase-6-unified-execution-runtime
       - stage-10i-binary-artifact-output
+      - phase-10h-mcp-skill-progressive-disclosure
+      - phase-10i-native-capability-groups
     paths:
       - 'Android/**'
       - '.github/workflows/build_android.yaml'

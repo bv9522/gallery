@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.ai.edge.gallery.agent.AgentExecutionDiagnostics
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
@@ -27,7 +28,10 @@ import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonElement
+import com.google.gson.JsonNull
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.google.gson.JsonPrimitive
 import java.io.Closeable
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +41,63 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+
+/** Narrow conversation boundary so lifecycle/replay behavior can be exercised with fakes. */
+internal interface AgentNativeConversation : Closeable {
+  val automaticToolCalling: Boolean
+  val isAlive: Boolean
+  val toolDescriptions: Iterable<JsonElement>
+  fun getTokenCount(): Int
+  fun sendMessage(message: Message, extraContext: Map<String, Any>): Message
+  fun cancelProcess()
+  /** Production adapters expose their native handle for engine-owned lifecycle bookkeeping. */
+  val nativeConversation: Conversation?
+}
+
+/** Production bridge to the LiteRT-LM conversation; the shared Engine remains outside this wrapper. */
+internal class LiteRtLmConversationAdapter(
+  override val nativeConversation: Conversation,
+) : AgentNativeConversation {
+  override val automaticToolCalling: Boolean
+    get() = nativeConversation.automaticToolCalling
+
+  override val isAlive: Boolean
+    get() = nativeConversation.isAlive
+
+  override val toolDescriptions: Iterable<JsonElement>
+    get() = nativeConversation.toolManager.getToolsDescription()
+
+  override fun getTokenCount(): Int = nativeConversation.getTokenCount()
+
+  override fun sendMessage(message: Message, extraContext: Map<String, Any>): Message =
+    nativeConversation.sendMessage(message, extraContext = extraContext)
+
+  override fun cancelProcess() = nativeConversation.cancelProcess()
+
+  override fun close() = nativeConversation.close()
+}
+
+/** Logging seam keeps lifecycle tests independent of Android's mocked Log class. */
+internal interface AgentConversationLogger {
+  fun info(message: String)
+  fun warn(message: String, error: Throwable? = null)
+  fun error(message: String)
+}
+
+internal object AndroidAgentConversationLogger : AgentConversationLogger {
+  override fun info(message: String) {
+    Log.i("LiteRtLmAgentModel", message)
+  }
+
+  override fun warn(message: String, error: Throwable?) {
+    if (error == null) Log.w("LiteRtLmAgentModel", message)
+    else Log.w("LiteRtLmAgentModel", message, error)
+  }
+
+  override fun error(message: String) {
+    Log.e("LiteRtLmAgentModel", message)
+  }
+}
 
 /**
  * Model-neutral coordinator adapter for a manually-driven LiteRT-LM conversation.
@@ -83,8 +144,27 @@ internal object LiteRtLmResponseProtocol {
 }
 
 /**
+ * Wraps every result in one stable JSON envelope. Existing JSON objects/arrays retain their
+ * native JSON value types; plain-text results remain strings rather than being guessed as numbers.
+ */
+internal fun serializeToolResultForModel(
+  toolName: String,
+  content: String,
+  succeeded: Boolean?,
+): String {
+  val parsed = runCatching { JsonParser.parseString(content) }.getOrNull()
+    ?.takeIf { it.isJsonObject || it.isJsonArray }
+    ?: JsonPrimitive(content)
+  return JsonObject().apply {
+    addProperty("tool", toolName)
+    if (succeeded == null) add("success", JsonNull.INSTANCE) else addProperty("success", succeeded)
+    add("result", parsed)
+  }.toString()
+}
+
+/**
  * Builds one LiteRT-LM tool-role message containing each tool response and any associated
- * multimodal image parts. Image parts precede their textual tool response.
+ * multimodal image parts. Image parts precede their structured JSON tool response.
  */
 internal fun buildLiteRtToolResponseMessage(toolMessages: List<AgentMessage>): Message {
   require(toolMessages.isNotEmpty()) { "A tool response message must not be empty." }
@@ -92,7 +172,12 @@ internal fun buildLiteRtToolResponseMessage(toolMessages: List<AgentMessage>): M
     val name = message.toolName ?: error("Tool result is missing its tool name.")
     buildList<Content> {
       message.toolImageBytes?.let { add(Content.ImageBytes(it)) }
-      add(Content.ToolResponse(name, message.content))
+      add(
+        Content.ToolResponse(
+          name,
+          serializeToolResultForModel(name, message.content, message.toolSucceeded),
+        )
+      )
     }
   }
   return Message.tool(Contents.of(contents))
@@ -103,7 +188,146 @@ internal data class AgentConversationTurn(
   var complete: Boolean = false,
 )
 
+/**
+ * Validates the complete activation tool-result batch before changing the model-visible schema set.
+ * A partial or fabricated result must never activate only a subset of a requested batch.
+ */
+internal object AgentCapabilityActivationPolicy {
+  fun failureNote(reason: String): String = when (reason) {
+    "context_limit" ->
+      "\nActivation failed: context_limit. The selected capability schemas exceed the model's available input-token budget. This is a context-size failure, not a permission denial; the previous toolset remains active."
+    else ->
+      "\nActivation failed: $reason. The previous toolset remains active; no operation was executed or approved."
+  }
+
+  fun markActivationFailure(
+    toolResults: List<AgentMessage>,
+    note: String,
+  ): List<AgentMessage> = toolResults.map { result ->
+    if (result.toolName == "activate_capability_group") {
+      result.copy(content = result.content + note, toolSucceeded = false)
+    } else {
+      result
+    }
+  }
+
+  fun requestedGroups(
+    conversationMessages: List<AgentMessage>,
+    toolResults: List<AgentMessage>,
+  ): Set<String>? {
+    if (toolResults.isEmpty() || toolResults.any {
+      it.role != AgentMessage.Role.TOOL ||
+        it.toolName != "activate_capability_group" ||
+        it.toolSucceeded != true ||
+        it.toolCallId.isNullOrBlank()
+    }) {
+      return null
+    }
+    val callIds = toolResults.map { it.toolCallId!! }
+    if (callIds.size != callIds.toSet().size) return null
+
+    // The coordinator records the complete assistant tool-call batch before appending any
+    // corresponding tool results. Validate against that latest transaction, not merely against
+    // whichever matching activation IDs happen to be present in the supplied result subset.
+    val lastResultIndex = conversationMessages.indexOfLast {
+      it.role == AgentMessage.Role.TOOL
+    }
+    if (lastResultIndex < 0) return null
+    var resultStart = lastResultIndex
+    while (resultStart > 0 &&
+      conversationMessages[resultStart - 1].role == AgentMessage.Role.TOOL
+    ) {
+      resultStart--
+    }
+    var callEnd = resultStart - 1
+    if (callEnd < 0 ||
+      conversationMessages[callEnd].role != AgentMessage.Role.ASSISTANT ||
+      conversationMessages[callEnd].toolCallId.isNullOrBlank()
+    ) {
+      return null
+    }
+    var callStart = callEnd
+    while (callStart > 0) {
+      val previous = conversationMessages[callStart - 1]
+      if (previous.role == AgentMessage.Role.ASSISTANT &&
+        !previous.toolCallId.isNullOrBlank()
+      ) {
+        callStart--
+      } else {
+        break
+      }
+    }
+    val batchCalls = conversationMessages.subList(callStart, callEnd + 1).filter {
+      it.role == AgentMessage.Role.ASSISTANT && !it.toolCallId.isNullOrBlank()
+    }
+    val batchResults = conversationMessages.subList(resultStart, lastResultIndex + 1)
+    val batchCallIds = batchCalls.map { it.toolCallId ?: return null }
+    val batchResultIds = batchResults.map { result ->
+      if (result.role != AgentMessage.Role.TOOL || result.toolCallId.isNullOrBlank()) {
+        return null
+      }
+      result.toolCallId
+    }
+    if (batchCallIds.isEmpty() ||
+      batchCallIds.size != batchCallIds.toSet().size ||
+      batchResultIds.size != batchResultIds.toSet().size ||
+      batchCallIds.size != batchResultIds.size ||
+      batchCallIds.toSet() != batchResultIds.toSet()
+    ) {
+      return null
+    }
+
+    val calls = batchCalls.filter { it.toolName == "activate_capability_group" }
+    val expectedActivationIds = calls.map { it.toolCallId ?: return null }
+    if (expectedActivationIds.isEmpty() ||
+      expectedActivationIds.size != callIds.size ||
+      expectedActivationIds.toSet() != callIds.toSet()
+    ) {
+      return null
+    }
+    val groups = calls.map { call ->
+      val id = call.toolArguments
+        ?.get("group_id")
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+        ?.asString
+        ?: return null
+      if (AgentCapabilityGroups.find(id) == null || id == AgentCapabilityGroups.CORE) {
+        return null
+      }
+      id
+    }
+    return groups.toSet()
+  }
+}
+
 /** Pure history policy: compaction removes whole, completed turns only. */
+internal object AgentConversationHistoryPolicy {
+  /** Snapshot all retained turns in their original message order, including the active turn. */
+  fun replayMessages(turns: List<AgentConversationTurn>): List<Message> =
+    turns.flatMap { it.messages }
+}
+
+internal object AgentConversationReplacementPolicy {
+  data class Candidate<T>(val value: T?, val failure: Exception?)
+
+  /** A candidate is publishable only after creation and validation both succeed. */
+  fun <T> createValidated(
+    create: () -> T,
+    validate: (T) -> Unit,
+    closeRejected: (T) -> Unit,
+  ): Candidate<T> {
+    var candidate: T? = null
+    return try {
+      val value = create().also { candidate = it }
+      validate(value)
+      Candidate(value, null)
+    } catch (error: Exception) {
+      candidate?.let { rejected -> runCatching { closeRejected(rejected) } }
+      Candidate(null, error)
+    }
+  }
+}
+
 internal object AgentConversationCompactionPolicy {
   fun shouldCompact(tokenCount: Int, threshold: Int): Boolean = tokenCount >= threshold
 
@@ -120,23 +344,35 @@ internal object AgentConversationCompactionPolicy {
       message.contains("input token ids are too long") ||
         message.contains("exceeding the maximum number of tokens")
     }
+
+  fun groupSwitchFailureReason(error: Throwable?): String =
+    if (error != null && isContextOverflow(error)) "context_limit"
+    else "conversation_rebuild_failed"
 }
 
-class LiteRtLmAgentModel(
-  private var conversation: Conversation,
-  private val conversationFactory: (List<Message>) -> Conversation,
+class LiteRtLmAgentModel internal constructor(
+  private var conversation: AgentNativeConversation,
+  private val conversationFactory: (List<Message>) -> AgentNativeConversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
-  private val onConversationClosed: ((Conversation) -> Unit)? = null,
+  private val onConversationClosed: ((AgentNativeConversation) -> Unit)? = null,
   private val compactAtTokenCount: Int = 3_000,
   private val compactToTokenCount: Int = 2_400,
+  private val fullToolRegistry: AgentToolRegistry? = null,
+  initialVisibleToolRegistry: AgentToolRegistry? = null,
+  private val groupedConversationFactory: ((List<Message>, AgentToolRegistry) -> AgentNativeConversation)? = null,
+  initialGroupIds: Set<String> = emptySet(),
+  private val logger: AgentConversationLogger = AndroidAgentConversationLogger,
 ) : AgentModel, Closeable {
   private val mutex = Mutex()
   private var consumedMessageCount = 0
   private var modelTurn = 0
   private val conversationTurns = mutableListOf<AgentConversationTurn>()
+  private var visibleToolRegistry: AgentToolRegistry? = initialVisibleToolRegistry
+  private val activeGroupIds = initialGroupIds.toMutableSet()
+  @Volatile private var groupSwitchFailureReason: String? = null
   @Volatile private var closed = false
   private val registeredToolSummaries: List<String> =
-    conversation.toolManager.getToolsDescription().mapNotNull { entry ->
+    conversation.toolDescriptions.mapNotNull { entry ->
       val function = entry.asJsonObject.getAsJsonObject("function") ?: return@mapNotNull null
       val name = function.get("name")?.asString ?: return@mapNotNull null
       val schema = function.getAsJsonObject("parameters")
@@ -149,8 +385,7 @@ class LiteRtLmAgentModel(
     require(!conversation.automaticToolCalling) {
       "Agent conversations must disable automatic tool calling."
     }
-    Log.i(
-      TAG,
+    logger.info(
       "Conversation ready: automaticToolCalling=${conversation.automaticToolCalling}, " +
         "registeredTools=${registeredToolSummaries.joinToString(prefix = "[", postfix = "]")}",
     )
@@ -158,6 +393,105 @@ class LiteRtLmAgentModel(
 
   /** Returns the native token count for the current prefetched conversation. */
   suspend fun currentTokenCount(): Int = mutex.withLock { conversation.getTokenCount() }
+
+  /** Current model-visible names, including the always-registered Gallery legacy tools. */
+  fun visibleToolNames(): Set<String> = conversation.toolDescriptions.mapNotNull { entry ->
+    entry.asJsonObject.getAsJsonObject("function")?.get("name")?.asString
+  }.toSet()
+
+  /** Machine-readable reason for the most recent failed group switch, if any. */
+  fun lastGroupSwitchFailureReason(): String? = groupSwitchFailureReason
+
+  /** Deterministic routing selects one group; no match leaves the current projection unchanged. */
+  suspend fun selectGroup(groupId: String): Boolean = mutex.withLock {
+    switchGroupsLocked(setOf(groupId))
+  }
+
+  /** Model-driven activation adds one group to the current task's projection. */
+  suspend fun activateGroup(groupId: String): Boolean = mutex.withLock {
+    switchGroupsLocked(activeGroupIds + groupId)
+  }
+
+  private suspend fun switchGroupsLocked(groupIds: Set<String>): Boolean {
+    groupSwitchFailureReason = null
+    val full = fullToolRegistry ?: run {
+      groupSwitchFailureReason = "registry_unavailable"
+      return false
+    }
+    if (groupedConversationFactory == null) {
+      groupSwitchFailureReason = "conversation_factory_unavailable"
+      return false
+    }
+    if (groupIds.any { AgentCapabilityGroups.find(it) == null || it == AgentCapabilityGroups.CORE }) {
+      groupSwitchFailureReason = "invalid_group"
+      return false
+    }
+    val projected = AgentCapabilityGroups.project(full, groupIds)
+    if (projected.names() == visibleToolRegistry?.names()) {
+      activeGroupIds.clear()
+      activeGroupIds.addAll(groupIds)
+      return true
+    }
+    val retainedMessages = AgentConversationHistoryPolicy.replayMessages(conversationTurns)
+    var replacementTokenCount = -1
+    val switchStartedAtNanos = System.nanoTime()
+    val candidate = withContext(ioDispatcher) {
+      AgentConversationReplacementPolicy.createValidated(
+        create = { groupedConversationFactory(retainedMessages, projected) },
+        validate = { replacementTokenCount = it.getTokenCount() },
+        closeRejected = { failedCandidate ->
+          runCatching { onConversationClosed?.invoke(failedCandidate) }
+            .onFailure { logger.warn("Failed candidate cleanup callback failed.", it) }
+          runCatching { failedCandidate.close() }
+            .onFailure { logger.warn("Failed to close rejected capability conversation.", it) }
+        },
+      )
+    }
+    val replacement = candidate.value ?: run {
+      val failure = candidate.failure
+      groupSwitchFailureReason =
+        AgentConversationCompactionPolicy.groupSwitchFailureReason(failure)
+      AgentExecutionDiagnostics.recordProjection(
+        groups = groupIds,
+        visibleToolCount = projected.names().size,
+        replayMessageCount = retainedMessages.size,
+        nativeTokenCount = null,
+        succeeded = false,
+        failureCategory = groupSwitchFailureReason,
+        durationMs = (System.nanoTime() - switchStartedAtNanos) / 1_000_000,
+      )
+      logger.warn(
+        "Capability conversation rebuild failed (reason=$groupSwitchFailureReason); retaining the active conversation.",
+        failure,
+      )
+      return false
+    }
+    val previous = conversation
+    conversation = replacement
+    visibleToolRegistry = projected
+    activeGroupIds.clear()
+    activeGroupIds.addAll(groupIds)
+    runCatching { onConversationClosed?.invoke(previous) }
+      .onFailure { logger.warn("Previous capability conversation cleanup callback failed.", it) }
+    runCatching { previous.close() }
+      .onFailure { logger.warn("Failed to close previous capability conversation.", it) }
+    val switchLatencyMs = (System.nanoTime() - switchStartedAtNanos) / 1_000_000
+    AgentExecutionDiagnostics.recordProjection(
+      groups = activeGroupIds,
+      visibleToolCount = projected.names().size,
+      replayMessageCount = retainedMessages.size,
+      nativeTokenCount = replacementTokenCount,
+      succeeded = true,
+      failureCategory = null,
+      durationMs = switchLatencyMs,
+    )
+    logger.info(
+      "Capability group projection changed: groups=${activeGroupIds.sorted()}, " +
+        "visibleNativeTools=${projected.names().size}, retainedTurns=${conversationTurns.size}, " +
+        "nativeTokenCount=$replacementTokenCount, switchLatencyMs=$switchLatencyMs",
+    )
+    return true
+  }
 
   override suspend fun generate(messages: List<AgentMessage>): AgentModelResponse =
     mutex.withLock {
@@ -179,13 +513,37 @@ class LiteRtLmAgentModel(
           "${userMessages.size} user and ${toolMessages.size} tool messages."
       }
 
-      val message =
+      var message =
         if (userMessages.isNotEmpty()) {
           userMessages.single().userContents?.let(Message::user)
             ?: Message.user(userMessages.single().content)
         } else {
           buildLiteRtToolResponseMessage(toolMessages)
         }
+      var replayToolMessages = toolMessages
+      val activationResults = toolMessages.filter {
+        it.toolName == "activate_capability_group"
+      }
+      if (activationResults.isNotEmpty()) {
+        val requestedGroups = AgentCapabilityActivationPolicy.requestedGroups(
+          conversationMessages = messages,
+          toolResults = activationResults,
+        )
+        if (requestedGroups.isNullOrEmpty()) {
+          groupSwitchFailureReason = "invalid_activation_request"
+        }
+        val activated = !requestedGroups.isNullOrEmpty() &&
+          switchGroupsLocked(activeGroupIds + requestedGroups)
+        if (!activated) {
+          val reason = groupSwitchFailureReason ?: "invalid_activation_request"
+          val note = AgentCapabilityActivationPolicy.failureNote(reason)
+          replayToolMessages = AgentCapabilityActivationPolicy.markActivationFailure(
+            toolMessages,
+            note,
+          )
+          message = buildLiteRtToolResponseMessage(replayToolMessages)
+        }
+      }
       // Replay history deliberately omits transient image/audio payloads. Tool screenshot bytes
       // are erased after inference, so retaining them here would replay zeroed or private data.
       val replayMessage = if (userMessages.isNotEmpty()) {
@@ -201,7 +559,7 @@ class LiteRtLmAgentModel(
         }
       } else {
         Message.tool(
-          Contents.of(toolMessages.map { toolResult ->
+          Contents.of(replayToolMessages.map { toolResult ->
             val name = toolResult.toolName ?: error("Tool result is missing its tool name.")
             val replayText = if (toolResult.toolImageBytes != null) {
               toolResult.content +
@@ -209,7 +567,10 @@ class LiteRtLmAgentModel(
             } else {
               toolResult.content
             }
-            Content.ToolResponse(name, replayText)
+            Content.ToolResponse(
+              name,
+              serializeToolResultForModel(name, replayText, toolResult.toolSucceeded),
+            )
           })
         )
       }
@@ -221,10 +582,24 @@ class LiteRtLmAgentModel(
       }
       val turnExtraContext = userMessages.singleOrNull()?.extraContext.orEmpty()
       val thinkingRequested = turnExtraContext["enable_thinking"]?.toString() ?: "not-provided"
-      Log.i(
-        TAG,
+      logger.info(
         "Turn request: turn=$modelTurn, thinkingRequested=$thinkingRequested, " +
           "toolResultCount=${toolMessages.size}",
+      )
+      AgentExecutionDiagnostics.recordModelInput(
+        modelTurn = modelTurn,
+        visibleTools = visibleToolNames().sorted(),
+        nativeContextTokensBeforeInference = runCatching { conversation.getTokenCount() }.getOrNull(),
+      )
+      // Debug diagnostics capture only android_device_info payloads. The serialized value below
+      // is produced by the same function used to construct the actual LiteRT-LM ToolResponse.
+      AgentExecutionDiagnostics.recordModelToolHandoff(
+        modelTurn,
+        replayToolMessages.mapNotNull { result ->
+          val name = result.toolName ?: return@mapNotNull null
+          if (name != "android_device_info") return@mapNotNull null
+          name to serializeToolResultForModel(name, result.content, result.toolSucceeded)
+        },
       )
       val response = try {
         sendMessageCancellable(message, extraContext = turnExtraContext)
@@ -253,7 +628,18 @@ class LiteRtLmAgentModel(
         toolCalls = response.toolCalls,
         channels = response.channels,
       )
-      Log.i(TAG, "Response protocol: turn=$modelTurn, $responseSummary")
+      val nativeContextTokensAfterResponse = runCatching { conversation.getTokenCount() }.getOrNull()
+      AgentExecutionDiagnostics.recordModelOutput(
+        modelTurn = modelTurn,
+        structuredCalls = response.toolCalls.map { call ->
+          AgentExecutionDiagnostics.ToolCallSummary(call.name, call.arguments.keys.sorted())
+        },
+        contentChars = content.length,
+        channelNames = response.channels.keys.sorted(),
+        unparsedToolMarkers = LiteRtLmResponseProtocol.hasUnparsedToolCallMarkers(content, response.channels),
+        nativeContextTokensAfterResponse = nativeContextTokensAfterResponse,
+      )
+      logger.info("Response protocol: turn=$modelTurn, $responseSummary")
 
       if (response.toolCalls.isNotEmpty()) {
         val calls = response.toolCalls.mapIndexed { index, call ->
@@ -270,16 +656,17 @@ class LiteRtLmAgentModel(
             "The model emitted native tool-call markers, but LiteRT-LM did not return a structured " +
               "toolCalls entry. No tool was executed. Protocol diagnostics: $responseSummary. " +
               "Registered tool schemas: ${registeredToolSummaries.joinToString(prefix = "[", postfix = "]")}."
-          Log.e(TAG, failure)
+          logger.error(failure)
           throw IllegalStateException(failure)
         }
         if (content.isBlank() && response.channels.isNotEmpty()) {
           val failure =
             "LiteRT-LM returned channel-only output without a final content message or structured " +
               "tool call. No tool was executed. Protocol diagnostics: $responseSummary."
-          Log.e(TAG, failure)
+          logger.error(failure)
           throw IllegalStateException(failure)
         }
+        AgentExecutionDiagnostics.recordRawModelOutput(modelTurn, content)
         AgentModelResponse.FinalAnswer(content)
       }
     }
@@ -293,7 +680,7 @@ class LiteRtLmAgentModel(
     var tokenCount = try {
       conversation.getTokenCount()
     } catch (error: Exception) {
-      Log.w(TAG, "Unable to read native context token count; leaving conversation unchanged.", error)
+      logger.warn("Unable to read native context token count; leaving conversation unchanged.", error)
       return@withContext
     }
     if (!AgentConversationCompactionPolicy.shouldCompact(tokenCount, compactAtTokenCount)) {
@@ -303,27 +690,44 @@ class LiteRtLmAgentModel(
     while (tokenCount > compactToTokenCount) {
       val retainedTurns =
         AgentConversationCompactionPolicy.dropOldestCompletedTurn(conversationTurns) ?: break
-      val retainedMessages = retainedTurns.flatMap { it.messages }
-      val replacement = try {
-        conversationFactory(retainedMessages)
-      } catch (error: Exception) {
-        Log.w(TAG, "Native conversation rebuild failed; retaining the existing conversation.", error)
+      val retainedMessages = AgentConversationHistoryPolicy.replayMessages(retainedTurns)
+      var validatedTokenCount = -1
+      val candidate = AgentConversationReplacementPolicy.createValidated(
+        create = {
+          val groupedFactory = groupedConversationFactory
+          val selectedRegistry = visibleToolRegistry
+          if (groupedFactory != null && selectedRegistry != null) {
+            groupedFactory(retainedMessages, selectedRegistry)
+          } else {
+            conversationFactory(retainedMessages)
+          }
+        },
+        validate = { validatedTokenCount = it.getTokenCount() },
+        closeRejected = { failedCandidate ->
+          runCatching { onConversationClosed?.invoke(failedCandidate) }
+          runCatching { failedCandidate.close() }
+        },
+      )
+      val replacement = candidate.value
+      if (replacement == null) {
+        logger.warn(
+          "Native conversation rebuild or validation failed; retaining the existing conversation.",
+          candidate.failure,
+        )
         break
       }
+      val replacementTokenCount = validatedTokenCount
+      // Commit the replacement only after it has been created and its native token count read.
+      // A failed candidate must never displace the last known-good conversation or drop history.
       val previous = conversation
       conversation = replacement
       conversationTurns.removeAt(0)
-      onConversationClosed?.invoke(previous)
+      runCatching { onConversationClosed?.invoke(previous) }
+        .onFailure { logger.warn("Previous conversation cleanup callback failed.", it) }
       runCatching { previous.close() }
-        .onFailure { Log.w(TAG, "Failed to close compacted native conversation.", it) }
-      tokenCount = try {
-        replacement.getTokenCount()
-      } catch (error: Exception) {
-        Log.w(TAG, "Unable to read rebuilt context token count.", error)
-        break
-      }
-      Log.i(
-        TAG,
+        .onFailure { logger.warn("Failed to close compacted native conversation.", it) }
+      tokenCount = replacementTokenCount
+      logger.info(
         "Native context compacted: tokenCount=$tokenCount, retainedTurns=${conversationTurns.size}",
       )
     }
@@ -351,45 +755,6 @@ class LiteRtLmAgentModel(
         runCatching { conversation.cancelProcess() }
       }
     }
-
-  /**
-   * Adapts the legacy Gallery tools registered on this manual conversation's ToolManager. The
-   * coordinator remains the only dispatcher; the ToolManager is used only as the existing
-   * reflection-backed invocation adapter for Gallery ToolDefinitions.
-   */
-  fun toolRegistry(additionalTools: AgentToolRegistry = AgentToolRegistry(emptyList())): AgentToolRegistry {
-    val legacyTools = conversation.toolManager.getToolsDescription().map { entry ->
-      val function = entry.asJsonObject.getAsJsonObject("function")
-      val toolName = function.get("name").asString
-      val toolDescription = function.get("description")?.asString.orEmpty()
-      val schema = function.getAsJsonObject("parameters")?.deepCopy() ?: JsonObject()
-      object : AgentTool {
-        override val name: String = toolName
-        override val description: String = toolDescription
-        override val parametersSchema: JsonObject = schema
-
-        override suspend fun execute(arguments: JsonObject): AgentToolResult {
-          val result = withContext(Dispatchers.IO) {
-            conversation.toolManager.execute(toolName, arguments)
-          }
-          val content =
-            if (result is JsonPrimitive && result.isString) result.asString else result.toString()
-          val failed =
-            (result.isJsonObject && (
-              result.asJsonObject.get("status")?.asString == "failed" ||
-                result.asJsonObject.has("error")
-            )) ||
-              (result is JsonPrimitive && result.isString &&
-                result.asString.startsWith("Error occured."))
-          return AgentToolResult(content, !failed)
-        }
-      }
-    }
-    val preferredNames = additionalTools.names()
-    return AgentToolRegistry(
-      additionalTools.all() + legacyTools.filterNot { it.name in preferredNames }
-    )
-  }
 
   /** Interrupts native inference without closing the shared model engine. */
   fun interrupt() {

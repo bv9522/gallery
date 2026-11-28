@@ -53,6 +53,7 @@ enum class ChatMessageType {
   WEBVIEW,
   COLLAPSABLE_PROGRESS_PANEL,
   THINKING,
+  AUTHORITATIVE_TOOL_RESULT,
   DIVIDER,
 }
 
@@ -163,6 +164,20 @@ open class ChatMessageText(
       )
     return cloned
   }
+}
+
+/** Display-only authoritative evidence from one completed tool invocation. */
+class ChatMessageToolResult(
+  val result: com.google.ai.edge.gallery.agent.coordinator.AuthoritativeToolResult,
+  override val id: String = UUID.randomUUID().toString(),
+) : ChatMessage(
+  type = ChatMessageType.AUTHORITATIVE_TOOL_RESULT,
+  side = ChatSide.AGENT,
+  hideSenderLabel = true,
+  disableBubbleShape = true,
+  id = id,
+) {
+  override fun clone(): ChatMessageToolResult = ChatMessageToolResult(result, id)
 }
 
 /** Chat message for images. */
@@ -478,6 +493,7 @@ class ChatMessageCollapsableProgressPanel(
   val items: List<ProgressPanelItem> = listOf(),
   val logMessages: List<LogMessage> = listOf(),
   val customData: Any? = null,
+  val copyLogsEnabled: Boolean = false,
 ) :
   ChatMessage(
     type = ChatMessageType.COLLAPSABLE_PROGRESS_PANEL,
@@ -493,9 +509,31 @@ class ChatMessageCollapsableProgressPanel(
       items = items.toList(),
       logMessages = logMessages.toList(),
       customData = customData,
+      copyLogsEnabled = copyLogsEnabled,
     )
   }
 }
+
+
+/** Formats diagnostic log entries as plain text for sharing outside the app. */
+internal fun formatDiagnosticsForClipboard(
+  title: String,
+  accelerator: String,
+  logs: List<LogMessage>,
+): String = buildString {
+  appendLine(title)
+  if (accelerator.isNotBlank()) appendLine("Accelerator: $accelerator")
+  appendLine("Entries: ${logs.size}")
+  logs.forEach { log ->
+    append("[${log.level.name}] ")
+    if (log.source.isNotBlank()) {
+      append(log.source)
+      if (log.lineNumber >= 0) append(":${log.lineNumber}")
+      append(" — ")
+    }
+    appendLine(log.message)
+  }
+}.trimEnd()
 
 /** Chat message for showcasing a thought process. */
 class ChatMessageThinking(

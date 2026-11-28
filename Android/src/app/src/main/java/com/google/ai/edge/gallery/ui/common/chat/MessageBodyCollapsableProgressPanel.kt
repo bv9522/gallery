@@ -76,7 +76,7 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
   Column(
     modifier =
       Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-        .clickable { isExpanded = !isExpanded }
+        .clickable(enabled = message.items.isNotEmpty()) { isExpanded = !isExpanded }
         .fillMaxWidth()
   ) {
     // Header Row: Contains the title and the expand/collapse button
@@ -118,16 +118,18 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
       }
 
       // Expand/Collapse Button on the right side
-      Icon(
-        imageVector =
-          if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-        contentDescription = if (isExpanded) "Collapse panel" else "Expand panel",
-      )
+      if (message.items.isNotEmpty()) {
+        Icon(
+          imageVector =
+            if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+          contentDescription = if (isExpanded) "Collapse panel" else "Expand panel",
+        )
+      }
     }
 
     // Collapsable Content: Shown only when isExpanded is true
     AnimatedVisibility(
-      visible = isExpanded,
+      visible = isExpanded && message.items.isNotEmpty(),
       enter = expandVertically(),
       exit = shrinkVertically(),
     ) {
@@ -188,27 +190,38 @@ fun MessageBodyCollapsableProgressPanel(message: ChatMessageCollapsableProgressP
           }
         }
 
-        if (message.logMessages.isNotEmpty()) {
-          Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomEnd) {
-            AssistChip(
-              onClick = { showLogsViewer = true },
-              label = { Text(stringResource(R.string.view_console_logs)) },
-              leadingIcon = {
-                Icon(
-                  Icons.AutoMirrored.Outlined.Article,
-                  contentDescription = null,
-                  Modifier.size(AssistChipDefaults.IconSize),
-                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              },
-            )
-          }
-        }
       }
     }
+    if (message.logMessages.isNotEmpty()) {
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        AssistChip(
+          onClick = { showLogsViewer = true },
+          label = { Text(stringResource(R.string.view_console_logs)) },
+          leadingIcon = {
+            Icon(
+              Icons.AutoMirrored.Outlined.Article,
+              contentDescription = null,
+              Modifier.size(AssistChipDefaults.IconSize),
+              tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          },
+        )
+      }
+    }
+
   }
 
   if (showLogsViewer) {
-    LogsViewer(logs = message.logMessages, onDismissRequest = { showLogsViewer = false })
+    LogsViewer(
+      logs = message.logMessages,
+      onDismissRequest = { showLogsViewer = false },
+      title = message.title,
+      accelerator = message.accelerator,
+      copyEnabled = message.copyLogsEnabled,
+    )
   }
 }

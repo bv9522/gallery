@@ -16,12 +16,14 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.ai.edge.gallery.agent.coordinator.AgentCapabilityGroups
 import com.google.ai.edge.gallery.data.AgentDownloadOperations
 import com.google.ai.edge.gallery.data.AgentDownloadSnapshot
 import com.google.ai.edge.gallery.tools.CapturePhotoToolAction
 import com.google.ai.edge.gallery.tools.RequestPermissionToolAction
 import com.google.ai.edge.gallery.tools.ToolAction
 import com.google.gson.JsonObject
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -31,6 +33,70 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AndroidNativeCapabilityToolTest {
+  @Test
+  fun focusedNativeToolExposesOnlyItsOperationsAndArguments() = runBlocking {
+    val tool = AndroidNativeCapabilityTool(
+      adapter = FakeNativeCapabilityOperations(),
+      allowedOperations = setOf("bluetooth_le_scan"),
+      toolName = "android_connectivity",
+    )
+    val properties = tool.parametersSchema.getAsJsonObject("properties")
+    val operations = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+      .map { it.asString }
+
+    assertEquals(listOf("bluetooth_le_scan"), operations)
+    assertTrue(properties.has("duration_ms"))
+    assertFalse(properties.has("plaintext"))
+    assertFalse(properties.has("phone_number"))
+
+    val rejected = tool.execute(JsonObject().apply { addProperty("operation", "device_info") })
+    assertFalse(rejected.isSuccessful)
+    assertTrue(rejected.content.contains("not available through capability tool"))
+  }
+
+  @Test
+  fun everyFocusedNativeSchemaStaysCompactAndContainsOnlyItsAssignedOperations() {
+    AgentCapabilityGroups.androidNativeGroups.forEach { group ->
+      val schema = AndroidNativeCapabilityTool(
+        adapter = FakeNativeCapabilityOperations(),
+        allowedOperations = group.operationNames,
+        toolName = group.id,
+      ).parametersSchema
+      val properties = schema.getAsJsonObject("properties")
+      val exposed = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+        .map { it.asString }
+
+      assertEquals("Unexpected operations in ${group.id}", group.operationNames, exposed.toSet())
+      assertTrue("${group.id} schema is not compact: ${schema.toString().length} chars", schema.toString().length < 4_500)
+    }
+  }
+
+  @Test
+  fun androidControlSchemaKeepsEveryOperationAndSafetyCriticalArgumentGuidanceCompactly() {
+    val schema = AndroidNativeCapabilityTool(adapter = FakeNativeCapabilityOperations()).parametersSchema
+    val properties = schema.getAsJsonObject("properties")
+    val operations = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+      .map { it.asString }
+
+    assertTrue(operations.containsAll(listOf(
+      "device_info", "bluetooth_gatt_write", "read_notifications", "read_call_log",
+      "read_sms_inbox", "usb_read_descriptors", "capture_photo", "keystore_decrypt",
+      "media_search", "media_play",
+    )))
+    assertTrue(operations.size >= 45)
+    assertTrue(properties.getAsJsonObject("volume").get("description").asString.contains("selected stream"))
+    assertTrue(properties.getAsJsonObject("duration_ms").has("description"))
+    assertEquals(2, properties.getAsJsonObject("importance").get("minimum").asInt)
+    assertEquals(4, properties.getAsJsonObject("importance").get("maximum").asInt)
+    assertEquals(0, properties.getAsJsonObject("hour").get("minimum").asInt)
+    assertEquals(23, properties.getAsJsonObject("hour").get("maximum").asInt)
+    assertTrue(properties.getAsJsonObject("usb_handle").has("description"))
+    assertTrue(properties.getAsJsonObject("phone_number").has("description"))
+    assertTrue(properties.getAsJsonObject("sms_message").has("description"))
+    assertTrue(properties.getAsJsonObject("media_handle").has("description"))
+    assertTrue(schema.toString().length < 6_200)
+  }
+
   @Test
   fun usbDescriptorReadRequiresExplicitOperationAndFreshHandle() = runBlocking {
     val adapter = FakeNativeCapabilityOperations()
@@ -244,7 +310,11 @@ class AndroidNativeCapabilityToolTest {
     val providerStatus = tool.execute(arguments("status"))
     val result = tool.execute(arguments("download_status"))
 
-    assertTrue(providerStatus.content.contains("DOWNLOAD_MANAGEMENT=AVAILABLE"))
+    val providerStatusJson = com.google.gson.JsonParser.parseString(providerStatus.content).asJsonObject
+    assertTrue(
+      providerStatusJson.getAsJsonObject("capabilities")
+        .get(AndroidCapability.DOWNLOAD_MANAGEMENT.name).asString == ProviderAvailability.AVAILABLE.name
+    )
     assertTrue(result.isSuccessful)
     assertTrue(result.content.contains("model=Gemma E2B"))
     assertTrue(result.content.contains("phase=RUNNING"))
@@ -824,6 +894,62 @@ class AndroidNativeCapabilityToolTest {
       cancelledHandles += handle
       onResult(handle == snapshot.handle)
     }
+  }
+
+
+  @Test
+  fun permissionRevocationIsRecheckedOnEveryToolExecution() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val first = tool.execute(arguments("read_notifications"))
+    assertTrue(first.isSuccessful)
+    assertEquals(1, adapter.discoveryCalls.count { it == "read_notifications" })
+
+    adapter.availability[AndroidCapability.NOTIFICATION_READ] =
+      ProviderAvailability.PERMISSION_REQUIRED
+    val afterRevocation = tool.execute(arguments("read_notifications"))
+
+    assertFalse(afterRevocation.isSuccessful)
+    assertTrue(afterRevocation.content.contains("Notification-listener"))
+    assertEquals(1, adapter.discoveryCalls.count { it == "read_notifications" })
+  }
+
+  @Test
+  fun providerUnavailabilityIsRecheckedBeforeEveryOperation() = runBlocking {
+    val adapter = FakeNativeCapabilityOperations()
+    val tool = AndroidNativeCapabilityTool(adapter = adapter)
+
+    val first = tool.execute(arguments("read_notifications"))
+    assertTrue(first.isSuccessful)
+
+    adapter.availability[AndroidCapability.NOTIFICATION_READ] =
+      ProviderAvailability.SERVICE_STOPPED
+    val afterProviderStops = tool.execute(arguments("read_notifications"))
+
+    assertFalse(afterProviderStops.isSuccessful)
+    assertEquals(1, adapter.discoveryCalls.count { it == "read_notifications" })
+  }
+
+  @Test
+  fun runtimePermissionRequestCancellationPropagatesAndCompletesAsDenied() = runBlocking {
+    val actions = Channel<ToolAction>(Channel.UNLIMITED)
+    val requester = ChannelNativeRuntimePermissionRequester(actions, timeoutMs = 10_000L)
+    val request = async {
+      requester.request("android.permission.BLUETOOTH_CONNECT")
+    }
+    val action = actions.receive() as RequestPermissionToolAction
+    request.cancel()
+
+    try {
+      request.await()
+      throw AssertionError("Expected permission-request cancellation to propagate.")
+    } catch (_: kotlinx.coroutines.CancellationException) {
+      assertTrue(action.result.isCompleted)
+      assertFalse(action.result.await())
+    }
+    actions.close()
+    Unit
   }
 
   private class FakeNativeCapabilityOperations : NativeCapabilityOperations {

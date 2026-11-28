@@ -16,88 +16,123 @@
 
 package com.google.ai.edge.gallery.agent.capability
 
+import com.google.gson.JsonArray
+import com.google.gson.JsonNull
+import com.google.gson.JsonObject
+
 /**
- * Converts native framework values into compact, deterministic tool output.
+ * Converts native framework values into compact, typed JSON tool output.
  *
- * Field labels are explicit so a small model can relay facts without having to infer which
- * positional or raw integer value represents a device property.
+ * Structured values remain numbers, booleans, arrays, objects, or null instead of being flattened
+ * into prose. Explicit field names and units help small models relay facts without inference.
  */
 internal object NativeCapabilityResultFormatter {
-  fun deviceInfo(info: NativeDeviceInfo): String = listOf(
-    "manufacturer=${oneLine(info.manufacturer)}",
-    "brand=${oneLine(info.brand)}",
-    "modelIdentifier=${oneLine(info.model)}",
-    "deviceCode=${oneLine(info.device)}",
-    "androidVersion=${oneLine(info.androidRelease)}",
-    "sdkInt=${info.sdkInt}",
-    "securityPatch=${info.securityPatch?.let(::oneLine) ?: "unknown"}",
-  ).joinToString("\n")
+  fun deviceInfo(info: NativeDeviceInfo): String = jsonObject {
+    addProperty("manufacturer", oneLine(info.manufacturer))
+    addProperty("brand", oneLine(info.brand))
+    addProperty("model_identifier", oneLine(info.model))
+    addProperty("device_code", oneLine(info.device))
+    addProperty("android_version", oneLine(info.androidRelease))
+    addProperty("sdk_int", info.sdkInt)
+    addNullableString("security_patch", info.securityPatch?.let(::oneLine))
+  }
 
-  fun batteryStatus(status: NativeBatteryStatus): String = listOf(
-    "batteryPercent=${status.percent?.toString() ?: "unknown"}",
-    "batteryState=${status.state}",
-    "charging=${status.charging?.toString() ?: "unknown"}",
-    "powerSource=${status.plugged ?: "unknown"}",
-    "temperatureCelsius=${status.temperatureCelsius?.toString() ?: "unknown"}",
-    "voltageMillivolts=${status.voltageMillivolts?.toString() ?: "unknown"}",
-  ).joinToString("\n")
+  fun batteryStatus(status: NativeBatteryStatus): String = jsonObject {
+    addNullableNumber("battery_percent", status.percent)
+    addProperty("battery_state", status.state)
+    addNullableBoolean("charging", status.charging)
+    addProperty("power_source", status.plugged ?: "unknown")
+    addNullableNumber("temperature_celsius", status.temperatureCelsius)
+    addNullableNumber("voltage_millivolts", status.voltageMillivolts)
+    add("units", JsonObject().apply {
+      addProperty("battery_percent", "%")
+      addProperty("temperature_celsius", "°C")
+      addProperty("voltage_millivolts", "mV")
+    })
+  }
 
   fun audioDevices(devices: List<NativeAudioDevice>): String {
     val entries = devices.take(MAX_AUDIO_DEVICES_IN_TOOL_RESULT)
     val remaining = (devices.size - entries.size).coerceAtLeast(0)
-    return buildString {
-      appendLine("returned=${entries.size}")
-      appendLine("total=${devices.size}")
-      appendLine("truncated=${remaining > 0}")
-      appendLine("remaining=$remaining")
-      if (entries.isEmpty()) {
-        append("No audio input or output devices were reported.")
-      } else {
-        append(entries.joinToString("\n") { device ->
-          "id=${device.id},type=${device.type},name=${oneLine(device.productName)},source=${device.source},sink=${device.sink}"
-        })
-      }
+    return jsonObject {
+      addProperty("returned", entries.size)
+      addProperty("total", devices.size)
+      addProperty("truncated", remaining > 0)
+      addProperty("remaining", remaining)
+      add("devices", JsonArray().apply {
+        entries.forEach { device ->
+          add(JsonObject().apply {
+            addProperty("id", device.id)
+            addProperty("type", device.type)
+            addProperty("name", oneLine(device.productName))
+            addProperty("source", device.source)
+            addProperty("sink", device.sink)
+          })
+        }
+      })
     }
   }
 
-  fun displayBrightness(brightness: NativeDisplayBrightness): String = listOf(
-    "brightnessLevel=${brightness.level?.toString() ?: "unknown"}",
-    "brightnessMaximum=${brightness.maximum}",
-    "brightnessMode=${brightness.mode}",
-    "canModifySystemSettings=${brightness.canModifySystemSettings}",
-  ).joinToString("\n")
+  fun displayBrightness(brightness: NativeDisplayBrightness): String = jsonObject {
+    addNullableNumber("brightness_level", brightness.level)
+    addProperty("brightness_maximum", brightness.maximum)
+    addProperty("brightness_mode", brightness.mode)
+    addProperty("can_modify_system_settings", brightness.canModifySystemSettings)
+    addProperty("units", "0-255")
+  }
 
-  fun providerAvailability(observation: CapabilityProviderObservation): String = buildString {
-    appendLine("provider=${observation.providerId.name}")
-    appendLine("providerAvailability=${observation.availability.name}")
-    appendLine("diagnosticOnly=true")
-    observation.capabilityAvailability.toSortedMap().forEach { (capability, state) ->
-      appendLine("${capability.name}=${state.name}")
-      observation.capabilityDetails[capability]?.let { detail ->
-        appendLine("${capability.name}_detail=${oneLine(detail)}")
+  fun providerAvailability(observation: CapabilityProviderObservation): String = jsonObject {
+    addProperty("provider", observation.providerId.name)
+    addProperty("provider_availability", observation.availability.name)
+    addProperty("diagnostic_only", true)
+    add("capabilities", JsonObject().apply {
+      observation.capabilityAvailability.toSortedMap().forEach { (capability, state) ->
+        addProperty(capability.name, state.name)
       }
-    }
-  }.trimEnd()
+    })
+    add("details", JsonObject().apply {
+      observation.capabilityDetails.toSortedMap().forEach { (capability, detail) ->
+        addProperty(capability.name, oneLine(detail))
+      }
+    })
+  }
 
   fun launchableApps(
     apps: List<NativeLaunchableApp>,
     limit: Int = MAX_APPS_IN_TOOL_RESULT,
   ): String {
     val safeLimit = limit.coerceIn(1, MAX_APPS_IN_TOOL_RESULT)
-    val entries = apps.take(safeLimit).map { app ->
-      "${oneLine(app.label).take(MAX_APP_LABEL_LENGTH)} — ${oneLine(app.packageName)}"
-    }
+    val entries = apps.take(safeLimit)
     val remaining = (apps.size - entries.size).coerceAtLeast(0)
-    val truncated = remaining > 0
-    return buildString {
-      appendLine("returned=${entries.size}")
-      appendLine("total=${apps.size}")
-      appendLine("truncated=$truncated")
-      appendLine("remaining=$remaining")
-      appendLine(if (truncated) "Truncated: YES; ${remaining} apps are not included." else "Truncated: NO")
-      if (entries.isNotEmpty()) append(entries.joinToString("\n"))
-      else append("No launcher-visible apps were found.")
+    return jsonObject {
+      addProperty("returned", entries.size)
+      addProperty("total", apps.size)
+      addProperty("truncated", remaining > 0)
+      addProperty("remaining", remaining)
+      add("apps", JsonArray().apply {
+        entries.forEach { app ->
+          add(JsonObject().apply {
+            addProperty("label", oneLine(app.label).take(MAX_APP_LABEL_LENGTH))
+            addProperty("package_name", oneLine(app.packageName))
+          })
+        }
+      })
     }
+  }
+
+  private fun jsonObject(build: JsonObject.() -> Unit): String =
+    JsonObject().apply(build).toString()
+
+  private fun JsonObject.addNullableString(name: String, value: String?) {
+    add(name, value?.let { com.google.gson.JsonPrimitive(it) } ?: JsonNull.INSTANCE)
+  }
+
+  private fun JsonObject.addNullableNumber(name: String, value: Number?) {
+    add(name, value?.let { com.google.gson.JsonPrimitive(it) } ?: JsonNull.INSTANCE)
+  }
+
+  private fun JsonObject.addNullableBoolean(name: String, value: Boolean?) {
+    add(name, value?.let { com.google.gson.JsonPrimitive(it) } ?: JsonNull.INSTANCE)
   }
 
   private fun oneLine(value: String): String =

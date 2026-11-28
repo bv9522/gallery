@@ -16,6 +16,7 @@
 
 package com.google.ai.edge.gallery.agent.coordinator
 
+import com.google.ai.edge.gallery.agent.AgentExecutionDiagnostics
 import com.google.ai.edge.litertlm.Contents
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
@@ -31,6 +32,8 @@ data class AgentRunResult(
   val modelTurns: Int,
   val toolCalls: Int,
   val messages: List<AgentMessage>,
+  /** Successful and failed bounded tool results captured for this run only. */
+  val authoritativeToolResults: List<AuthoritativeToolResult> = emptyList(),
 ) {
   val isSuccessful: Boolean get() = status == AgentRunStatus.COMPLETED
 }
@@ -41,6 +44,8 @@ class AgentCoordinator(
   private val tools: AgentToolRegistry,
   private val maxModelTurns: Int = DEFAULT_MAX_MODEL_TURNS,
   private val resultBudget: AgentToolResultBudget = AgentToolResultBudget(),
+  /** Dynamic model-visible allowlist; the full registry remains available for dispatch. */
+  private val visibleToolNames: (() -> Set<String>)? = null,
 ) {
   private val runMutex = Mutex()
   private val conversationMessages = mutableListOf<AgentMessage>()
@@ -58,6 +63,9 @@ class AgentCoordinator(
     userInput: String,
     userContents: Contents? = null,
     extraContext: Map<String, Any> = emptyMap(),
+    sessionId: String? = null,
+    userTurnId: String? = null,
+    onToolResult: suspend (AuthoritativeToolResult) -> Unit = {},
   ): AgentRunResult =
     runMutex.withLock {
       require(userInput.isNotBlank() || userContents != null) {
@@ -73,6 +81,7 @@ class AgentCoordinator(
       )
       var modelTurns = 0
       var toolCalls = 0
+      val authoritativeToolResults = mutableListOf<AuthoritativeToolResult>()
 
       try {
         while (modelTurns < maxModelTurns) {
@@ -95,14 +104,15 @@ class AgentCoordinator(
                 modelTurns,
                 toolCalls,
                 conversationMessages.toList(),
+                authoritativeToolResults.toList(),
               )
             }
             is AgentModelResponse.ToolCall -> {
-              executeToolCalls(listOf(response), conversationMessages)
+              executeToolCalls(listOf(response), conversationMessages, authoritativeToolResults, onToolResult)
               toolCalls++
             }
             is AgentModelResponse.ToolCalls -> {
-              executeToolCalls(response.calls, conversationMessages)
+              executeToolCalls(response.calls, conversationMessages, authoritativeToolResults, onToolResult)
               toolCalls += response.calls.size
             }
           }
@@ -117,6 +127,7 @@ class AgentCoordinator(
           modelTurns,
           toolCalls,
           conversationMessages.toList(),
+          authoritativeToolResults.toList(),
         )
       } catch (cancelled: CancellationException) {
         rollbackTo(previousSize)
@@ -138,6 +149,8 @@ class AgentCoordinator(
   private suspend fun executeToolCalls(
     calls: List<AgentModelResponse.ToolCall>,
     messages: MutableList<AgentMessage>,
+    authoritativeResults: MutableList<AuthoritativeToolResult>,
+    onToolResult: suspend (AuthoritativeToolResult) -> Unit,
   ) {
     // Preserve the model's complete batch before executing any member of it.
     calls.forEach { call ->
@@ -151,6 +164,11 @@ class AgentCoordinator(
     // Execute sequentially: shell sessions are stateful and ordering must be deterministic.
     calls.forEach { call ->
       val result = executeToolCall(call)
+      val authoritative = AuthoritativeToolResult.capture(
+        call, result, result.content, sessionId, userTurnId,
+      )
+      authoritativeResults += authoritative
+      onToolResult(authoritative)
       messages += AgentMessage(
         role = AgentMessage.Role.TOOL,
         content = result.content,
@@ -163,15 +181,29 @@ class AgentCoordinator(
   }
 
   private suspend fun executeToolCall(call: AgentModelResponse.ToolCall): AgentToolResult {
-    val tool = tools.find(call.name)
-      ?: return AgentToolResult(
-        content = "Unknown tool '" + call.name + "'. Available tools: " +
-          tools.names().sorted().joinToString(", "),
+    val startedAtNanos = System.nanoTime()
+    val visibleNames = visibleToolNames?.invoke()
+    if (visibleNames != null && call.name !in visibleNames) {
+      val rejected = AgentToolResult(
+        content = "Tool '" + call.name + "' is not currently exposed for this task. Discover and activate its capability group first.",
         isSuccessful = false,
       )
+      AgentExecutionDiagnostics.recordToolDispatch(call.name, call.arguments, "rejected_not_exposed", false, elapsedMs(startedAtNanos), rejected.content)
+      return rejected
+    }
+    val tool = tools.find(call.name) ?: run {
+      val rejected = AgentToolResult(
+        content = "Unknown tool '" + call.name +
+          "'. Use the available discovery tools to find the correct capability before retrying.",
+        isSuccessful = false,
+      )
+      AgentExecutionDiagnostics.recordToolDispatch(call.name, call.arguments, "rejected_unknown_tool", false, elapsedMs(startedAtNanos), rejected.content)
+      return rejected
+    }
     val result = try {
       tool.execute(call.arguments.deepCopy())
     } catch (cancelled: CancellationException) {
+      AgentExecutionDiagnostics.recordToolDispatch(call.name, call.arguments, "cancelled", false, elapsedMs(startedAtNanos), "cancelled")
       throw cancelled
     } catch (error: Exception) {
       AgentToolResult(
@@ -187,12 +219,28 @@ class AgentCoordinator(
       if (imageRejected) result.content + "\nImage payload omitted because the multimodal result budget was exceeded."
       else result.content
     )
-    return result.copy(
+    val finalResult = result.copy(
       content = boundedContent,
       isSuccessful = result.isSuccessful && !imageRejected,
+      outcome = if (imageRejected) AgentToolOutcome.FAILED else result.outcome,
       imageBytes = boundedImage,
+      structuredContent = result.structuredContent?.takeIf {
+        boundedContent == result.content && it.toString() == boundedContent
+      }?.deepCopy(),
+      shellDetails = result.shellDetails?.let { details ->
+        if (boundedContent == result.content) details
+        else details.copy(stdout = "", stderr = "", outputTruncated = true)
+      },
     )
+    AgentExecutionDiagnostics.recordToolDispatch(
+      call.name, call.arguments, "dispatched", finalResult.isSuccessful,
+      elapsedMs(startedAtNanos), if (finalResult.isSuccessful) null else finalResult.content,
+    )
+    return finalResult
   }
+
+  private fun elapsedMs(startedAtNanos: Long): Long =
+    ((System.nanoTime() - startedAtNanos) / 1_000_000).coerceAtLeast(0)
 
   /** Erases image payloads from a failed/cancelled turn before rolling history back. */
   private fun rollbackTo(previousSize: Int) {

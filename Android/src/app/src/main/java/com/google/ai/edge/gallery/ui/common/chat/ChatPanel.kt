@@ -606,6 +606,8 @@ fun ChatPanel(
 
               // Message body.
               when (message) {
+                is ChatMessageToolResult ->
+                  MessageBodyToolResult(message = message, onCopyClicked = copyToClipboard)
                 // Loading.
                 is ChatMessageLoading -> MessageBodyLoading(message = message)
 

@@ -44,11 +44,18 @@ class AgentSystemInstructionTest {
     val instruction = buildAgentSystemInstruction(null)
 
     assertTrue(instruction.contains("Discovery is read-only"))
+    assertTrue(instruction.contains("Treat tool results as authoritative"))
+    assertTrue(instruction.contains("Preserve numeric values exactly"))
+    assertTrue(instruction.contains("Keep JSON numbers, strings, booleans, and null distinct"))
     assertTrue(instruction.contains("fail closed"))
     assertTrue(instruction.contains("No backend substitution or shell fallback"))
     assertTrue(instruction.contains("only on explicit request"))
     assertTrue(instruction.contains("fresh opaque handles"))
+    assertTrue(instruction.contains("exact scoped one-time approval"))
+    assertTrue(instruction.contains("exactly one visible target app"))
     assertTrue(instruction.contains("separate consent naming provider"))
+    assertTrue(instruction.contains("display_brightness to read"))
+    assertTrue(instruction.contains("set_display_brightness only for explicit change requests"))
   }
 
   private companion object {

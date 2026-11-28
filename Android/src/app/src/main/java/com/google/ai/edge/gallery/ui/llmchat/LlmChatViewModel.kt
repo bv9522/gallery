@@ -29,6 +29,7 @@ import com.google.ai.edge.gallery.agent.AgentEvent
 import com.google.ai.edge.gallery.agent.AgentExecutionContext
 import com.google.ai.edge.gallery.agent.AgentRequest
 import com.google.ai.edge.gallery.agent.AgentPromptComponentSize
+import com.google.ai.edge.gallery.agent.AgentExecutionDiagnosticsUi
 import com.google.ai.edge.gallery.agent.AgentRuntimeConfig
 import com.google.ai.edge.gallery.agent.AgentRuntimeExecutor
 import com.google.ai.edge.gallery.agent.AiChatExecutor
@@ -58,6 +59,7 @@ import com.google.ai.edge.gallery.ui.common.chat.ChatMessageInfo
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageLoading
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageMapper
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageText
+import com.google.ai.edge.gallery.ui.common.chat.ChatMessageToolResult
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageThinking
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageType
 import com.google.ai.edge.gallery.ui.common.chat.ChatMessageWarning
@@ -76,6 +78,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.ensureActive
@@ -373,6 +376,12 @@ open class LlmChatViewModelBase(
         ->
         when (event) {
           is AgentEvent.LoopInitiated -> {}
+          is AgentEvent.ToolResult -> {
+            if (getLastMessage(model = model)?.type == ChatMessageType.LOADING) {
+              removeLastMessage(model = model)
+            }
+            addMessage(model = model, message = ChatMessageToolResult(event.result))
+          }
           is AgentEvent.StreamToken -> {
             val lastMessage = getLastMessage(model = model)
             val wasLoading = lastMessage?.type == ChatMessageType.LOADING
@@ -462,6 +471,14 @@ open class LlmChatViewModelBase(
             }
           }
           is AgentEvent.LoopTerminated -> {
+            if (firstRun) {
+              firstRun = false
+              setPreparing(false)
+              onFirstToken(model)
+            }
+            if (getLastMessage(model = model)?.type == ChatMessageType.LOADING) {
+              removeLastMessage(model = model)
+            }
             val finalLastMessage = getLastMessage(model = model)
             if (finalLastMessage?.type == ChatMessageType.THINKING) {
               val thinkingMsg = finalLastMessage as ChatMessageThinking
@@ -500,6 +517,8 @@ open class LlmChatViewModelBase(
             } finally {
               setInProgress(false)
             }
+            // Agent chat appends diagnostics after its generated artifacts and progress
+            // completion callback so the panel remains at the end of the assistant post.
             onDone()
           }
           is AgentEvent.Error -> {
@@ -509,6 +528,9 @@ open class LlmChatViewModelBase(
             }
             setInProgress(false)
             setPreparing(false)
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
+            // Tool evidence is durable even when the model fails after execution.
+            persistCurrentSession(model = model, taskId = currentTaskId)
             onError(event.errorMessage)
           }
           is AgentEvent.LoopCancelled -> {
@@ -517,6 +539,9 @@ open class LlmChatViewModelBase(
             }
             setInProgress(false)
             setPreparing(false)
+            AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
+            // Preserve completed tool results when the model turn is cancelled afterwards.
+            persistCurrentSession(model = model, taskId = currentTaskId)
           }
         }
       }
@@ -534,6 +559,16 @@ open class LlmChatViewModelBase(
     }
     sessionStoppedByModel[model.name] = true
     setInProgress(false)
+    val sessionIdToPersist = currentSessionId
+    val taskIdToPersist = currentTaskId
+    // Snapshot completed tool evidence before interrupting the model turn.
+    viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+      persistCurrentSession(
+        model = model,
+        taskId = taskIdToPersist,
+        sessionId = sessionIdToPersist,
+      )
+    }
     runtimeExecutor.interrupt()
     Log.d(TAG, "Done stopping response")
   }

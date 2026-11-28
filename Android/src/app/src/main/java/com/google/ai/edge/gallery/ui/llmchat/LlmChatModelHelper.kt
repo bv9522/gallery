@@ -21,6 +21,7 @@ import android.graphics.Bitmap
 import android.util.Log
 import com.google.ai.edge.gallery.agent.coordinator.AgentToolRegistry
 import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmAgentModel
+import com.google.ai.edge.gallery.agent.coordinator.LiteRtLmConversationAdapter
 import com.google.ai.edge.gallery.common.cleanUpMediapipeTaskErrorMessage
 import com.google.ai.edge.gallery.common.metrics.InferenceStatus
 import com.google.ai.edge.gallery.common.metrics.MetricsTracker
@@ -128,6 +129,8 @@ object LlmChatModelHelper : LlmModelHelper {
     additionalToolProviders: List<ToolProvider> = emptyList(),
     initialMessages: List<Message> = emptyList(),
     enableConversationConstrainedDecoding: Boolean = true,
+    visibleTools: AgentToolRegistry = tools,
+    initialGroupIds: Set<String> = emptySet(),
   ): LiteRtLmAgentModel {
     val instance = model.instance as? LlmModelInstance
       ?: error("LiteRT-LM model is not initialized.")
@@ -147,8 +150,9 @@ object LlmChatModelHelper : LlmModelHelper {
       }
     // Gemma 4 can emit malformed native tool-call delimiters without constrained decoding.
     // Serialize access because LiteRT-LM exposes this setting as a process-wide mutable flag.
-    val toolProviders = LiteRtLmAgentModel.toolProviders(tools) + additionalToolProviders
-    val conversationFactory: (List<Message>, Boolean, Boolean) -> Conversation = { retainedHistory, prefill, includeInitialMessages ->
+    // Provider schemas are projected per conversation; the full execution registry stays app-side.
+    val conversationFactory: (List<Message>, AgentToolRegistry, Boolean, Boolean) -> Conversation = { retainedHistory, visibleRegistry, prefill, includeInitialMessages ->
+      val toolProviders = LiteRtLmAgentModel.toolProviders(visibleRegistry) + additionalToolProviders
       withConversationConstrainedDecoding(enableConversationConstrainedDecoding) {
         instance.engine.createConversation(
           ConversationConfig(
@@ -166,19 +170,21 @@ object LlmChatModelHelper : LlmModelHelper {
     }
     Log.i(
       TAG,
-      "Creating agent conversation: nativeToolCount=${tools.all().size}, " +
+      "Creating agent conversation: nativeFullToolCount=${tools.all().size}, " +
+        "nativeVisibleToolCount=${visibleTools.all().size}, " +
         "additionalToolProviderCount=${additionalToolProviders.size}, " +
         "initialMessageCount=${initialMessages.size}, " +
         "systemInstructionChars=${systemInstruction?.length ?: 0}",
     )
+    val conversationCreationStartedAtNanos = System.nanoTime()
     val conversation = try {
-      conversationFactory(emptyList(), true, true)
+      conversationFactory(emptyList(), visibleTools, true, true)
     } catch (creationError: Exception) {
       Log.e(TAG, "Agent conversation creation/prefill failed; collecting schema-only diagnostics (${creationError.javaClass.simpleName}).")
       // A non-prefilled diagnostic conversation exposes LiteRT-LM's fully expanded schemas without
       // attempting to tokenize the oversized prompt. This runs only after the normal creation fails.
       runCatching {
-        val diagnosticConversation = conversationFactory(emptyList(), false, false)
+        val diagnosticConversation = conversationFactory(emptyList(), visibleTools, false, false)
         try {
           logAgentToolSchemaSizes(diagnosticConversation)
         } finally {
@@ -189,6 +195,11 @@ object LlmChatModelHelper : LlmModelHelper {
       }
       throw creationError
     }
+    Log.i(
+      TAG,
+      "Agent conversation ready: nativeVisibleToolCount=${visibleTools.all().size}, " +
+        "conversationCreationLatencyMs=${(System.nanoTime() - conversationCreationStartedAtNanos) / 1_000_000}",
+    )
     logAgentToolSchemaSizes(conversation)
     instance.activeEphemeralConversations.add(conversation)
     val contextLimit = model.getIntConfigValue(
@@ -196,11 +207,25 @@ object LlmChatModelHelper : LlmModelHelper {
       defaultValue = DEFAULT_MAX_TOKEN,
     ).coerceAtMost(4_000).coerceAtLeast(100)
     return LiteRtLmAgentModel(
-      conversation = conversation,
+      conversation = LiteRtLmConversationAdapter(conversation),
       conversationFactory = { history ->
-        conversationFactory(history, true, true).also { instance.activeEphemeralConversations.add(it) }
+        LiteRtLmConversationAdapter(
+          conversationFactory(history, visibleTools, true, true).also {
+            instance.activeEphemeralConversations.add(it)
+          },
+        )
       },
-      onConversationClosed = { instance.activeEphemeralConversations.remove(it) },
+      fullToolRegistry = tools,
+      initialVisibleToolRegistry = visibleTools,
+      groupedConversationFactory = { history, registry ->
+        LiteRtLmConversationAdapter(
+          conversationFactory(history, registry, true, true).also {
+            instance.activeEphemeralConversations.add(it)
+          },
+        )
+      },
+      initialGroupIds = initialGroupIds,
+      onConversationClosed = { it.nativeConversation?.let(instance.activeEphemeralConversations::remove) },
       compactAtTokenCount = (contextLimit * 0.75).toInt(),
       compactToTokenCount = (contextLimit * 0.60).toInt(),
     )

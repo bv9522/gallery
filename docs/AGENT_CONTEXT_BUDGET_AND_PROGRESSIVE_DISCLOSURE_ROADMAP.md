@@ -1,9 +1,9 @@
 # Agent Context Budget and Progressive Capability Disclosure Roadmap
 
-**Status:** Architecture approved; implementation is measurement-first and not yet started.  
+**Status:** Architecture approved. PR #62 privacy-safe diagnostics, PR #63 MCP/skill progressive disclosure, and draft PR #64 native capability groups are stacked/open. The latest PR #64 head `fafc0c95fe09d683fa09da39335138815ccf766c` passed the owner's `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` tasks on 2026-11-27 (60 actionable tasks; 12 executed, 48 up-to-date; 1m 6s). This validates the latest legacy-dispatcher separation, approval/permission safety regression coverage, mixed-batch correlation, schema splitting, and context-limit handling in the current stack. Native-token comparison, end-to-end LiteRT-LM conversation-switch/history replay, full reliability/resource measurements, and Galaxy S21 acceptance remain pending.  
 **Owner:** Brian (product direction and device acceptance); Cocochat (architecture and implementation).  
 **Scope:** Reduce Gemma's always-visible tool/schema and instruction footprint without deleting capabilities, weakening execution controls, or reducing the runtime's ability to dispatch approved operations.  
-**Implementation branch:** `diagnostics/agent-context-footprint` (stacked on the current Stage 10 implementation baseline). Keep PR #62 and PR #60 open and unmerged unless Brian explicitly approves integration.
+**Implementation branches:** PR #62 `diagnostics/agent-context-footprint`; PR #63 `phase-10h-mcp-skill-progressive-disclosure`; next native capability-group work on `phase-10i-native-capability-groups` (stacked on PR #63). Keep PR #62, PR #63, and PR #64 open and unmerged unless Brian explicitly approves integration.
 
 ## 1. Architectural decision
 
@@ -101,31 +101,36 @@ Use the results to prioritize the largest savings and identify schemas that shou
 
 ### Step 3 — Progressive disclosure for MCP and skills first
 
-- [ ] Replace the always-expanded MCP tool catalog in the system prompt with a compact MCP discovery/search/list surface.
-- [ ] Return only relevant MCP tool names, descriptions, and input schemas after discovery; preserve the existing guarded MCP execution path and exact argument validation.
-- [ ] Replace or slim always-on selected-skill metadata with compact skill discovery/search/list. Load full skill instructions only when the selected skill is needed.
-- [ ] Preserve skill/MCP availability, permission/consent behavior, execution bounds, and truthful unavailable/error results.
+- [x] Replace the always-expanded MCP tool catalog in the system prompt with a compact MCP discovery/search/list surface.
+- [x] Return only relevant MCP tool names, descriptions, and input schemas after discovery; preserve the existing guarded MCP execution path and exact argument validation.
+- [x] Replace or slim always-on selected-skill metadata with compact skill discovery/search/list. Load full skill instructions only when the selected skill is needed.
+- [x] Preserve skill/MCP availability, permission/consent behavior, execution bounds, and truthful unavailable/error results.
 - [ ] Compare native token count, tool selection, malformed calls, discovery latency, and successful execution against the baseline.
 
 ### Step 4 — Add native capability groups
 
-- [ ] Define stable group/subgroup IDs and map every existing native and legacy Gallery tool to exactly one model-visible group (or explicitly document shared/core status).
-- [ ] Build the complete application-side dispatcher independently from the filtered model-visible provider list.
-- [ ] Implement deterministic intent-to-group routing and model-driven discovery fallback.
-- [ ] Create conversations with only the permanent core plus selected group providers.
-- [ ] Implement safe conversation rebuilding, history replay, current-turn preservation, resource release, and bounded failure recovery.
-- [ ] Split monolithic schemas (especially broad Android control operations) into cohesive subgroups where measurements and Gemma reliability support the split.
+- [x] Define stable native group IDs and map every native capability tool to one model-visible group or the permanent core. The compact Gallery legacy adapters (`discover_skills`, `load_skill`, `discover_mcp_tools`, `get_mcp_tool_schema`, `run_mcp_tool`, `run_js_tool`, and `run_intent`) remain shared/always-visible in this phase; their potentially large skill/MCP catalogs are still progressively disclosed. The legacy Gallery dispatcher is now independently constructed from the complete provider inventory and no longer depends on the active conversation's ToolManager; model-visible legacy schema filtering remains follow-up work.
+- [x] Build the complete application-side legacy Gallery dispatcher independently from the active conversation's ToolManager and filtered model-visible provider list.
+- [x] Implement deterministic intent-to-group routing and model-driven discovery fallback.
+- [x] Create conversations with the permanent native core plus selected native group providers; compact Gallery legacy adapters remain shared and always-visible.
+- [x] Implement safe conversation rebuilding: snapshot retained turns in order, create and token-validate a candidate before swapping, and close rejected candidates while retaining the active conversation.
+- [ ] Prove end-to-end group-switch/current-turn replay and failed native conversation rebuild behavior with a controllable conversation test double or device-level integration test.
+- [x] Split the monolithic Android-control schema into seven cohesive model-visible groups: device information, system controls, connectivity, communications, security, media, and downloads. Each group now has its own operation enum, operation-specific argument properties, and execution allowlist; the full operation handlers, authorization paths, and application-side registry remain intact. Media search/play and download status/cancel retain shared state within their respective group instances. The earlier compact-description pass remains in place. Native-token savings, group activation reliability, and S21 acceptance still require measurement.
 - [ ] Keep all existing capability implementations and runtime policy controls available; this is progressive disclosure, not feature removal.
 
 ### Step 5 — Prove execution, safety, and history integrity
 
-- [ ] Every previously implemented tool remains dispatchable through the full application-side registry, including Gallery legacy tools not currently visible to Gemma.
-- [ ] Unexposed tools cannot be invoked by fabricated model tool calls; the coordinator rejects unknown/unavailable model-visible tool IDs safely.
-- [ ] Group activation never bypasses or pre-approves a sensitive operation.
-- [ ] Discovery does not request Android permissions, read sensitive data, or mutate device state.
-- [ ] Approval denial/dismissal/timeout/cancellation remains fail-closed before provider invocation.
-- [ ] Permission revocation and provider unavailability are rechecked at execution time.
-- [ ] Conversation switching preserves complete history/tool transactions, does not duplicate side effects, and handles failed rebuilds without losing the last valid session.
+- [x] Every previously implemented tool remains dispatchable through the full application-side registry, including Gallery legacy tools independently of the active conversation's ToolManager. Legacy schemas remain shared/visible in this phase; filtering those schemas is separate follow-up work.
+- [x] Unexposed native tools cannot be invoked by fabricated model tool calls; the coordinator rejects tools outside the active model-visible allowlist before provider invocation. Gallery legacy adapters remain shared/visible.
+- [x] Group activation never bypasses or pre-approves a sensitive operation; activation only requests a schema projection and does not invoke providers or grant consent.
+- [x] Capability-group discovery is a static, read-only catalog lookup; it does not request Android permissions, read sensitive data, or mutate device state.
+- [x] Approval denial/dismissal/timeout/cancellation remains fail-closed before provider invocation. Tests cover native capability and shell approval channels, including cancellation cleanup, dismissal, response timeout, and a blocked shell approval-channel send timing out.
+- [x] Notification-listener permission revocation and provider unavailability are rechecked on each native capability execution; regression tests change fake provider state between calls and verify the operation is not invoked again. Runtime permission request denial, timeout, and cancellation remain fail-closed.
+- [x] Shared history snapshot policy preserves message order and includes the active turn; replacement policy publishes only candidates that pass validation.
+- [x] Failed activation results are recorded as failures in the replay transcript, matching the response sent to the model.
+- [ ] End-to-end conversation switching preserves complete native history/tool transactions, does not duplicate side effects, and handles failed rebuilds without losing the last valid session.
+- [x] History compaction validates a replacement conversation's native token count before swapping it in; creation/validation failure closes the candidate and retains the active conversation and retained-turn list.
+- [x] Capability activation batches are correlated by unique tool-call IDs and validated all-or-nothing; failed, partial, duplicate, unknown, or core-group requests cannot partially change the visible toolset.
 - [ ] Image/audio payload cleanup and screenshot privacy guarantees remain intact across conversation rebuilds and compaction.
 
 ### Step 6 — Compare reliability and resource behavior
@@ -167,12 +172,151 @@ Retain the hybrid design only if it yields material context savings without unac
 
 ## 7. Current state and immediate next action
 
-**Step 3 implementation status (PR #63):** MCP catalog expansion has been replaced by compact search/list discovery, with a separate read-only call that reveals the schema for one uniquely named enabled MCP tool. Skill metadata is discovered through a compact search/list tool, and full instructions remain behind the existing `load_skill` tool. Existing MCP execution and per-tool consent handling are unchanged. Unit tests cover discovery query matching, result limits, and description compaction. Automated validation and comparative native-token/reliability measurements remain pending.
+**Step 1 — diagnostics:** PR #62 is included in the current PR #64 stack and compiles/tests in the current owner-confirmed local run. Privacy-safe source diagnostics are implemented; target-device measurements, native token captures, and independent GitHub Actions validation for this stack remain pending.
 
-## 7. Current state and immediate next action
+**Step 2 — controlled token-cost matrix:** Not yet measured. No character-to-token estimates are being treated as native token evidence.
 
-This document records the approved target architecture and staged plan. Step 3's MCP/skill progressive-disclosure implementation is proposed in PR #63; automated validation and comparative measurements are still pending.
+**Step 3 — MCP and skill progressive disclosure:** Implemented in PR #63 and included in the current stack. The initial system prompt uses compact discovery guidance; MCP schemas are revealed on demand and full skill instructions remain behind `load_skill`. The current PR #64 stack passed owner-run unit tests/debug assembly on code head `fafc0c95` on 2026-11-27. The later conversation seam/tests are awaiting workflow #152. This is local validation, not device acceptance. Comparative native-token/reliability measurements remain pending.
 
-**Immediate sequence:** validate PR #63 → compare native token counts and tool-use reliability before/after MCP/skill discovery → complete the remaining controlled token-cost matrix → implement native capability groups and safe conversation switching → run execution/safety/reliability/performance regression.
+**Step 4 — native capability groups:** In progress on `phase-10i-native-capability-groups` / draft PR #64, stacked on PR #63. Implemented: stable native group IDs; deterministic routing; read-only discovery and activation requests; selected native provider projection; full native execution registry retained app-side; coordinator rejection of hidden native tool calls; conversation replacement that validates the new conversation before closing the previous one; and the seven-way Android native schema split (device information, system controls, connectivity, communications, security, media, downloads). Each Android tool instance filters both its operation enum and argument properties, and rejects operations outside its allowlist before dispatch. Regression tests now cover exact operation partitioning, focused schema isolation, and per-group schema size. Compact Gallery legacy schemas remain shared/always-visible while MCP/skill catalogs are progressively disclosed; the independent `LegacyGalleryToolDispatcher` does not depend on the active conversation's ToolManager. Unit tests cover routing, projection, read-only discovery/activation semantics, hidden-tool rejection, whole-turn replay, failed candidate creation/validation, activation-batch correlation, and approval/permission safety. The prior head's owner-confirmed unit-test/debug-build pass (2026-11-27) includes these follow-ups. The newly added conversation-switch seam/tests are pending workflow #152. This remains local validation, not device acceptance. End-to-end group-switch history proof, actual native-token savings, reliability comparison, and device acceptance remain pending. Follow-up hardening validates replacement token counts before swapping conversations and correlates capability activation results against every successful, unique assistant tool-call ID before changing schemas. A failed activation now records the failure note in both the immediate tool response and the retained replay history. Focused policy tests cover whole-turn retention, ordered replay snapshots including the active turn, candidate creation/validation failure, candidate cleanup, wrapped context-overflow detection, successful multi-group activation, fail-closed partial/duplicate/unknown activation batches, and failed-activation replay. These are policy-level tests, not a full LiteRT-LM conversation integration test; end-to-end group-switch execution, native token measurements, and S21 acceptance remain pending.
+
+**Immediate sequence:** validate the new injectable conversation seam and tests in workflow #152 → expand tests if the seam exposes defects → capture the native-token matrix and compare reliability/latency → resume the S21 acceptance roadmap in reviewed chunks. Do not install intermediate APKs; device acceptance starts only after these remaining integration checks and measurements are ready.
 
 The existing feature-by-feature device acceptance roadmap remains authoritative for capability acceptance. This document governs the separate agent-context and model-visible registry workstream.
+
+## 7. Latest validation update — 2026-11-22
+
+The owner reports that the focused `LegacyGalleryToolDispatcherTest` and `UnifiedShellExecutionTest` suites passed after fixing the reflected test fixture's visibility and declaring the shell approval timeout test with a JUnit-compatible `Unit` return type. The owner then reports that the complete `:app:testShizukuDebugUnitTest` suite and `:app:assembleShizukuDebug` both passed on the current PR #64 branch (60 actionable tasks: 1 executed, 59 up-to-date). This validates the latest dispatcher and approval/permission safety batch at the local unit-test/build level. It is not an S21 acceptance result.
+
+A Galaxy S21 activation attempt on 2026-11-22 exposed a concrete limit: rebuilding the conversation with the monolithic `android_control` schema failed at 4,257 input tokens against the 4,000-token ceiling. The previous conversation was retained correctly, but the model-facing explanation incorrectly implied a missing permission. PR #64 first reduced repetitive prose without removing operations or formal argument constraints, retained guidance for sensitive values and opaque handles, classified context overflow separately from other rebuild failures, and reported `context_limit` rather than a permission denial. The follow-up now splits the 55 operations across seven independently projected tools and filters each tool's argument schema and runtime dispatch allowlist. Tests were added for complete one-to-one operation coverage, focused schema contents, and a per-group character ceiling; they have not yet been run locally. Native-token counts and S21 activation measurements remain the acceptance evidence, so the split is not yet claimed to fit the 4,000-token budget.
+
+The remaining high-priority proof is an end-to-end test of the actual LiteRT-LM conversation-switch lifecycle: complete current-turn/tool-transaction replay, successful replacement, failed candidate creation or token validation retaining the previous live conversation, and no duplicated side effects. Current policy tests exercise the extracted validation/replacement policies but do not drive the complete `LiteRtLmAgentModel` lifecycle through a controllable conversation implementation. Before adding an abstraction solely for testing, inspect whether the pinned LiteRT-LM API offers a practical test seam; otherwise keep the device-level proof explicit in the consolidated S21 acceptance plan. Native token-cost/reliability comparison and S21 resource/thermal acceptance also remain pending.
+
+
+## 8. Authoritative Result Layer (ARL) — model-output fidelity
+
+**Goal:** Ensure facts obtained from successful tool executions are represented accurately in the final user-facing response, even when the language model miscopies, truncates, or changes numeric values. The runtime—not Gemma—owns the authoritative tool-result values.
+
+**Design boundary:** This is a shared agent-runtime capability, not a battery-specific patch, Android-tool special case, chat-UI workaround, or model-prompt-only fix. It must preserve existing tool execution, approval, permission, cancellation, and provider boundaries. The first version prioritizes exact tool-derived facts; broad natural-language fact-checking is explicitly out of scope until a reliable claim contract exists.
+
+### Five implementation milestones
+
+- [x] **Milestone 1 — Inspect the existing pipeline and define the contract.**
+  - Trace successful tool results from provider/coordinator dispatch through structured result retention, model handoff, raw model output, and final response assembly.
+  - Inspect existing authoritative transcript/formatter code and diagnostics; identify reusable components and the narrowest safe integration point.
+  - Define a provider-neutral, turn-scoped representation for authoritative facts, preserving original JSON/value types, units, source/tool identity, execution identity, and success/failure status.
+  - Define explicit rules for missing, malformed, unsupported, and conflicting values; never infer or silently repair source data.
+  - Record the design and test boundaries before implementation. Do not change execution semantics in this milestone.
+
+- [x] **Milestone 2 — Implement the shared Authoritative Result Layer.**
+  - Capture successful structured tool results independently of Gemma's textual response.
+  - Preserve primitive types, nested objects/arrays, units, provenance, and execution correlation.
+  - Scope retained results to the correct turn/request and prevent stale or failed results from being presented as current facts.
+  - Keep provider-specific parsing out of the shared layer unless a provider's declared result contract requires it.
+
+- [ ] **Milestone 3 — Add deterministic authoritative fact rendering.**
+  - Render supported typed values from the retained source data, not from model-generated text.
+  - Preserve exact numeric values/precision and declared units; handle strings, booleans, enums, arrays, and nested objects predictably.
+  - Omit absent/invalid fields or label them unavailable; do not fabricate defaults or perform implicit unit conversions.
+  - Keep formatting generic and reusable across Android native, shell, MCP, and future providers.
+
+- [ ] **Milestone 4 — Integrate response validation and assembly.**
+  - Establish a clear contract separating model-authored explanation from runtime-authored authoritative facts.
+  - Ensure unsupported or contradicted model claims cannot override successful tool results.
+  - Preserve useful conversational framing while presenting canonical values deterministically.
+  - Avoid global regex replacement or heuristic rewriting of arbitrary prose; do not claim general semantic fact-checking in v1.
+  - Keep the existing response lifecycle and tool execution/approval semantics intact.
+
+- [ ] **Milestone 5 — Regression, diagnostics, and device acceptance.**
+  - Add deterministic tests for leading-digit loss, decimal/integer precision, units, booleans/enums, nested values, arrays, missing/malformed fields, multiple tools, conflicting model claims, and failed tool calls.
+  - Measure source-to-rendered fact fidelity, model disagreement/correction rates, unsupported-claim handling, and response behavior.
+  - Verify diagnostics distinguish source payload, model raw output, authoritative rendering, and delivered response without leaking sensitive content.
+  - Run local unit tests/build, then validate on the Galaxy S21 with Gemma 4 E2B; record model/runtime versions and repeatable conditions.
+  - Device acceptance is a separate gate; do not mark complete based only on unit tests or a successful APK build.
+
+### Milestone tracking
+
+| Milestone | Status | Completion evidence |
+|---|---|---|
+| 1. Pipeline inspection and contract | **Complete** | Current data flow, integration point, and v1 result/response contract documented below |
+| 2. Shared result layer | **Complete** | Provider-neutral run-scoped capture, six focused tests, and local unit-test/debug-build validation passed |
+| 3. Deterministic fact rendering | **In progress** | Generic renderer and focused tests added; local validation pending |
+| 4. Response validation and assembly | Not started | Final responses cannot substitute contradictory model values for canonical facts |
+| 5. Regression and S21 acceptance | Not started | Full regression results, diagnostics, and recorded device acceptance |
+
+**Known motivating evidence:** On the Galaxy S21, the device-info tool handed Gemma the correct JSON values `battery_percent=59`, `temperature_celsius=27.7`, and `voltage_millivolts=3775`. The raw model output changed the latter two to `7.7°C` and `775mV`; diagnostics confirmed the corruption was already present in Gemma's raw generation, not in tool serialization/handoff or downstream delivery. A previous report also observed a battery percentage losing its leading digit. This establishes the need for runtime-owned fact fidelity; it does not establish that every numeric field or every model response is affected.
+
+**Current execution:** Milestones 1 and 2 are complete; Milestone 3 implementation is in progress on `phase-10i-native-capability-groups`. Keep the existing PR stack open and unmerged; no PR merge is authorized by this roadmap update.
+
+
+### Milestone 1 completion record — 2026-11-25
+
+**Inspected implementation and confirmed data flow**
+
+1. Each `AgentTool.execute` returns `AgentToolResult(content: String, isSuccessful, imageBytes?)`. The coordinator is the sole executor.
+2. `AgentCoordinator.executeToolCall` applies `AgentToolResultBudget` before retaining the result. It appends an `AgentMessage(Role.TOOL)` containing the bounded content, tool name, call ID, and success flag. The same bounded content is passed onward to the model.
+3. `LiteRtLmAgentModel.serializeToolResultForModel` wraps results in a JSON envelope (`tool`, `success`, `result`). JSON objects/arrays retain their structure; other content is represented as a string. This intentionally avoids guessing that arbitrary plain text such as `42` is a numeric JSON value.
+4. `NativeAgentRuntimeExecutor` receives the completed `AgentRunResult`, then appends `formatAuthoritativeToolResults` to Gemma's final text.
+5. The existing transcript formatter is only a partial precursor: it hardcodes `android_control`, `android_device_info`, and `execute_shell`; it filters to the current user turn but currently does not require `toolSucceeded == true`; and it appends raw text rather than producing a generic typed fact view.
+6. `NativeCapabilityResultFormatter` already emits useful typed JSON for several native operations, including numeric battery values, booleans, explicit units, and JSON nulls. It is a provider/domain serializer, not a provider-neutral result layer.
+7. Debug diagnostics separately capture the device-info model handoff, raw final model output, and delivered response. Payload capture is deliberately narrow/debug-only and should remain so; the ARL itself must not depend on debug diagnostics.
+
+**V1 contract and integration decision**
+
+- Add a provider-neutral authoritative result representation at the coordinator/runtime boundary. Each record is scoped to the current `AgentRunResult`/user turn and carries at least `toolCallId`, `toolName`, `success`, and the exact bounded source payload.
+- Only successful tool results are eligible for authoritative fact rendering. Failed, rejected, cancelled, missing, or stale results must never be promoted as current facts.
+- Preserve JSON objects/arrays as structured values. Preserve non-JSON/plain-text results as strings. Do not guess that scalar text such as `42`, `true`, or `null` is JSON; scalar structured values require an explicit typed-result signal in the tool-result contract.
+- Preserve original numeric representation and nested structure; keep units and field names with their values. No implicit rounding, rescaling, unit conversion, defaults, or inferred fields.
+- Keep source provenance and tool-call correlation separate from the model-generated prose. Do not retain a second unbounded copy of sensitive tool output; the bounded payload already used for model handoff is the initial source of truth.
+- The renderer is generic and schema/data driven, not battery-specific. Unsupported or malformed structured content remains safely representable as bounded text and is not guessed into facts.
+- For tool-dependent answers, the response assembler must present a deterministic, clearly labeled authoritative facts section generated from the retained result records. Gemma may add explanation, but its prose is not allowed to replace or relabel those source values. V1 will not claim general semantic fact-checking of arbitrary prose; where a task requires exact tool facts and the model response cannot be safely separated from unsupported factual claims, prefer the deterministic fact response over potentially misleading model prose.
+- Keep image payload lifecycle, approval, permissions, dispatch, cancellation, and existing result-budget behavior unchanged.
+
+**Primary integration point:** replace the current hardcoded `formatAuthoritativeToolResults(result.messages)` append path in `NativeAgentRuntimeExecutor` with a reusable extraction → authoritative result model → deterministic renderer → response assembly pipeline. Keep `AgentCoordinator` as sole tool executor; only extend its result contract if explicit scalar-JSON typing is required.
+
+**Milestone 1 exit:** pipeline traced; existing code limitations recorded; v1 typed-result, provenance, success, scoping, rendering, and response-assembly contract established. No runtime implementation or execution-policy behavior changed in this milestone.
+
+
+### Milestone 2 implementation update — 2026-11-25
+
+**Implemented in the shared coordinator boundary**
+
+- Added `AuthoritativeToolResult`, a provider-neutral record carrying the tool-call ID, tool name, success state, exact bounded result text, and an optional typed JSON value.
+- `AgentCoordinator` now captures each tool result immediately after the existing result-budget and image-budget decisions, preserving execution order and returning a separate result list on `AgentRunResult`.
+- The list is created per `run()`, so it contains only results from the current user turn even though coordinator conversation history remains persistent across turns.
+- Successful and unsuccessful results are both retained for provenance; `isEligibleForFacts` is false for unsuccessful, rejected, or budget-rejected results. Cancellation still propagates and rolls back history without returning a partial run.
+- JSON objects and arrays are parsed from the already-bounded content, preserving nested primitives, arrays, units, and numeric lexical representation. Ordinary text remains text; scalar JSON is accepted only when a tool explicitly supplies `structuredContent` and its compact serialization exactly matches the unchanged bounded content.
+- An explicit structured scalar is discarded if the result budget modifies the content, preventing a side-channel value from bypassing the existing output limit or becoming detached from the bytes/text actually handed to the model.
+- The model-facing `AgentMessage` and serialization path are unchanged. Approval, permission, dispatch, cancellation, image lifecycle, and result-budget policy are unchanged.
+
+**Focused regression coverage added**
+
+- Nested JSON objects/arrays, decimal lexical precision, booleans, and provenance.
+- Explicit typed scalar versus ordinary scalar-looking text.
+- Failed results retained but marked ineligible as facts.
+- Multiple tool calls retain their individual IDs/names and execution order.
+- Current-run scoping across persistent conversation history.
+- Structured side-channel data is not retained when result budgeting changes the text.
+
+**Validation state:** `:app:testShizukuDebugUnitTest` and `:app:assembleShizukuDebug` both completed successfully in the owner's local environment (BUILD SUCCESSFUL; 60 actionable tasks, 12 executed, 48 up-to-date; 7m 52s). Milestone 2 is complete. No S21 installation/device acceptance has been performed or is required for this milestone. Milestones 3–5 remain pending.
+
+
+### Milestone 3 implementation update — 2026-11-24
+
+**Deterministic renderer added**
+
+- Added provider-neutral `AuthoritativeToolResultRenderer` in the coordinator layer. It renders retained successful source values directly and does not inspect or rewrite Gemma's prose.
+- Structured JSON objects and arrays render as deterministic dotted/indexed paths. JSON primitives retain their serialized representation, including numeric lexical precision, booleans, quoted strings/enums, and explicit nulls. Empty objects/arrays remain visible rather than disappearing.
+- Explicitly typed top-level scalar values render as a `value` fact. Plain text and malformed JSON remain bounded text and are never guessed into structured values.
+- Each rendered result retains its tool name and tool-call ID provenance. Multiple results preserve coordinator execution order.
+- The renderer accepts a separate presentation allowlist. This keeps rendering generic across providers while preventing a newly added sensitive provider from becoming user-visible by default. The initial tests exercise the existing device-info/shell presentation boundary and verify sensitive, failed, and non-allowlisted results are omitted.
+- No model text, regular-expression replacement, unit conversion, rounding, inferred fields, provider-specific schema, or execution-policy behavior is involved. Runtime response integration is intentionally Milestone 4.
+
+**Focused regression coverage added**
+
+- Leading-digit and decimal-lexeme preservation (including trailing decimal zeroes).
+- Units/field names, booleans, enum strings, nulls, nested objects, empty objects, nested/top-level arrays, and explicit scalar rendering.
+- Plain-text and malformed-JSON fallback without scalar guessing.
+- Tool/call provenance, failed-result exclusion, and presentation allowlist privacy boundary.
+
+**Validation state:** Implementation and focused unit tests are committed, but have not yet been run in the owner's Android build environment. Milestone 3 remains in progress until local unit tests and the Shizuku debug build pass. Response assembly and contradictory-model-claim handling remain Milestone 4; Galaxy S21 acceptance remains Milestone 5.

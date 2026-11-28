@@ -66,6 +66,23 @@ message ChatMessageProto {
   string file_size_string = 14;
   // Path to the local copy of the attached file if this is a file message.
   string file_path = 15;
+  // Authoritative tool-result presentation fields (display-only, not model transcript text).
+  string tool_call_id = 16;
+  string tool_name = 17;
+  bool tool_succeeded = 18;
+  string structured_value_json = 19;
+  string tool_outcome = 20;
+  string shell_backend = 21;
+  int32 shell_exit_code = 22;
+  bool shell_timed_out = 23;
+  bool shell_output_truncated = 24;
+  string shell_stdout = 25;
+  string shell_stderr = 26;
+  string shell_error = 27;
+  bool shell_process_may_still_be_running = 28;
+  bool shell_unavailable = 29;
+  string session_id = 30;
+  string user_turn_id = 31;
 }
 
 // Represents an audio recording associated with a chat session message.

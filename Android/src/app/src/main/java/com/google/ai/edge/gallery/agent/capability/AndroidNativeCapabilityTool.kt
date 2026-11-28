@@ -141,6 +141,8 @@ class AndroidNativeCapabilityTool internal constructor(
   private val mediaOperations: GalleryMediaLibraryOperations? = null,
   private val mediaPlaybackRequester: NativeMediaPlaybackRequester? = null,
   private val mediaPlaybackAuthorizer: NativeCapabilityAuthorizer? = null,
+  private val allowedOperations: Set<String> = emptySet(),
+  private val toolName: String = "android_control",
 ) : AgentTool {
   private val issuedDownloadSnapshots = ConcurrentHashMap<String, AgentDownloadSnapshot>()
 
@@ -150,6 +152,8 @@ class AndroidNativeCapabilityTool internal constructor(
     registry: CapabilityRegistry = CapabilityCatalog.createRegistry(),
     downloadOperations: AgentDownloadOperations? = null,
     mediaOperations: GalleryMediaLibraryOperations? = null,
+    allowedOperations: Set<String> = emptySet(),
+    toolName: String = "android_control",
   ) : this(
     AndroidNativeCapabilityAdapter(
       context = context.applicationContext,
@@ -166,11 +170,21 @@ class AndroidNativeCapabilityTool internal constructor(
     mediaOperations,
     ChannelNativeMediaPlaybackRequester(actionChannel),
     ChannelNativeCapabilityAuthorizer(actionChannel),
+    allowedOperations,
+    toolName,
   )
 
-  override val name: String = "android_control"
-  override val description: String =
-    "Native Android device and capability operations. Use status for provider availability (not live readings); use the declared operation enum. Ordinary non-sensitive reads are read-only. Sensitive reads and all mutations, captures, recordings, notifications, Bluetooth/GATT actions, and USB descriptor reads require scoped approval; request permissions only after approval. Read notifications, call history, or SMS only on explicit user request. Calls/SMS open the system dialer/composer and are never sent silently. Use fresh returned handles. USB mass storage uses document_tree/SAF; no arbitrary USB transfers. This tool never executes shell commands."
+  override val name: String = toolName
+  override val description: String = when (toolName) {
+    "android_device_info" -> "Read-only Android device, battery, audio, display, app, and provider information."
+    "android_system_controls" -> "Supported Android system controls. Mutations require scoped approval; never executes shell commands."
+    "android_connectivity" -> "Bluetooth, BLE/GATT, and USB device inspection. Sensitive operations require scoped approval; USB storage uses SAF."
+    "android_communications" -> "Contacts, calls, SMS, and notifications. Read sensitive records only on explicit request; calls and SMS open system UI and are never sent silently."
+    "android_security" -> "Biometric authentication and app-scoped Android Keystore operations. Require scoped approval and preserve key protections."
+    "android_media" -> "Gallery media search/index/playback and bounded capture/recording. Use fresh handles; playback and capture require scoped approval."
+    "android_downloads" -> "Inspect active Gallery downloads and request cancellation using a fresh one-time handle and explicit approval."
+    else -> "Native Android operations. Use the operation enum and matching arguments. Sensitive reads and mutations require scoped approval. Never executes shell commands."
+  }
 
   override val parametersSchema: JsonObject
     get() = JsonObject().apply {
@@ -383,12 +397,112 @@ class AndroidNativeCapabilityTool internal constructor(
       })
       add("required", JsonArray().apply { add("operation") })
       addProperty("additionalProperties", false)
+
+      // Preserve argument meaning and safety guidance while replacing verbose prose with
+      // concise descriptions. Formal JSON-schema bounds/enums remain unchanged.
+      val compactDescriptions = mapOf(
+        "usb_handle" to "Fresh one-shot handle from usb_devices.",
+        "media_handle" to "Fresh opaque handle from media_search.",
+        "media_kind" to "media_search filter; default ANY.",
+        "search_mode" to "AUTO combined; NAME filenames; VISUAL semantic search.",
+        "download_handle" to "Fresh handle from download_status.",
+        "phone_number" to "For dial_phone/compose_sms; 3–20 digits, optional + and common punctuation.",
+        "sms_message" to "Exact SMS composer text; max 1600 chars; never auto-sent.",
+        "reason" to "Reason for standalone strong biometric authentication; max 160 chars.",
+        "key_alias" to "Gallery keystore alias: 1–32 lowercase letters, digits, underscores, or hyphens.",
+        "plaintext" to "Plaintext for biometric-protected AES-256 encryption; max 4096 chars.",
+        "iv_base64" to "GCM IV from keystore_encrypt, unwrapped Base64.",
+        "ciphertext_base64" to "Ciphertext from keystore_encrypt, unwrapped Base64.",
+        "stream" to "Audio stream for volume_status/set_volume; default MUSIC.",
+        "volume" to "Target volume within the selected stream's range.",
+        "level" to "Display brightness from 0 to 255.",
+        "duration_ms" to "Duration: vibration 1–1000 ms; wake lock 1–300000 ms; BLE scan 1000–10000 ms (default 5000); recording 1000–30000 ms (default 5000).",
+        "content_uri" to "Gallery-readable image URI from capture_photo or the user picker.",
+        "package_name" to "Exact package name from list_apps.",
+        "url" to "Absolute HTTP(S) URL with a host.",
+        "device_address" to "Bluetooth MAC from bonded-device or LE-scan results.",
+        "timeout_ms" to "GATT timeout 5000–20000 ms; default 15000.",
+        "service_uuid" to "Service UUID from bluetooth_gatt_services.",
+        "characteristic_uuid" to "Characteristic UUID from bluetooth_gatt_services.",
+        "value_base64" to "bluetooth_gatt_write value: 1–512 bytes, unwrapped Base64.",
+        "query" to "contacts_search (1–80 chars) or media_search (1–120 chars).",
+        "limit" to "Maximum results: 1–20; default 10.",
+        "text" to "Clipboard text; max 2048 chars.",
+        "speech_text" to "Exact Gallery TTS text; max 1000 chars.",
+        "title" to "Notification title; 1–100 chars.",
+        "message" to "Notification body; 1–1000 chars.",
+        "hour" to "Local 24-hour clock hour, 0–23.",
+        "minute" to "Local minute, 0–59.",
+        "repeat_daily" to "Repeat daily at the specified local time.",
+        "channel_id" to "Existing channel ID; defaults to Gallery task channel.",
+        "channel_name" to "Notification channel display name.",
+        "notification_id" to "Numeric posted ID or scheduled-notification UUID.",
+        "importance" to "Channel importance: 2 LOW, 3 DEFAULT, or 4 HIGH.",
+      )
+      getAsJsonObject("properties").entrySet().forEach { (key, value) ->
+        val description = compactDescriptions[key]
+        if (description == null) value.asJsonObject.remove("description")
+        else value.asJsonObject.addProperty("description", description)
+      }
+    }.also { schema ->
+      if (allowedOperations.isNotEmpty()) {
+        val argumentNamesByOperation = mapOf(
+          "cancel_download" to setOf("download_handle"),
+          "media_search" to setOf("query", "media_kind", "search_mode", "limit"),
+          "media_play" to setOf("media_handle"),
+          "volume_status" to setOf("stream"),
+          "set_display_brightness" to setOf("level"),
+          "vibrate" to setOf("duration_ms"),
+          "set_wake_lock" to setOf("held", "duration_ms"),
+          "set_volume" to setOf("stream", "volume"),
+          "set_flashlight" to setOf("enabled"),
+          "launch_app" to setOf("package_name"),
+          "open_url" to setOf("url"),
+          "dial_phone" to setOf("phone_number"),
+          "compose_sms" to setOf("phone_number", "sms_message"),
+          "biometric_auth" to setOf("reason"),
+          "keystore_create" to setOf("key_alias"),
+          "keystore_delete" to setOf("key_alias"),
+          "keystore_encrypt" to setOf("key_alias", "plaintext"),
+          "keystore_decrypt" to setOf("key_alias", "iv_base64", "ciphertext_base64"),
+          "bluetooth_le_scan" to setOf("duration_ms"),
+          "bluetooth_gatt_services" to setOf("device_address", "timeout_ms"),
+          "bluetooth_gatt_read" to setOf("device_address", "service_uuid", "characteristic_uuid", "timeout_ms"),
+          "bluetooth_gatt_write" to setOf("device_address", "service_uuid", "characteristic_uuid", "value_base64", "timeout_ms"),
+          "contacts_search" to setOf("query", "limit"),
+          "speak_text" to setOf("speech_text"),
+          "clipboard_write" to setOf("text"),
+          "post_notification" to setOf("title", "message", "channel_id"),
+          "cancel_posted_notification" to setOf("notification_id"),
+          "schedule_notification" to setOf("title", "message", "hour", "minute", "year", "month", "day", "repeat_daily"),
+          "cancel_scheduled_notification" to setOf("notification_id"),
+          "create_notification_channel" to setOf("channel_id", "channel_name", "importance"),
+          "usb_read_descriptors" to setOf("usb_handle"),
+          "record_audio" to setOf("duration_ms"),
+          "set_wallpaper" to setOf("content_uri", "target"),
+        )
+        val properties = schema.getAsJsonObject("properties")
+        val operationEnum = properties.getAsJsonObject("operation").getAsJsonArray("enum")
+        val allowed = operationEnum.map { it.asString }.filter { it in allowedOperations }
+        require(allowed.size == allowedOperations.size) {
+          "Capability tool '$toolName' contains an unknown operation."
+        }
+        while (operationEnum.size() > 0) operationEnum.remove(operationEnum.size() - 1)
+        allowed.forEach { operationEnum.add(it) }
+        val visibleArguments = allowed.flatMap { argumentNamesByOperation[it].orEmpty() }.toSet()
+        properties.entrySet().map { it.key }
+          .filter { it != "operation" && it !in visibleArguments }
+          .forEach { properties.remove(it) }
+      }
     }
 
   override suspend fun execute(arguments: JsonObject): AgentToolResult {
     AndroidControlArguments.validate(arguments)?.let { return failure(it) }
     val operation = arguments.string("operation")
       ?: return failure("Missing required string argument: operation.")
+    if (allowedOperations.isNotEmpty() && operation !in allowedOperations) {
+      return failure("Operation '$operation' is not available through capability tool '$toolName'.")
+    }
 
     return try {
       when (operation) {

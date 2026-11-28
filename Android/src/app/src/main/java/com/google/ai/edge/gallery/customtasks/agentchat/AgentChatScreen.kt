@@ -100,6 +100,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.google.ai.edge.gallery.GalleryEvent
 import com.google.ai.edge.gallery.R
+import com.google.ai.edge.gallery.agent.AgentExecutionDiagnosticsUi
 import com.google.ai.edge.gallery.agent.AgentPromptComponentSize
 import com.google.ai.edge.gallery.agent.PromptExpander
 import com.google.ai.edge.gallery.common.LOCAL_URL_BASE
@@ -329,6 +330,7 @@ fun AgentChatScreen(
           agentTools.resultWebviewToShow = null
         }
         updateProgressPanel(viewModel = viewModel, model = model, agentTools = agentTools)
+        AgentExecutionDiagnosticsUi.appendIfAvailable(viewModel, model)
       }
     },
     onResetSessionClickedOverride = { task, _, initialMessages, clearHistory ->
@@ -968,11 +970,11 @@ fun AgentChatScreen(
 
 private fun updateProgressPanel(viewModel: LlmChatViewModel, model: Model, agentTools: AgentTools) {
   // Update status.
+  // Do not mistake the final diagnostics section for the live tool-progress panel.
   val lastProgressPanelMessage =
-    viewModel.getLastMessageWithType(
-      model = model,
-      type = ChatMessageType.COLLAPSABLE_PROGRESS_PANEL,
-    )
+    viewModel.uiState.value.messagesByModel[model.name]?.lastOrNull {
+      it is ChatMessageCollapsableProgressPanel && !it.copyLogsEnabled
+    }
   if (
     lastProgressPanelMessage != null &&
       lastProgressPanelMessage is ChatMessageCollapsableProgressPanel
