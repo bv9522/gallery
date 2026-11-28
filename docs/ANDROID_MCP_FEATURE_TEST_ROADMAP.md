@@ -437,7 +437,7 @@ The built-in agent policy prompt is reduced to a 2,500-character enforced ceilin
 
 ## 9. Model-independent authoritative tool-result presentation — proposed follow-on
 
-**Status:** Proposed; approved for roadmap planning. This is a follow-on presentation workstream to the five ARL milestones, not a replacement for them and not a sixth attempt to redo their integrity work.
+**Status:** Stage 1 audit complete; Stage 2 presentation contract defined and committed; Stage 2 regression tests added but pending CI validation. Stage 3 UI/event implementation has not started. This is a follow-on presentation workstream to the five ARL milestones, not a replacement for them and not a sixth attempt to redo their integrity work. See [the presentation contract](AUTHORITATIVE_TOOL_RESULT_PRESENTATION_CONTRACT.md).
 
 **Motivation from S21 acceptance (2026-11-27):** With Gemma 4 E2B, repeated harmless `execute_shell` calls completed through TERMUX with exit code 0 and `backendOutputTruncated=false`, while model-authored responses changed identity values, split/omitted text, and miscounted a literal pipe-delimited string. A no-tool control prompt also returned an incorrect field count. The authoritative tool facts supplied by the runtime and the model's prose must therefore remain independently inspectable. These observations establish model-response unreliability in the tested cases; they do not, by themselves, prove every alteration occurred inside the model rather than at an earlier capture/serialization boundary. Preserve that distinction in diagnostics.
 
@@ -459,6 +459,8 @@ The built-in agent policy prompt is reduced to a 2,500-character enforced ceilin
    - Record the narrowest reusable UI integration point before changing runtime or compatibility code.
 
 2. **Define a model-independent presentation contract.**
+   - Stage 2 contract: `docs/AUTHORITATIVE_TOOL_RESULT_PRESENTATION_CONTRACT.md`. It formalizes the existing `AuthoritativeToolResult` as the source of truth, transaction identity, typed outcomes, shell stream fields, budget/privacy/fidelity rules, and the strict separation of optional model commentary.
+   - Added coordinator-level regression tests for exact bounded whitespace/newline/delimiter preservation when model commentary is incorrect, and for a retained tool result when the model final response is empty. These tests are pending CI validation.
    - Present each tool invocation/result as a distinct transaction associated with its tool-call ID and originating turn.
    - Display the authoritative bounded result directly from the retained runtime result, never from Gemma's paraphrase.
    - For shell results, expose backend, exit code, truncation state, stdout, and stderr as separate labeled fields. Preserve exact captured text, whitespace, line breaks, delimiters, and character order in a selectable/monospaced raw-output area.
