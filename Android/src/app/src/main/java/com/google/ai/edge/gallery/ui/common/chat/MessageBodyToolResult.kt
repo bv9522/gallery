@@ -119,8 +119,12 @@ fun MessageBodyToolResult(
         }
         TextButton(onClick = { onCopyClicked(raw) }) { Text("Copy result") }
         shell?.let {
-          TextButton(onClick = { onCopyClicked(it.stdout) }) { Text("Copy stdout") }
-          TextButton(onClick = { onCopyClicked(it.stderr) }) { Text("Copy stderr") }
+          if (it.stdout.isNotEmpty()) {
+            TextButton(onClick = { onCopyClicked(it.stdout) }) { Text("Copy stdout") }
+          }
+          if (it.stderr.isNotEmpty()) {
+            TextButton(onClick = { onCopyClicked(it.stderr) }) { Text("Copy stderr") }
+          }
         }
       }
     }
