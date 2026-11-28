@@ -78,6 +78,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.ensureActive
@@ -558,6 +559,16 @@ open class LlmChatViewModelBase(
     }
     sessionStoppedByModel[model.name] = true
     setInProgress(false)
+    val sessionIdToPersist = currentSessionId
+    val taskIdToPersist = currentTaskId
+    // Snapshot completed tool evidence before interrupting the model turn.
+    viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+      persistCurrentSession(
+        model = model,
+        taskId = taskIdToPersist,
+        sessionId = sessionIdToPersist,
+      )
+    }
     runtimeExecutor.interrupt()
     Log.d(TAG, "Done stopping response")
   }
