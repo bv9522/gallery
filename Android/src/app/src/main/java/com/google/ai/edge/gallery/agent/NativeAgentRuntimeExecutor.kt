@@ -237,8 +237,15 @@ class NativeAgentRuntimeExecutor(
         val extraContext = request.metadata[AgentRequest.LITERTLM_EXTRA_CONTEXT] as? Map<String, Any>
           ?: emptyMap()
         AgentExecutionDiagnostics.recordRuntimeStage("Coordinator started")
+        val userTurnId = UUID.randomUUID().toString()
         val result: AgentRunResult =
-          currentCoordinator.run(request.query, contents, extraContext) { toolResult ->
+          currentCoordinator.run(
+            request.query,
+            contents,
+            extraContext,
+            sessionId = sessionId,
+            userTurnId = userTurnId,
+          ) { toolResult ->
             emit(AgentEvent.ToolResult(toolResult))
           }
         AgentExecutionDiagnostics.recordRuntimeStage(
