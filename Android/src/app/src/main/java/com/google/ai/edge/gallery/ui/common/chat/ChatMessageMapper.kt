@@ -23,6 +23,8 @@ import com.google.ai.edge.gallery.agent.sessions.LlmSessionManager
 import com.google.ai.edge.gallery.proto.AudioMessageProto
 import com.google.ai.edge.gallery.proto.ChatMessageProto
 import com.google.ai.edge.gallery.proto.ChatSideProto
+import com.google.ai.edge.gallery.agent.coordinator.AuthoritativeToolResult
+import com.google.gson.JsonParser
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -72,6 +74,19 @@ object ChatMessageMapper {
       val side = mapChatSideProto(protoMsg.side)
 
       when (protoMsg.messageType) {
+        "AUTHORITATIVE_TOOL_RESULT" -> {
+          val structured = protoMsg.structuredValueJson.takeIf { it.isNotEmpty() }
+            ?.let { runCatching { JsonParser.parseString(it) }.getOrNull() }
+          ChatMessageToolResult(
+            AuthoritativeToolResult(
+              toolCallId = protoMsg.toolCallId,
+              toolName = protoMsg.toolName,
+              succeeded = protoMsg.toolSucceeded,
+              rawContent = protoMsg.content,
+              structuredValue = structured,
+            )
+          )
+        }
         "TEXT" ->
           ChatMessageText(
             content = protoMsg.content,
@@ -200,6 +215,17 @@ object ChatMessageMapper {
     withContext(dispatcher) {
       val builder = ChatMessageProto.newBuilder()
       when (msg) {
+        is ChatMessageToolResult -> {
+          builder
+            .setMessageType("AUTHORITATIVE_TOOL_RESULT")
+            .setContent(msg.result.rawContent)
+            .setSide(mapChatSide(msg.side))
+            .setHideSenderLabel(true)
+            .setToolCallId(msg.result.toolCallId)
+            .setToolName(msg.result.toolName)
+            .setToolSucceeded(msg.result.succeeded)
+            .setStructuredValueJson(msg.result.structuredValue?.toString().orEmpty())
+        }
         is ChatMessageText -> {
           builder
             .setMessageType("TEXT")
