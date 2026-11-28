@@ -28,6 +28,7 @@ import com.google.ai.edge.litertlm.ToolProvider
 import com.google.ai.edge.litertlm.tool
 import android.util.Log
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -40,6 +41,41 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+
+/** Narrow conversation boundary so lifecycle/replay behavior can be exercised with fakes. */
+internal interface AgentNativeConversation : Closeable {
+  val automaticToolCalling: Boolean
+  val isAlive: Boolean
+  val toolDescriptions: List<JsonElement>
+  fun getTokenCount(): Int
+  fun sendMessage(message: Message, extraContext: Map<String, Any>): Message
+  fun cancelProcess()
+  /** Production adapters expose their native handle for engine-owned lifecycle bookkeeping. */
+  val nativeConversation: Conversation?
+}
+
+/** Production bridge to the LiteRT-LM conversation; the shared Engine remains outside this wrapper. */
+internal class LiteRtLmConversationAdapter(
+  override val nativeConversation: Conversation,
+) : AgentNativeConversation {
+  override val automaticToolCalling: Boolean
+    get() = nativeConversation.automaticToolCalling
+
+  override val isAlive: Boolean
+    get() = nativeConversation.isAlive
+
+  override val toolDescriptions: List<JsonElement>
+    get() = nativeConversation.toolManager.getToolsDescription()
+
+  override fun getTokenCount(): Int = nativeConversation.getTokenCount()
+
+  override fun sendMessage(message: Message, extraContext: Map<String, Any>): Message =
+    nativeConversation.sendMessage(message, extraContext = extraContext)
+
+  override fun cancelProcess() = nativeConversation.cancelProcess()
+
+  override fun close() = nativeConversation.close()
+}
 
 /**
  * Model-neutral coordinator adapter for a manually-driven LiteRT-LM conversation.
@@ -293,15 +329,15 @@ internal object AgentConversationCompactionPolicy {
 }
 
 class LiteRtLmAgentModel(
-  private var conversation: Conversation,
-  private val conversationFactory: (List<Message>) -> Conversation,
+  private var conversation: AgentNativeConversation,
+  private val conversationFactory: (List<Message>) -> AgentNativeConversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
-  private val onConversationClosed: ((Conversation) -> Unit)? = null,
+  private val onConversationClosed: ((AgentNativeConversation) -> Unit)? = null,
   private val compactAtTokenCount: Int = 3_000,
   private val compactToTokenCount: Int = 2_400,
   private val fullToolRegistry: AgentToolRegistry? = null,
   initialVisibleToolRegistry: AgentToolRegistry? = null,
-  private val groupedConversationFactory: ((List<Message>, AgentToolRegistry) -> Conversation)? = null,
+  private val groupedConversationFactory: ((List<Message>, AgentToolRegistry) -> AgentNativeConversation)? = null,
   initialGroupIds: Set<String> = emptySet(),
 ) : AgentModel, Closeable {
   private val mutex = Mutex()
@@ -313,7 +349,7 @@ class LiteRtLmAgentModel(
   @Volatile private var groupSwitchFailureReason: String? = null
   @Volatile private var closed = false
   private val registeredToolSummaries: List<String> =
-    conversation.toolManager.getToolsDescription().mapNotNull { entry ->
+    conversation.toolDescriptions.mapNotNull { entry ->
       val function = entry.asJsonObject.getAsJsonObject("function") ?: return@mapNotNull null
       val name = function.get("name")?.asString ?: return@mapNotNull null
       val schema = function.getAsJsonObject("parameters")
@@ -337,7 +373,7 @@ class LiteRtLmAgentModel(
   suspend fun currentTokenCount(): Int = mutex.withLock { conversation.getTokenCount() }
 
   /** Current model-visible names, including the always-registered Gallery legacy tools. */
-  fun visibleToolNames(): Set<String> = conversation.toolManager.getToolsDescription().mapNotNull { entry ->
+  fun visibleToolNames(): Set<String> = conversation.toolDescriptions.mapNotNull { entry ->
     entry.asJsonObject.getAsJsonObject("function")?.get("name")?.asString
   }.toSet()
 
