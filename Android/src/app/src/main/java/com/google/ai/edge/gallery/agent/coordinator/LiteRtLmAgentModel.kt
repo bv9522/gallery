@@ -328,7 +328,7 @@ internal object AgentConversationCompactionPolicy {
     else "conversation_rebuild_failed"
 }
 
-class LiteRtLmAgentModel(
+class LiteRtLmAgentModel internal constructor(
   private var conversation: AgentNativeConversation,
   private val conversationFactory: (List<Message>) -> AgentNativeConversation,
   private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
