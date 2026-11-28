@@ -81,6 +81,7 @@ data class ShellExecutionResult(
   val outputTruncated: Boolean = false,
   val error: String? = null,
   val processMayStillBeRunning: Boolean = false,
+  val unavailable: Boolean = false,
 ) {
   val succeeded: Boolean
     get() = error == null && !timedOut && exitCode == 0 && !processMayStillBeRunning
@@ -177,6 +178,7 @@ class ShellExecutionRouter(transports: Map<ShellExecutionBackend, ShellExecution
         stderr = "",
         exitCode = -1,
         error = "Execution backend ${request.backend} is not configured.",
+        unavailable = true,
       )
     return transport.execute(request)
   }
@@ -409,7 +411,11 @@ class UnifiedShellTool(
       } catch (error: Exception) {
         return AgentToolResult("Approval failed: ${error.message ?: error.javaClass.simpleName}", false)
       }
-      if (!approved) return AgentToolResult("Execution denied: user approval was not granted.", false)
+      if (!approved) return AgentToolResult(
+        "Execution denied: user approval was not granted.",
+        false,
+        outcome = AgentToolOutcome.DENIED,
+      )
     }
 
     val result = try {
@@ -449,7 +455,27 @@ class UnifiedShellTool(
         appendLine("Warning: the backend could not confirm that the process group has stopped.")
       }
     }
-    return AgentToolResult(response, result.succeeded)
+    return AgentToolResult(
+      content = response,
+      isSuccessful = result.succeeded,
+      outcome = when {
+        result.unavailable -> AgentToolOutcome.UNAVAILABLE
+        result.timedOut -> AgentToolOutcome.TIMED_OUT
+        result.succeeded -> AgentToolOutcome.SUCCEEDED
+        else -> AgentToolOutcome.FAILED
+      },
+      shellDetails = ShellToolResultDetails(
+        backend = result.backend.name,
+        exitCode = result.exitCode,
+        timedOut = result.timedOut,
+        outputTruncated = result.outputTruncated,
+        stdout = result.stdout,
+        stderr = result.stderr,
+        error = result.error,
+        processMayStillBeRunning = result.processMayStillBeRunning,
+        unavailable = result.unavailable,
+      ),
+    )
   }
 
   private fun JsonObject.string(key: String): String? =
