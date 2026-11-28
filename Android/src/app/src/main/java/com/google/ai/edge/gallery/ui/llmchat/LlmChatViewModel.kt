@@ -528,6 +528,8 @@ open class LlmChatViewModelBase(
             setInProgress(false)
             setPreparing(false)
             AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
+            // Tool evidence is durable even when the model fails after execution.
+            persistCurrentSession(model = model, taskId = currentTaskId)
             onError(event.errorMessage)
           }
           is AgentEvent.LoopCancelled -> {
@@ -537,6 +539,8 @@ open class LlmChatViewModelBase(
             setInProgress(false)
             setPreparing(false)
             AgentExecutionDiagnosticsUi.appendIfAvailable(this@LlmChatViewModelBase, model)
+            // Preserve completed tool results when the model turn is cancelled afterwards.
+            persistCurrentSession(model = model, taskId = currentTaskId)
           }
         }
       }
