@@ -95,6 +95,36 @@ class AuthoritativeAgentResponseAssemblerTest {
   }
 
   @Test
+  fun numericClaimsWithUnitsAreCheckedAndUnsupportedValuesAreReported() {
+    val result = source("android_device_info", """{"temperature_celsius":27.7,"voltage_millivolts":3775}""")
+    val modelText = "Temperature 7.7°C; voltage 775mV."
+    val assembled = AuthoritativeAgentResponseAssembler.assemble(modelText, listOf(result))
+
+    assertFalse(assembled.validation.isConsistent)
+    assertTrue(assembled.validation.unsupportedNumericClaims.containsAll(listOf("7.7", "775")))
+    assertTrue(assembled.text.contains(modelText))
+  }
+
+  @Test
+  fun digitsInStructuredStringFieldsDoNotValidateNumericClaims() {
+    val result = source("android_device_info", """{"battery_percent":27,"device_label":"Build 123"}""")
+    val assembled = AuthoritativeAgentResponseAssembler.assemble("Battery 27%; build 123.", listOf(result))
+
+    assertFalse(assembled.validation.isConsistent)
+    assertTrue(assembled.validation.unsupportedNumericClaims.contains("123"))
+    assertFalse(assembled.validation.unsupportedNumericClaims.contains("27"))
+  }
+
+  @Test
+  fun numericValidationHandlesNestedArraysAndSignedDecimals() {
+    val result = source("android_device_info", """{"values":[-2,0,3.25,{"nested":4.5}]}""")
+    val assembled = AuthoritativeAgentResponseAssembler.assemble("Values: -2, 0, 3.25, and 4.5.", listOf(result))
+
+    assertTrue(assembled.validation.isConsistent)
+    assertEquals(4, assembled.validation.numericClaims)
+  }
+
+  @Test
   fun noAuthoritativeFactsLeavesModelResponseUnchanged() {
     val assembled = AuthoritativeAgentResponseAssembler.assemble("A general explanation with no tool facts.", emptyList())
     assertEquals("A general explanation with no tool facts.", assembled.text)
