@@ -238,7 +238,9 @@ class NativeAgentRuntimeExecutor(
           ?: emptyMap()
         AgentExecutionDiagnostics.recordRuntimeStage("Coordinator started")
         val result: AgentRunResult =
-          currentCoordinator.run(request.query, contents, extraContext)
+          currentCoordinator.run(request.query, contents, extraContext) { toolResult ->
+            emit(AgentEvent.ToolResult(toolResult))
+          }
         AgentExecutionDiagnostics.recordRuntimeStage(
           "Coordinator finished",
           "status=${result.status}, modelTurns=${result.modelTurns}, toolCalls=${result.toolCalls}",
@@ -252,7 +254,7 @@ class NativeAgentRuntimeExecutor(
           ).text
           AgentExecutionDiagnostics.recordDeliveredResponse(finalText)
           AgentExecutionDiagnostics.finish("completed")
-          emit(AgentEvent.StreamToken(token = finalText, done = true))
+          if (finalText.isNotEmpty()) emit(AgentEvent.StreamToken(token = finalText, done = true))
           emit(AgentEvent.LoopTerminated(finalText))
         } else {
           AgentExecutionDiagnostics.finish("failed")
