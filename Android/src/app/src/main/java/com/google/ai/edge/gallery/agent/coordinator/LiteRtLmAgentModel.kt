@@ -64,7 +64,7 @@ internal class LiteRtLmConversationAdapter(
   override val isAlive: Boolean
     get() = nativeConversation.isAlive
 
-  override val toolDescriptions: List<JsonElement>
+  override val toolDescriptions: Iterable<JsonElement>
     get() = nativeConversation.toolManager.getToolsDescription()
 
   override fun getTokenCount(): Int = nativeConversation.getTokenCount()
