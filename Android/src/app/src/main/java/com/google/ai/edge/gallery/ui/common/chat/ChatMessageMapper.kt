@@ -102,6 +102,8 @@ object ChatMessageMapper {
                   unavailable = protoMsg.shellUnavailable,
                 )
               },
+              sessionId = protoMsg.sessionId.takeIf { it.isNotEmpty() },
+              userTurnId = protoMsg.userTurnId.takeIf { it.isNotEmpty() },
             )
           )
         }
@@ -244,6 +246,8 @@ object ChatMessageMapper {
             .setToolSucceeded(msg.result.succeeded)
             .setStructuredValueJson(msg.result.structuredValue?.toString().orEmpty())
             .setToolOutcome(msg.result.outcome.name)
+            .setSessionId(msg.result.sessionId.orEmpty())
+            .setUserTurnId(msg.result.userTurnId.orEmpty())
           msg.result.shellDetails?.let { details ->
             builder
               .setShellBackend(details.backend)
