@@ -35,6 +35,29 @@ interface AgentTool {
   suspend fun execute(arguments: JsonObject): AgentToolResult
 }
 
+/** Explicit presentation status; never inferred from model prose or result strings. */
+enum class AgentToolOutcome {
+  SUCCEEDED,
+  FAILED,
+  DENIED,
+  CANCELLED,
+  TIMED_OUT,
+  UNAVAILABLE,
+}
+
+/** Optional structured shell metadata retained alongside the bounded model-facing text. */
+data class ShellToolResultDetails(
+  val backend: String,
+  val exitCode: Int,
+  val timedOut: Boolean,
+  val outputTruncated: Boolean,
+  val stdout: String,
+  val stderr: String,
+  val error: String? = null,
+  val processMayStillBeRunning: Boolean = false,
+  val unavailable: Boolean = false,
+)
+
 /** Result returned to the model after a tool invocation. */
 data class AgentToolResult(
   val content: String,
@@ -49,4 +72,6 @@ data class AgentToolResult(
    * Objects and arrays can be discovered from [content] without this signal.
    */
   val structuredContent: JsonElement? = null,
+  val outcome: AgentToolOutcome = if (isSuccessful) AgentToolOutcome.SUCCEEDED else AgentToolOutcome.FAILED,
+  val shellDetails: ShellToolResultDetails? = null,
 )
