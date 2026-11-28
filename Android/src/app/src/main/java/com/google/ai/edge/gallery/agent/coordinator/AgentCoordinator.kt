@@ -63,6 +63,8 @@ class AgentCoordinator(
     userInput: String,
     userContents: Contents? = null,
     extraContext: Map<String, Any> = emptyMap(),
+    sessionId: String? = null,
+    userTurnId: String? = null,
     onToolResult: suspend (AuthoritativeToolResult) -> Unit = {},
   ): AgentRunResult =
     runMutex.withLock {
@@ -162,7 +164,9 @@ class AgentCoordinator(
     // Execute sequentially: shell sessions are stateful and ordering must be deterministic.
     calls.forEach { call ->
       val result = executeToolCall(call)
-      val authoritative = AuthoritativeToolResult.capture(call, result, result.content)
+      val authoritative = AuthoritativeToolResult.capture(
+        call, result, result.content, sessionId, userTurnId,
+      )
       authoritativeResults += authoritative
       onToolResult(authoritative)
       messages += AgentMessage(
