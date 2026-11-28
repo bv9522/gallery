@@ -34,6 +34,8 @@ data class AuthoritativeToolResult(
   val structuredValue: JsonElement?,
   val outcome: AgentToolOutcome = if (succeeded) AgentToolOutcome.SUCCEEDED else AgentToolOutcome.FAILED,
   val shellDetails: ShellToolResultDetails? = null,
+  val sessionId: String? = null,
+  val userTurnId: String? = null,
 ) {
   /** Failed, rejected, or budget-rejected results are never authoritative facts. */
   val isEligibleForFacts: Boolean
@@ -44,6 +46,8 @@ data class AuthoritativeToolResult(
       call: AgentModelResponse.ToolCall,
       result: AgentToolResult,
       boundedContent: String,
+      sessionId: String? = null,
+      userTurnId: String? = null,
     ): AuthoritativeToolResult {
       val structured = explicitStructuredValue(result, boundedContent)
         ?: parseStructuredObjectOrArray(boundedContent)
@@ -58,6 +62,8 @@ data class AuthoritativeToolResult(
           if (boundedContent == result.content) details
           else details.copy(stdout = "", stderr = "", outputTruncated = true)
         },
+        sessionId = sessionId,
+        userTurnId = userTurnId,
       )
     }
 
